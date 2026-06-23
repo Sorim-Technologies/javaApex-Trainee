@@ -30,8 +30,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
-from dotenv import load_dotenv
-load_dotenv()
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables from .env file, searching parent directories if needed
+dotenv_path = find_dotenv()
+if dotenv_path:
+    load_dotenv(dotenv_path)
+else:
+    load_dotenv()
 
 
 from services.github_service import GitHubService
@@ -400,10 +406,11 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
 
 @app.get("/api/github/repo-visibility", response_model=RepoVisibilityInfo)
 async def get_github_repo_visibility(repo_url: str, token: str = ""):
-    """Check repository visibility without falling back to the server default token."""
+    """Check repository visibility and use the default server token when no explicit token is provided."""
     try:
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         owner, repo = await github_service.parse_repo_url(repo_url)
-        repo_info = await github_service.get_repo_info(token.strip(), owner, repo)
+        repo_info = await github_service.get_repo_info(effective_token, owner, repo)
 
         return {
             "owner": owner,

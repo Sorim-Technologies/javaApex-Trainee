@@ -17,6 +17,7 @@ export const APP_BASE_URL = (configuredApiUrl || runtimeOrigin).replace(/\/+$/, 
 export const API_BASE_URL = `${APP_BASE_URL}/api`;
 export const GITHUB_AUTH_LOGIN_URL = `${API_BASE_URL}/auth/github/login`;
 
+
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
   const bodyText = await response.text();
