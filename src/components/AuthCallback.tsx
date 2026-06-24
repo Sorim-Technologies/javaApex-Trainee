@@ -9,10 +9,12 @@ const AuthCallback: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     if (code) {
+
       fetch(`${API_BASE_URL}/auth/github/callback?code=${encodeURIComponent(code)}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.access_token) {
+            
             localStorage.setItem("github_token", data.access_token);
             localStorage.setItem("github_user", JSON.stringify(data.user));
             navigate("/");

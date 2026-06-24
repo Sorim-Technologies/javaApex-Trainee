@@ -35,6 +35,22 @@ interface JavaVersionOption {
   label: string;
 }
 
+type RecommendationLevel = "Highly Recommended" | "Recommended" | "Alternative";
+type ConfidenceLevel = "High" | "Medium" | "Low";
+type MigrationEffort = "Low" | "Medium" | "High";
+
+interface RankedJavaVersionRecommendation {
+  javaVersion: string;
+  recommendationLevel: RecommendationLevel;
+  confidenceScore: ConfidenceLevel;
+  description: string;
+  keyBenefits: string[];
+  potentialRisks: string[];
+  migrationEffort: MigrationEffort;
+  isLts: boolean;
+  score: number;
+}
+
 interface PersistedWizardFormState {
   maxVisitedIndicatorStep: number;
   isPrivateRepo: boolean;
@@ -132,6 +148,14 @@ const WIZARD_REPO_URL_KEY = "migration_wizard_repo_url";
 const WIZARD_SELECTED_REPO_KEY = "migration_wizard_selected_repo";
 const WIZARD_REPO_ANALYSIS_KEY = "migration_wizard_repo_analysis";
 const WIZARD_FORM_STATE_KEY = "migration_wizard_form_state";
+const LTS_JAVA_VERSIONS = new Set(["8", "11", "17", "21", "25"]);
+
+const normalizeConfidence = (confidence: string | undefined): ConfidenceLevel => {
+  const normalized = confidence?.toLowerCase() || "";
+  if (normalized.includes("high")) return "High";
+  if (normalized.includes("low")) return "Low";
+  return "Medium";
+};
 
 const readPersistedValue = (key: string) => {
   if (typeof window === "undefined") return null;
@@ -867,6 +891,148 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       return targetVersionNumber !== null && targetVersionNumber > sourceVersionNumber;
     });
   }, [selectedSourceVersion, targetVersions]);
+
+  const rankedJavaRecommendations = useMemo<RankedJavaVersionRecommendation[]>(() => {
+    if (!repoAnalysis || availableTargetVersions.length === 0) {
+      return [];
+    }
+
+    const sourceVersion = parseJavaVersion(selectedSourceVersion);
+    if (sourceVersion === null) return [];
+
+    const availableValues = new Set(availableTargetVersions.map((version) => version.value));
+    const apiRecommendedVersion = versionRecommendation?.recommended_target_version;
+    const apiAlternatives = (versionRecommendation?.alternatives || [])
+      .filter((version) => availableValues.has(version));
+    const candidateValues = Array.from(new Set([
+      ...(apiRecommendedVersion ? [apiRecommendedVersion] : []),
+      ...apiAlternatives,
+      ...availableTargetVersions
+        .filter((version) => LTS_JAVA_VERSIONS.has(version.value))
+        .map((version) => version.value),
+      ...[...availableTargetVersions]
+        .sort((left, right) => Number(right.value) - Number(left.value))
+        .map((version) => version.value),
+    ])).filter((version) => availableValues.has(version));
+
+    const dependencies = repoAnalysis.dependencies || [];
+    const dependencyNames = dependencies.map(
+      (dependency) => `${dependency.group_id}:${dependency.artifact_id}`.toLowerCase()
+    );
+    const hasLegacyJavax = dependencyNames.some((name) => name.includes("javax"));
+    const hasSpring = dependencyNames.some((name) => name.includes("spring"));
+    const hasHibernate = dependencyNames.some((name) => name.includes("hibernate"));
+    const hasBuildConfig = Boolean(
+      repoAnalysis.build_tool ||
+      repoAnalysis.structure?.has_pom_xml ||
+      repoAnalysis.structure?.has_build_gradle
+    );
+    const scored = candidateValues.map((javaVersion) => {
+      const targetVersion = Number(javaVersion);
+      const versionGap = targetVersion - sourceVersion;
+      const isLts = LTS_JAVA_VERSIONS.has(javaVersion);
+      const apiAlternativeIndex = apiAlternatives.indexOf(javaVersion);
+      let score = isLts ? 40 : 4;
+
+      if (javaVersion === apiRecommendedVersion) score += 42;
+      if (apiAlternativeIndex >= 0) score += Math.max(12, 24 - apiAlternativeIndex * 4);
+      if (targetVersion === 25) score += 22;
+      else if (targetVersion === 21) score += 25;
+      else if (targetVersion === 17) score += 20;
+      else if (targetVersion === 11) score += 12;
+      if (versionGap <= 4) score += 14;
+      else if (versionGap <= 8) score += 10;
+      else if (versionGap <= 13) score += 5;
+      else score -= 4;
+      if (!repoAnalysis.has_tests) score -= 5;
+      if (!hasBuildConfig) score -= 7;
+      if (!isLts) score -= 24;
+      if ((hasSpring || hasHibernate) && targetVersion >= 25) score -= 4;
+      if (hasLegacyJavax && targetVersion >= 11) score -= 4;
+
+      let migrationEffort: MigrationEffort = versionGap <= 4 ? "Low" : versionGap <= 10 ? "Medium" : "High";
+      if ((!hasBuildConfig || hasLegacyJavax || dependencies.length > 20) && migrationEffort === "Low") {
+        migrationEffort = "Medium";
+      } else if ((!hasBuildConfig || hasLegacyJavax) && migrationEffort === "Medium") {
+        migrationEffort = "High";
+      }
+
+      let confidenceScore: ConfidenceLevel = "Medium";
+      if (javaVersion === apiRecommendedVersion) {
+        confidenceScore = normalizeConfidence(versionRecommendation?.confidence);
+      } else if (isLts && hasBuildConfig && repoAnalysis.has_tests && versionGap <= 10) {
+        confidenceScore = "High";
+      } else if (!isLts || !hasBuildConfig) {
+        confidenceScore = "Low";
+      }
+
+      const description = targetVersion === 25
+        ? "Newest LTS option with the longest support runway and current JVM improvements."
+        : targetVersion === 21
+          ? "Best balance of stability, performance, and enterprise adoption with strong long-term support."
+          : targetVersion === 17
+            ? "Stable LTS migration target with broad framework support and a mature ecosystem."
+            : targetVersion === 11
+              ? "Conservative LTS upgrade path for legacy applications that need a smaller compatibility step."
+              : "Useful modernization option when project constraints make a major LTS jump harder.";
+
+      const keyBenefits = [
+        isLts
+          ? "LTS version with enterprise adoption"
+          : "Newer Java platform capabilities",
+        targetVersion >= 21
+          ? "Improved JVM performance and security"
+          : "Broad tooling and library compatibility",
+      ];
+
+      const potentialRisks = [
+        versionGap > 10
+          ? `Large Java ${selectedSourceVersion} to Java ${javaVersion} jump may expose removed JDK modules, deprecated APIs, and stricter runtime behavior.`
+          : `Build plugins and all ${dependencies.length} detected dependencies should be validated on Java ${javaVersion}.`,
+        hasLegacyJavax
+          ? "Legacy javax dependencies may require explicit replacements or Jakarta namespace migration."
+          : (hasSpring || hasHibernate)
+            ? "Detected framework versions may need coordinated upgrades before the application can run on this JDK."
+            : "Undetected transitive or runtime-only libraries may still impose a lower Java ceiling.",
+        !repoAnalysis.has_tests
+          ? "Limited automated tests reduce confidence and increase the need for regression testing."
+          : !isLts
+            ? "This is a non-LTS release with a short support window and weaker enterprise suitability."
+            : targetVersion === 25
+              ? "Some older build plugins, application servers, and libraries may not yet certify Java 25."
+              : "Production runtime, CI images, and deployment infrastructure must be upgraded together.",
+      ];
+
+      return {
+        javaVersion,
+        recommendationLevel: "Alternative" as RecommendationLevel,
+        confidenceScore,
+        description,
+        keyBenefits,
+        potentialRisks,
+        migrationEffort,
+        isLts,
+        score,
+      };
+    });
+
+    return scored
+      .sort((left, right) => right.score - left.score)
+      .slice(0, Math.min(5, Math.max(3, scored.length)))
+      .map((recommendation, index) => ({
+        ...recommendation,
+        recommendationLevel: index === 0
+          ? "Highly Recommended"
+          : index <= 2
+            ? "Recommended"
+            : "Alternative",
+      }));
+  }, [
+    availableTargetVersions,
+    repoAnalysis,
+    selectedSourceVersion,
+    versionRecommendation,
+  ]);
 
   const plannedCodeRefactoringTooltip = useMemo(() => {
     const previewDescriptions = migrationPreview
@@ -2931,63 +3097,76 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             <label style={styles.label}>Target Java Version</label>
             {versionRecommendationLoading && (
               <div style={{ ...styles.infoBox, marginBottom: 12 }}>
-                Fetching recommended target Java version from Hugging Face...
+                Analyzing source version, build configuration, frameworks, dependencies, and migration risk...
               </div>
             )}
             {!versionRecommendationLoading && versionRecommendationError && (
-              <div style={{ ...styles.errorBox, marginBottom: 12 }}>
-                {versionRecommendationError}
-              </div>
-            )}
-            {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 16,
-                  borderRadius: 10,
-                  border: "1px solid #bfdbfe",
-                  background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                      Hugging Face Recommendation
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginTop: 4 }}>
-                      Target Java {versionRecommendation.recommended_target_version}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    style={{ ...styles.secondaryBtn, padding: "8px 14px" }}
-                    onClick={() => setSelectedTargetVersion(versionRecommendation.recommended_target_version)}
-                  >
-                    Use recommendation
-                  </button>
-                </div>
-                <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
-                  Confidence: <span style={{ fontWeight: 700, color: "#0f172a" }}>{versionRecommendation.confidence}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
-                  {versionRecommendation.rationale.map((reason, index) => (
-                    <div key={index}>{index + 1}. {reason}</div>
-                  ))}
-                </div>
-                {versionRecommendation.alternatives.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 10 }}>
-                    Alternatives: {versionRecommendation.alternatives.map((value) => `Java ${value}`).join(", ")}
-                  </div>
-                )}
+              <div style={{ ...styles.warningBox, marginBottom: 12, color: "#92400e", fontSize: 13 }}>
+                Remote recommendation unavailable ({versionRecommendationError}). Showing the frontend compatibility ranking instead.
               </div>
             )}
             <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
               <option value="" disabled>Select Java Version</option>
               {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
             </select>
-            <p style={styles.helpText}>Only versions newer than the source Java version are available</p>
+            <p style={styles.helpText}>Choose a ranked recommendation below or manually select any newer supported version.</p>
           </div>
         </div>
+
+      {!versionRecommendationLoading && rankedJavaRecommendations.length > 0 && (
+        <section className="java-recommendations" aria-labelledby="java-recommendations-title">
+          <div className="java-recommendations__header">
+            <div>
+              <div className="java-recommendations__eyebrow">Migration compatibility analysis</div>
+              <h3 id="java-recommendations-title">Ranked target Java versions</h3>
+              <p>
+                Compact ranking based on source version, build setup, dependencies, LTS support,
+                security, performance, and enterprise adoption.
+              </p>
+            </div>
+            <div className="java-recommendations__count">
+              {rankedJavaRecommendations.length} options analyzed
+            </div>
+          </div>
+
+          <div className="java-recommendations__list">
+            {rankedJavaRecommendations.map((recommendation, index) => {
+              const isSelected = selectedTargetVersion === recommendation.javaVersion;
+              return (
+                <article
+                  key={recommendation.javaVersion}
+                  className={`java-recommendation-card${isSelected ? " java-recommendation-card--selected" : ""}`}
+                >
+                  <div className="java-recommendation-card__top">
+                    <div className="java-recommendation-card__rank">#{index + 1}</div>
+                    <div className="java-recommendation-card__title">
+                      <span>Java {recommendation.javaVersion}</span>
+                      <span className={`java-recommendation-card__level java-recommendation-card__level--${recommendation.recommendationLevel.toLowerCase().replaceAll(" ", "-")}`}>
+                        {recommendation.recommendationLevel}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`java-recommendation-card__select${isSelected ? " java-recommendation-card__select--selected" : ""}`}
+                      onClick={() => setSelectedTargetVersion(recommendation.javaVersion)}
+                    >
+                      {isSelected ? "Selected" : "Select version"}
+                    </button>
+                  </div>
+
+                  <p className="java-recommendation-card__description">
+                    {recommendation.description}
+                  </p>
+
+                  <ul className="java-recommendation-card__benefits">
+                    {recommendation.keyBenefits.slice(0, 2).map((benefit) => <li key={benefit}>{benefit}</li>)}
+                  </ul>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <div style={styles.field}>
         <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
