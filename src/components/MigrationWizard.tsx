@@ -2716,6 +2716,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             </div>
           </div>
         </>
+        
       )}
 
       <div style={styles.btnRow}>
@@ -2767,6 +2768,146 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
           )}
+{repoAnalysis.api_endpoints_by_method && (
+      <div
+        style={{
+          marginTop: 24,
+          padding: 20,
+          background: "#f8fafc",
+          border: "1px solid #e2e8f0",
+          borderRadius: 12,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            color: "#1e293b",
+            marginBottom: 16,
+          }}
+        >
+          🔗 API Endpoint Detection
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          {Object.entries(repoAnalysis.api_endpoints_by_method).map(([method, endpoints]) => (
+            <div
+              key={method}
+              style={{
+                padding: 14,
+                background: "#ffffff",
+                border: "1px solid #e5e7eb",
+                borderRadius: 10,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#475569",
+                  marginBottom: 6,
+                }}
+              >
+                {method}
+              </div>
+              <div
+                style={{
+                  fontSize: 24,
+                  fontWeight: 800,
+                  color:
+                    method === "GET"
+                      ? "#2563eb"
+                      : method === "POST"
+                      ? "#16a34a"
+                      : method === "PUT"
+                      ? "#ca8a04"
+                      : method === "DELETE"
+                      ? "#dc2626"
+                      : "#64748b",
+                }}
+              >
+                {endpoints.length}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {Object.entries(repoAnalysis.api_endpoints_by_method).map(([method, endpoints]) => (
+          endpoints.length > 0 && (
+            <div key={method} style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#0f172a",
+                  marginBottom: 10,
+                }}
+              >
+                {method} APIs
+              </div>
+
+              <div style={{ overflowX: "auto" }}>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    background: "#ffffff",
+                    borderRadius: 10,
+                    overflow: "hidden",
+                  }}
+                >
+                  <thead>
+                    <tr style={{ background: "#e2e8f0" }}>
+                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
+                        API Method Name
+                      </th>
+                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
+                        API Path
+                      </th>
+                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
+                        File
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {endpoints.map((api, index) => (
+                      <tr key={index} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        <td style={{ padding: 12, fontSize: 13, fontWeight: 600 }}>
+                          {api.name}
+                        </td>
+                        <td style={{ padding: 12, fontSize: 13 }}>
+                          <code
+                            style={{
+                              background: "#f1f5f9",
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              color: "#1d4ed8",
+                            }}
+                          >
+                            {api.path}
+                          </code>
+                        </td>
+                        <td style={{ padding: 12, fontSize: 13, color: "#475569" }}>
+                          {api.file}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        ))}
+      </div> 
+ )}
         </>
       )}
 

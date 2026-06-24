@@ -10,7 +10,6 @@ import asyncio
 sys.path.append('java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend')
 
 from services.github_service import GitHubService
-
 async def test_java_version_detection():
     """Test Java version detection on a simple Java 1.0 file"""
 

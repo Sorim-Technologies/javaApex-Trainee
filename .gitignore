@@ -6,6 +6,10 @@ node_modules/
 # Testing
 coverage/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Production
 dist/
 dist-ssr/
@@ -14,6 +18,7 @@ dist-ssr/
 # Misc
 .DS_Store
 .env
+.env.production
 .env.local
 .env.development.local
 .env.test.local

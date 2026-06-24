@@ -235,6 +235,43 @@ class DependencyInfo(BaseModel):
     status: str  # "upgraded", "compatible", "needs_manual_review"
 
 
+class ApiEndpointInfo(BaseModel):
+    name: str = Field(default="Unnamed API", description="Detected Java handler method name")
+    path: str = Field(default="/", description="Resolved API route path")
+    method: str = Field(default="GET", description="HTTP method")
+    file: str = Field(default="", description="Java file where the endpoint was found")
+
+
+class RepoStructureInfo(BaseModel):
+    has_pom_xml: bool = False
+    has_build_gradle: bool = False
+    has_src_main: bool = False
+    has_src_test: bool = False
+
+
+class RepoAnalysisInfo(BaseModel):
+    name: str = ""
+    full_name: str = ""
+    default_branch: str = ""
+    language: Optional[str] = None
+    build_tool: Optional[str] = None
+    java_version: Optional[str] = None
+    java_version_from_build: Optional[str] = None
+    java_files: List[str] = Field(default_factory=list)
+    has_tests: bool = False
+    dependencies: List[DependencyInfo] = Field(default_factory=list)
+    api_endpoints: List[ApiEndpointInfo] = Field(default_factory=list)
+    api_endpoints_by_method: Dict[str, List[Dict[str, str]]] = Field(default_factory=dict)
+    structure: RepoStructureInfo = Field(default_factory=RepoStructureInfo)
+
+
+class RepoUrlAnalysisInfo(BaseModel):
+    repo_url: str
+    owner: str
+    repo: str
+    analysis: RepoAnalysisInfo
+
+
 class MigrationResult(BaseModel):
     job_id: str
     status: MigrationStatus
@@ -340,7 +377,7 @@ async def list_github_repos(token: str):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-@app.get("/api/github/repo/{owner}/{repo}/analyze")
+@app.get("/api/github/repo/{owner}/{repo}/analyze", response_model=RepoAnalysisInfo)
 async def analyze_repository(owner: str, repo: str, token: str = ""):
     """Analyze a repository to detect Java version, dependencies, and structure"""
     try:
@@ -368,7 +405,7 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
 
 # New endpoints for direct repo URL input
 
-@app.get("/api/github/analyze-url")
+@app.get("/api/github/analyze-url", response_model=RepoUrlAnalysisInfo)
 async def analyze_repo_url(repo_url: str, token: str = ""):
     """Analyze a repository directly by URL (token only needed for private repos or higher rate limits)"""
     try:

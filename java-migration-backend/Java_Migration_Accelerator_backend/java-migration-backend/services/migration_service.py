@@ -320,8 +320,16 @@ class MigrationService:
             "source_files": 0,
             "test_files": 0,
             "api_endpoints": [],
+            "api_endpoints_by_method": {
+                "GET": [],
+                "POST": [],
+                "PUT": [],
+                "DELETE": [],
+                "PATCH": [],
+                "OTHER": [],
+            },
             "java_files": [],
-            "structure_warning": None
+            "structure_warning": None,
         }
 
         # Check for build tool
@@ -380,6 +388,13 @@ class MigrationService:
         # Default Java version if still not detected
         if analysis["java_version"] is None:
             analysis["java_version"] = "8"  # Default assumption
+
+        if not analysis["api_endpoints"]:
+            analysis["api_endpoints"] = await self._detect_api_endpoints(project_path)
+
+        analysis["api_endpoints_by_method"] = self._group_api_endpoints_by_method(
+            analysis["api_endpoints"]
+        )
 
         return analysis
     
@@ -625,7 +640,14 @@ class MigrationService:
         for method, pattern in spring_patterns:
             for match in re.finditer(pattern, content, re.DOTALL):
                 sub_path = self._extract_mapping_path(match.group(1) or "")
+
+                api_name = self._extract_java_method_name_after_annotation(
+                    content,
+                    match.end()
+                )
+
                 endpoints.append({
+                    "name": api_name,
                     "path": self._join_endpoint_paths(class_base_path, sub_path),
                     "method": method,
                     "file": file_name,
@@ -636,7 +658,13 @@ class MigrationService:
             method_match = re.search(r'RequestMethod\.([A-Z]+)', annotation_args)
             sub_path = self._extract_mapping_path(annotation_args)
             if method_match:
+                api_name = self._extract_java_method_name_after_annotation(
+                    content,
+                    match.end()
+                )
+
                 endpoints.append({
+                    "name": api_name,
                     "path": self._join_endpoint_paths(class_base_path, sub_path),
                     "method": method_match.group(1),
                     "file": file_name,
@@ -649,7 +677,13 @@ class MigrationService:
         ):
             method = match.group(1)
             sub_path = match.group(3) or ""
+            api_name = self._extract_java_method_name_after_annotation(
+                content,
+                match.end(),
+            )
+
             endpoints.append({
+                "name": api_name,
                 "path": self._join_endpoint_paths(class_base_path, sub_path),
                 "method": method,
                 "file": file_name,
@@ -678,6 +712,49 @@ class MigrationService:
         if not parts:
             return "/"
         return "/" + "/".join(parts)
+    
+    def _extract_java_method_name_after_annotation(self, content: str, start_index: int) -> str:
+        """Extract Java method name after mapping annotation"""
+
+        method_area = content[start_index:start_index + 500]
+
+        method_match = re.search(
+            r'(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\],\s]+\s+(\w+)\s*\(',
+            method_area
+        )
+
+        if method_match:
+            return method_match.group(1)
+
+        return "Unnamed API"
+
+    def _group_api_endpoints_by_method(self, endpoints: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Group API endpoints by GET, POST, PUT, DELETE, PATCH"""
+
+        grouped_endpoints = {
+            "GET": [],
+            "POST": [],
+            "PUT": [],
+            "DELETE": [],
+            "PATCH": [],
+            "OTHER": []
+        }
+
+        for endpoint in endpoints:
+            method = endpoint.get("method", "OTHER").upper()
+
+            endpoint_data = {
+                "name": endpoint.get("name", "Unnamed API"),
+                "path": endpoint.get("path", "/"),
+                "file": endpoint.get("file", "Unknown file")
+            }
+
+            if method in grouped_endpoints:
+                grouped_endpoints[method].append(endpoint_data)
+            else:
+                grouped_endpoints["OTHER"].append(endpoint_data)
+
+        return grouped_endpoints
     
     async def run_migration(
         self,
