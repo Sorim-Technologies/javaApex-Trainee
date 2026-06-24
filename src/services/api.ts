@@ -242,7 +242,21 @@ export interface RepoAnalysis {
   java_files?: string[];
   has_tests: boolean;
   dependencies: DependencyInfo[];
-  api_endpoints: { path: string; method: string; file: string }[];
+  api_endpoints: {
+  name?: string;
+  path: string;
+  method: string;
+  file: string;
+}[];
+
+api_endpoints_by_method?: {
+  GET: { name: string; path: string; file: string }[];
+  POST: { name: string; path: string; file: string }[];
+  PUT: { name: string; path: string; file: string }[];
+  DELETE: { name: string; path: string; file: string }[];
+  PATCH: { name: string; path: string; file: string }[];
+  OTHER: { name: string; path: string; file: string }[];
+};
   structure: {
     has_pom_xml: boolean;
     has_build_gradle: boolean;

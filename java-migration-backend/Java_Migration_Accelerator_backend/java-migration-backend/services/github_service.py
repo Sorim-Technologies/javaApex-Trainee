@@ -141,7 +141,14 @@ class GitHubService:
                 "java_version": None,
                 "has_tests": False,
                 "dependencies": [],
-                "api_endpoints": [],
+                "api_endpoints_by_method": {
+                  "GET": [],
+                  "POST": [],
+                  "PUT": [],
+                  "DELETE": [],
+                  "PATCH": [],
+                  " OTHER": []
+         },
                 "structure": {
                     "has_pom_xml": False,
                     "has_build_gradle": False,
@@ -239,8 +246,10 @@ class GitHubService:
                         analysis["java_version"] = await self._detect_java_version_from_repo(repository)
 
                 if is_java_project:
-                    analysis["api_endpoints"] = await self._detect_api_endpoints_in_repo(repository)
-
+                 analysis["api_endpoints"] = await self._detect_api_endpoints_in_repo(repository)
+                 analysis["api_endpoints_by_method"] = self._group_api_endpoints_by_method(
+                 analysis["api_endpoints"]
+    )
                 if include_deep_analysis:
                     # COMPREHENSIVE FILE ANALYSIS - Full analysis of all files and folders
                     print("[ANALYSIS] Starting comprehensive analysis of ALL files and folders...")
@@ -1063,7 +1072,9 @@ class GitHubService:
         for method, pattern in spring_patterns:
             for match in re.finditer(pattern, content, re.DOTALL):
                 sub_path = self._extract_mapping_path(match.group(1) or "")
+                api_name = self._extract_java_method_name_after_annotation(content, match.end())
                 endpoints.append({
+                    "name": api_name,
                     "path": self._join_endpoint_paths(class_base_path, sub_path),
                     "method": method,
                     "file": file_name,
@@ -1074,7 +1085,9 @@ class GitHubService:
             method_match = re.search(r'RequestMethod\.([A-Z]+)', annotation_args)
             sub_path = self._extract_mapping_path(annotation_args)
             if method_match:
+                api_name = self._extract_java_method_name_after_annotation(content, match.end())
                 endpoints.append({
+                    "name": api_name,
                     "path": self._join_endpoint_paths(class_base_path, sub_path),
                     "method": method_match.group(1),
                     "file": file_name,
@@ -1084,7 +1097,9 @@ class GitHubService:
         for match in re.finditer(r'@(GET|POST|PUT|DELETE|PATCH)\b(?:(?!@(GET|POST|PUT|DELETE|PATCH)\b).)*?(?:@Path\s*\(\s*["\']([^"\']*)["\']\s*\))?', content, re.DOTALL):
             method = match.group(1)
             sub_path = match.group(3) or ""
+            api_name = self._extract_java_method_name_after_annotation(content, match.end())
             endpoints.append({
+                "name": api_name,
                 "path": self._join_endpoint_paths(jaxrs_class_base, sub_path),
                 "method": method,
                 "file": file_name,
@@ -1113,6 +1128,43 @@ class GitHubService:
         if not parts:
             return "/"
         return "/" + "/".join(parts)
+
+    def _extract_java_method_name_after_annotation(self, content: str, start_index: int) -> str:
+        """Extract the Java handler method name after a mapping annotation."""
+        method_area = content[start_index:start_index + 500]
+        method_match = re.search(
+            r'(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\],\s]+\s+(\w+)\s*\(',
+            method_area,
+        )
+        return method_match.group(1) if method_match else "Unnamed API"
+    
+    def _group_api_endpoints_by_method(self, endpoints: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Group API endpoints by GET, POST, PUT, DELETE, PATCH"""
+
+        grouped_endpoints = {
+            "GET": [],
+            "POST": [],
+            "PUT": [],
+            "DELETE": [],
+            "PATCH": [],
+            "OTHER": []
+        }
+
+        for endpoint in endpoints:
+            method = endpoint.get("method", "OTHER").upper()
+
+            endpoint_data = {
+                "name": endpoint.get("name", "Unnamed API"),
+                "path": endpoint.get("path", "/"),
+                "file": endpoint.get("file", "Unknown file")
+            }
+
+            if method in grouped_endpoints:
+                grouped_endpoints[method].append(endpoint_data)
+            else:
+                grouped_endpoints["OTHER"].append(endpoint_data)
+
+        return grouped_endpoints
 
     async def _detect_java_version_from_repo(self, repository) -> str:
         """Detect Java version by analyzing source files using automation packages (javalang, pylint, etc.)"""
