@@ -1,17 +1,17 @@
-/* Java Migration Accelerator - Premium Modern UI */
+/* Java Migration Accelerator - Professional Product UI */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* CSS Variables */
 :root {
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --secondary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --primary-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --secondary-gradient: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
   --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
   --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   --danger-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   --glass-bg: rgba(255, 255, 255, 0.85);
   --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 20px 60px rgba(0, 0, 0, 0.12);
-  --shadow-colored: 0 15px 40px rgba(99, 102, 241, 0.25);
+  --shadow-colored: 0 15px 40px rgba(37, 99, 235, 0.2);
 }
 
 /* Animations */
@@ -86,7 +86,7 @@
 
 /* Header Gradient */
 .wizard-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   animation: gradientFlow 15s ease infinite;
   background-size: 200% 200%;
 }
@@ -99,9 +99,9 @@
 
 /* Button Hover Effects */
 .btn-primary:hover {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
   transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 15px 30px rgba(37, 99, 235, 0.3);
 }
 
 .btn-secondary:hover {
@@ -112,15 +112,15 @@
 /* Input Focus Effects */
 .input-focus:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
 }
 
 /* Step Indicator Active */
 .step-active {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: white;
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -131,7 +131,7 @@
 
 /* Progress Bar Gradient */
 .progress-gradient {
-  background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7, #8b5cf6, #6366f1);
+  background: linear-gradient(90deg, #2563eb, #3b82f6, #1d4ed8, #3b82f6, #2563eb);
   background-size: 200% 100%;
   animation: shimmer 2s linear infinite;
 }
@@ -148,16 +148,16 @@
 /* File Item Hover */
 .file-item:hover {
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border-color: #6366f1;
-  transform: translateX(8px);
-  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.15);
+  border-color: #2563eb;
+  transform: translateX(4px);
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.12);
 }
 
 /* Conversion Item Selected */
 .conversion-selected {
-  border-color: #6366f1 !important;
-  background: linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%) !important;
-  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.25);
+  border-color: #2563eb !important;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%) !important;
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.18);
   animation: glow 2s ease-in-out infinite;
 }
 
@@ -201,13 +201,13 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #6366f1, #8b5cf6);
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
   border-radius: 10px;
   border: 2px solid #f1f5f9;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #4f46e5, #7c3aed);
+  background: linear-gradient(180deg, #1d4ed8, #1e40af);
 }
 
 /* Badge Styles */
@@ -230,9 +230,9 @@
 }
 
 .badge-info {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: white;
-  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.24);
 }
 
 /* Metric Card */
@@ -245,7 +245,7 @@
 .metric-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
-  border-color: #6366f1;
+  border-color: #2563eb;
 }
 
 /* Quality Gate */
@@ -272,7 +272,7 @@
   left: -100%;
   width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, transparent, #6366f1, #8b5cf6, transparent);
+  background: linear-gradient(90deg, transparent, #2563eb, #3b82f6, transparent);
   animation: borderSlide 2s linear infinite;
 }
 
@@ -288,7 +288,7 @@
   left: 100%;
   width: 40px;
   height: 3px;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
   border-radius: 3px;
 }
 
@@ -299,9 +299,9 @@
 
 .repo-card:hover {
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border-color: #6366f1;
-  transform: scale(1.02) translateY(-4px);
-  box-shadow: 0 15px 35px rgba(99, 102, 241, 0.15);
+  border-color: #2563eb;
+  transform: translateY(-3px);
+  box-shadow: 0 15px 35px rgba(37, 99, 235, 0.12);
 }
 
 /* Log Entry Animation */
@@ -338,7 +338,7 @@
 .premium-card {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   border: 2px solid transparent;
-  border-radius: 20px;
+  border-radius: 10px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -352,26 +352,26 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7);
+  background: linear-gradient(90deg, #2563eb, #3b82f6, #1d4ed8);
 }
 
 .premium-card:hover {
   transform: translateY(-8px);
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: rgba(37, 99, 235, 0.24);
 }
 
 /* Icon Container */
 .icon-container {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  background: linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
 }
 
 /* Stat Value */
@@ -417,8 +417,8 @@
 
 .status-pill-info {
   background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
-  color: #4f46e5;
-  border: 2px solid #a5b4fc;
+  color: #2563eb;
+  border: 2px solid #93c5fd;
 }
 
 /* Code Block */
@@ -459,6 +459,23 @@
   content: '';
   width: 4px;
   height: 24px;
-  background: linear-gradient(180deg, #6366f1, #8b5cf6);
+  background: linear-gradient(180deg, #2563eb, #3b82f6);
   border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+  .migration-wizard {
+    font-size: 14px;
+  }
+
+  .step-connector::after {
+    width: 24px;
+  }
+
+  .card-hover:hover,
+  .metric-card:hover,
+  .premium-card:hover,
+  .repo-card:hover {
+    transform: none;
+  }
 }

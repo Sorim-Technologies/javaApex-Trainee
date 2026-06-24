@@ -11,7 +11,9 @@ export default function App() {
       <AppShell>
         <Routes>
           <Route path="/auth/callback" element={<AuthCallback />} />
+         
           <Route path="/*" element={<MigrationWizard />} />
+        
         </Routes>
       </AppShell>
     </BrowserRouter>

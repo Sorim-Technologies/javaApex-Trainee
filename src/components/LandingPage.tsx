@@ -1,10 +1,11 @@
 import React from "react";
+import { FiArrowRight, FiCheckCircle, FiGithub, FiSearch, FiShield, FiZap } from "react-icons/fi";
 import Header from "./Header";
 import Footer from "./Footer";
 import apexLogo from "../assets/apexlogo.png";
 import { GITHUB_AUTH_LOGIN_URL } from "../services/api";
 
-export default function LandingPage({ onStart }: { onStart: () => void }) {
+function LegacyLandingPage({ onStart }: { onStart: () => void }) {
   const styles: { [key: string]: React.CSSProperties } = {
     container: {
       minHeight: "100vh",
@@ -292,6 +293,252 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
           </button>
         </div>
       </div>
+
+      <Footer />
+    </div>
+  );
+}
+
+export default function LandingPage({ onStart }: { onStart: () => void }) {
+  const styles: { [key: string]: React.CSSProperties } = {
+    container: {
+      minHeight: "100vh",
+      background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 48%, #f1f5f9 100%)",
+      color: "#1e293b",
+      display: "flex",
+      flexDirection: "column",
+      width: "100%",
+      overflow: "hidden",
+    },
+    hero: {
+      flex: 1,
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 0.9fr)",
+      gap: 40,
+      alignItems: "center",
+      padding: "72px 32px",
+      maxWidth: 1180,
+      margin: "0 auto",
+      width: "100%",
+      boxSizing: "border-box",
+    },
+    eyebrow: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "8px 12px",
+      borderRadius: 999,
+      background: "#eff6ff",
+      border: "1px solid #bfdbfe",
+      color: "#2563eb",
+      fontSize: 13,
+      fontWeight: 800,
+      marginBottom: 18,
+    },
+    headline: {
+      fontSize: 52,
+      fontWeight: 900,
+      marginBottom: 18,
+      letterSpacing: 0,
+      lineHeight: 1.04,
+      color: "#0f172a",
+    },
+    highlightedText: {
+      color: "#2563eb",
+    },
+    description: {
+      fontSize: 17,
+      color: "#475569",
+      lineHeight: 1.75,
+      maxWidth: 680,
+      marginBottom: 28,
+      fontWeight: 500,
+    },
+    ctaContainer: {
+      display: "flex",
+      gap: 12,
+      flexWrap: "wrap",
+      marginBottom: 34,
+    },
+    primaryBtn: {
+      backgroundColor: "#2563eb",
+      color: "#fff",
+      padding: "13px 22px",
+      borderRadius: 8,
+      border: "none",
+      fontWeight: 800,
+      fontSize: 14,
+      cursor: "pointer",
+      transition: "all 0.2s ease",
+      boxShadow: "0 12px 24px rgba(37,99,235,0.24)",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 9,
+    },
+    secondaryBtn: {
+      backgroundColor: "#fff",
+      color: "#2563eb",
+      padding: "13px 22px",
+      borderRadius: 8,
+      border: "1px solid #bfdbfe",
+      fontWeight: 800,
+      fontSize: 14,
+      cursor: "pointer",
+      transition: "all 0.2s ease",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 9,
+    },
+    proofRow: {
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+      color: "#64748b",
+      fontSize: 13,
+      fontWeight: 700,
+    },
+    proofPill: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 7,
+      padding: "8px 10px",
+      borderRadius: 999,
+      background: "#fff",
+      border: "1px solid #e2e8f0",
+    },
+    panel: {
+      background: "#fff",
+      border: "1px solid #e2e8f0",
+      borderRadius: 12,
+      boxShadow: "0 22px 54px rgba(15,23,42,0.1)",
+      padding: 24,
+    },
+    panelHeader: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      paddingBottom: 18,
+      marginBottom: 18,
+      borderBottom: "1px solid #e2e8f0",
+    },
+    panelLogo: {
+      width: 46,
+      height: 46,
+      borderRadius: 10,
+      border: "1px solid #e2e8f0",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "#f8fafc",
+    },
+    features: {
+      display: "grid",
+      gap: 12,
+    },
+    featureCard: {
+      padding: 16,
+      borderRadius: 8,
+      border: "1px solid #e2e8f0",
+      backgroundColor: "#fff",
+      display: "flex",
+      gap: 13,
+      alignItems: "flex-start",
+    },
+    featureIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      background: "#eff6ff",
+      color: "#2563eb",
+      border: "1px solid #bfdbfe",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flex: "0 0 auto",
+    },
+    featureTitle: {
+      fontSize: 15,
+      fontWeight: 800,
+      marginBottom: 4,
+      color: "#1e293b",
+    },
+    featureDesc: {
+      fontSize: 13,
+      color: "#64748b",
+      lineHeight: 1.55,
+    },
+  };
+
+  const features = [
+    { icon: <FiZap />, title: "Fast Migration", desc: "Automated refactoring and code transformation in minutes." },
+    { icon: <FiSearch />, title: "Deep Analysis", desc: "Dependency, framework, build tool, and Java version discovery." },
+    { icon: <FiShield />, title: "Quality Assurance", desc: "Testing, security checks, and review-ready migration output." },
+  ];
+
+  return (
+    <div style={styles.container}>
+      <Header />
+
+      <main style={styles.hero}>
+        <section>
+          <div style={styles.eyebrow}>
+            <FiCheckCircle />
+            Java modernization platform
+          </div>
+          <h1 style={styles.headline}>
+            Modernize Java apps with <span style={styles.highlightedText}>confidence</span>.
+          </h1>
+          <p style={styles.description}>
+            JavaApex helps teams analyze repositories, plan migrations, run automated refactors, and review the result in one guided product workflow.
+          </p>
+
+          <div style={styles.ctaContainer}>
+            <button style={styles.primaryBtn} onClick={onStart}>
+              Start Migration
+              <FiArrowRight />
+            </button>
+            <button
+              style={styles.secondaryBtn}
+              onClick={() => {
+                window.location.href = GITHUB_AUTH_LOGIN_URL;
+              }}
+            >
+              <FiGithub />
+              Connect GitHub
+            </button>
+          </div>
+
+          <div style={styles.proofRow}>
+            <span style={styles.proofPill}>Java 8 to latest</span>
+            <span style={styles.proofPill}>OpenRewrite ready</span>
+            <span style={styles.proofPill}>Report included</span>
+          </div>
+        </section>
+
+        <aside style={styles.panel}>
+          <div style={styles.panelHeader}>
+            <div style={styles.panelLogo}>
+              <img src={apexLogo} alt="javaAPEX" style={{ width: 32, height: 32, objectFit: "contain" }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: "#1e293b" }}>Migration Command Center</div>
+              <div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>Analyze, plan, migrate, and report</div>
+            </div>
+          </div>
+
+          <div style={styles.features}>
+            {features.map((feature) => (
+              <div key={feature.title} style={styles.featureCard}>
+                <div style={styles.featureIcon}>{feature.icon}</div>
+                <div>
+                  <div style={styles.featureTitle}>{feature.title}</div>
+                  <div style={styles.featureDesc}>{feature.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </main>
 
       <Footer />
     </div>
