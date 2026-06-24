@@ -1,7 +1,6 @@
 import React from "react";
 import Header from "./Header";
 import Footer from "./Footer";
-import apexLogo from "../assets/apexlogo.png";
 import { GITHUB_AUTH_LOGIN_URL } from "../services/api";
 
 export default function LandingPage({ onStart }: { onStart: () => void }) {
@@ -12,11 +11,11 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
       color: "var(--text)",
       display: "flex",
       flexDirection: "column",
-      width: "100vw",
+      width: "100%",
       margin: 0,
       padding: 0,
       boxSizing: "border-box",
-      overflowX: "hidden",
+      overflowX: "clip",
     },
     navbar: {
       display: "flex",
@@ -67,20 +66,20 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
       justifyContent: "center",
       alignItems: "center",
       textAlign: "center",
-      padding: "60px 40px",
+      padding: "clamp(40px, 7vw, 80px) clamp(16px, 5vw, 40px)",
       maxWidth: 1200,
       margin: "0 auto",
       width: "100%",
     },
     headline: {
-      fontSize: 64,
+      fontSize: "clamp(40px, 7vw, 64px)",
       fontWeight: 800,
       marginBottom: 20,
-      letterSpacing: "-1px",
+      letterSpacing: 0,
       color: "var(--text)",
     },
     highlightedText: {
-      fontSize: 64,
+      fontSize: "clamp(40px, 7vw, 64px)",
       fontWeight: 800,
       background: "var(--primary-gradient)",
       WebkitBackgroundClip: "text",
@@ -89,7 +88,7 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
       marginBottom: 30,
     },
     description: {
-      fontSize: 18,
+      fontSize: "clamp(16px, 2vw, 18px)",
       color: "var(--muted)",
       lineHeight: 1.8,
       maxWidth: 700,
@@ -105,7 +104,7 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
     primaryBtn: {
       backgroundColor: "var(--primary)",
       color: "var(--on-primary)",
-      padding: "16px 40px",
+      padding: "14px 28px",
       borderRadius: 8,
       border: "none",
       fontWeight: 700,
@@ -117,7 +116,7 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
     secondaryBtn: {
       backgroundColor: "transparent",
       color: "var(--primary)",
-      padding: "16px 40px",
+      padding: "14px 28px",
       borderRadius: 8,
       border: "2px solid var(--primary)",
       fontWeight: 700,
@@ -132,7 +131,7 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
     },
     features: {
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+      gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))",
       gap: 30,
       width: "100%",
       marginBottom: 60,
@@ -149,7 +148,7 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
       marginBottom: 12,
     },
     featureTitle: {
-      fontSize: 18,
+      fontSize: "clamp(16px, 2vw, 18px)",
       fontWeight: 700,
       marginBottom: 10,
       color: "var(--text)",

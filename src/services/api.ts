@@ -37,7 +37,10 @@ async function parseJsonResponse<T>(response: Response, fallbackMessage: string)
       errorMessage = detail;
     } else if (Array.isArray(detail) && detail.length > 0) {
       errorMessage = detail
-        .map((item: any) => item?.msg || item?.message || JSON.stringify(item))
+        .map((item: unknown) => {
+          const record = item as Record<string, unknown>;
+          return record?.msg || record?.message || JSON.stringify(item);
+        })
         .join("; ");
     } else if (detail && typeof detail === "object") {
       errorMessage = detail.msg || detail.message || JSON.stringify(detail);
@@ -438,7 +441,7 @@ export async function getMigrationFossa(jobId: string): Promise<{
     license_issues = payload.license_issues;
   } else if (payload.licenses && typeof payload.licenses === 'object') {
     // Heuristic: count UNKNOWN licenses or sum non-empty license counts
-    license_issues = payload.licenses.UNKNOWN || Object.values(payload.licenses).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
+    license_issues = payload.licenses.UNKNOWN || Object.values(payload.licenses).reduce((s: number, v: unknown) => s + (Number(v) || 0), 0);
   }
 
   // Sum vulnerabilities counts if provided as an object
@@ -446,13 +449,16 @@ export async function getMigrationFossa(jobId: string): Promise<{
   if (typeof payload.vulnerabilities === 'number') {
     vulnerabilities = payload.vulnerabilities;
   } else if (payload.vulnerabilities && typeof payload.vulnerabilities === 'object') {
-    vulnerabilities = Object.values(payload.vulnerabilities).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
+    vulnerabilities = Object.values(payload.vulnerabilities).reduce((s: number, v: unknown) => s + (Number(v) || 0), 0);
   }
 
   // Count outdated dependencies if the dependencies list contains status field
   let outdated_dependencies = 0;
   if (Array.isArray(payload.dependencies)) {
-    outdated_dependencies = payload.dependencies.filter((d: any) => d.status === 'outdated' || d.status === 'out-of-date' || d.outdated === true).length;
+    outdated_dependencies = payload.dependencies.filter((d: unknown) => {
+      const dependency = d as Record<string, unknown>;
+      return dependency.status === 'outdated' || dependency.status === 'out-of-date' || dependency.outdated === true;
+    }).length;
   } else if (typeof payload.outdated_dependencies === 'number') {
     outdated_dependencies = payload.outdated_dependencies;
   }

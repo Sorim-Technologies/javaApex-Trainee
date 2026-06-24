@@ -5,7 +5,7 @@ function getInitialTheme(): string {
     const stored = localStorage.getItem("theme");
     if (stored) return stored;
     if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
-  } catch (e) {
+  } catch {
     /* ignore */
   }
   return "light";
@@ -19,7 +19,9 @@ export default function useTheme() {
     else document.documentElement.classList.remove("theme-dark");
     try {
       localStorage.setItem("theme", theme);
-    } catch (e) {}
+    } catch {
+      /* ignore */
+    }
   }, [theme]);
 
   const toggle = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import useTheme from "../hooks/useTheme";
 import apexLogo from "../assets/logo.jpg";
 import { GITHUB_AUTH_LOGIN_URL } from "../services/api";
@@ -7,14 +7,15 @@ import {
   getActiveProfileUser,
   isFrontendAuthBypassEnabled,
 } from "../services/frontendAuth";
+import ChatbotLauncher from "./ChatbotLauncher";
 
 const shellStyles: { [key: string]: React.CSSProperties } = {
   root: {
     minHeight: "100vh",
-    width: "100vw",
+    width: "100%",
     margin: 0,
     padding: 0,
-    overflowX: "hidden",
+    overflowX: "clip",
     background: "var(--bg)",
     display: "flex",
     flexDirection: "column",
@@ -23,7 +24,7 @@ const shellStyles: { [key: string]: React.CSSProperties } = {
     background: "var(--nav-bg)",
     color: "var(--text)",
     borderBottom: "1px solid var(--nav-border)",
-    padding: "12px 20px",
+    padding: "clamp(10px, 2vw, 16px) clamp(14px, 3vw, 30px)",
     width: "100%",
     boxSizing: "border-box",
     display: "flex",
@@ -35,7 +36,7 @@ const shellStyles: { [key: string]: React.CSSProperties } = {
     width: "100%",
     padding: 0,
     margin: 0,
-    overflowX: "hidden",
+    overflowX: "clip",
   },
   content: {
     width: "100%",
@@ -71,12 +72,6 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   });
   const { theme, toggle } = useTheme();
 
-  useEffect(() => {
-    if (isFrontendAuthBypassEnabled()) {
-      ensureFrontendAuthBypass();
-    }
-    setProfileUser(getActiveProfileUser());
-  }, []);
 
   const handleAuthAction = () => {
     if (isFrontendAuthBypassEnabled()) {
@@ -92,11 +87,11 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div style={shellStyles.root}>
       <header style={shellStyles.header}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <img src={apexLogo} alt="Apex Logo" style={{ height: 40, width: "auto" }} />
-          <span style={{ fontWeight: 900, color: "var(--text)", fontSize: 20 }}> Full Migration</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: "1 1 280px" }}>
+          <img src={apexLogo} alt="Apex Logo" style={{ height: "clamp(38px, 4vw, 60px)", width: "auto", maxWidth: "min(267px, 52vw)", objectFit: "contain", flexShrink: 0 }} />
+          <span style={{ fontWeight: 900, color: "var(--text)", fontSize: "clamp(18px, 2vw, 30px)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Full Migration</span>
         </div>
-        <nav style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <nav style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flex: "1 1 320px", flexWrap: "wrap", minWidth: 0 }}>
           <a
             href="https://github.com/sorimdevs-tech/java-migration-accelerator#readme"
             target="_blank"
@@ -228,7 +223,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     position: "absolute",
                     top: 44,
                     right: 0,
-                    width: 280,
+                    width: "min(280px, calc(100vw - 32px))",
                     background: "var(--surface)",
                     borderRadius: 12,
                     boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
@@ -399,6 +394,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <span>© {new Date().getFullYear()} <a href="https://sorim.ai/">Sorim.ai</a></span>
         </div>
       </footer>
+      <ChatbotLauncher />
     </div>
   );
 };

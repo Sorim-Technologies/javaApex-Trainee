@@ -76,7 +76,7 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
   const [theme, setTheme] = useState<string>(() => {
     try {
       return localStorage.getItem("theme") || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    } catch (e) {
+    } catch {
       return 'light';
     }
   });
@@ -87,7 +87,9 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
     else document.documentElement.classList.remove('theme-dark');
     try {
       localStorage.setItem('theme', theme);
-    } catch (e) {}
+    } catch {
+      // localStorage may be unavailable in restricted browser contexts.
+    }
   }, [theme]);
 
   const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
