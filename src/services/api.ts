@@ -362,6 +362,31 @@ export async function getConversionTypes(): Promise<ConversionType[]> {
   return parseJsonResponse<ConversionType[]>(response, 'Failed to fetch conversion types');
 }
 
+export interface ChatbotMessageRequest {
+  message: string;
+  api_key?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface ChatbotMessageResponse {
+  reply: string;
+}
+
+export async function sendChatbotMessage(
+  message: string,
+  apiKey: string = "",
+  context?: Record<string, unknown>
+): Promise<ChatbotMessageResponse> {
+  const response = await fetch(`${API_BASE_URL}/chatbot/message`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ message, api_key: apiKey, context }),
+  });
+  return parseJsonResponse<ChatbotMessageResponse>(response, "Failed to send chatbot message");
+}
+
 // Start migration
 export async function startMigration(request: MigrationRequest): Promise<MigrationResult> {
   const response = await fetch(`${API_BASE_URL}/migration/start`, {

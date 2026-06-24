@@ -132,6 +132,7 @@ const WIZARD_REPO_URL_KEY = "migration_wizard_repo_url";
 const WIZARD_SELECTED_REPO_KEY = "migration_wizard_selected_repo";
 const WIZARD_REPO_ANALYSIS_KEY = "migration_wizard_repo_analysis";
 const WIZARD_FORM_STATE_KEY = "migration_wizard_form_state";
+const CHATBOT_MIGRATOR_CONTEXT_KEY = "java_migration_chatbot_context";
 
 const readPersistedValue = (key: string) => {
   if (typeof window === "undefined") return null;
@@ -356,6 +357,100 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [versionRecommendationLoading, setVersionRecommendationLoading] = useState(false);
   const [versionRecommendationError, setVersionRecommendationError] = useState("");
   const currentIndicatorStep = getIndicatorStep(step);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const context = {
+      displayed_step: step,
+      repository: {
+        url: selectedRepo?.url || repoUrl || null,
+        name: selectedRepo?.name || repoAnalysis?.name || null,
+        full_name: selectedRepo?.full_name || repoAnalysis?.full_name || null,
+        default_branch: selectedRepo?.default_branch || repoAnalysis?.default_branch || null,
+        language: selectedRepo?.language || repoAnalysis?.language || null,
+      },
+      analysis: repoAnalysis
+        ? {
+            detected_java_version: repoAnalysis.java_version,
+            build_tool: repoAnalysis.build_tool,
+            has_tests: repoAnalysis.has_tests,
+            api_endpoint_count: repoAnalysis.api_endpoints?.length ?? 0,
+            java_file_count: repoAnalysis.java_files?.length ?? 0,
+            structure: repoAnalysis.structure,
+            dependencies: (repoAnalysis.dependencies || []).slice(0, 20),
+          }
+        : null,
+      selected_strategy: {
+        source_java_version: userSelectedVersion || selectedSourceVersion,
+        target_java_version: selectedTargetVersion || null,
+        conversion_types: selectedConversions,
+        migration_approach: migrationApproach,
+        run_tests: runTests,
+        run_sonar: runSonar,
+        run_fossa: runFossa,
+        fix_business_logic: fixBusinessLogic,
+        risk_level: riskLevel || null,
+      },
+      migration_result: migrationJob
+        ? {
+            job_id: migrationJob.job_id,
+            status: migrationJob.status,
+            current_step: migrationJob.current_step,
+            progress_percent: migrationJob.progress_percent,
+            source_repo: migrationJob.source_repo,
+            target_repo: migrationJob.target_repo,
+            source_java_version: migrationJob.source_java_version,
+            target_java_version: migrationJob.target_java_version,
+            conversion_types: migrationJob.conversion_types,
+            files_modified: migrationJob.files_modified,
+            issues_fixed: migrationJob.issues_fixed,
+            total_errors: migrationJob.total_errors,
+            total_warnings: migrationJob.total_warnings,
+            errors_fixed: migrationJob.errors_fixed,
+            warnings_fixed: migrationJob.warnings_fixed,
+            dependencies: (migrationJob.dependencies || []).slice(0, 20),
+            issues: (migrationJob.issues || []).slice(0, 15),
+            error_message: migrationJob.error_message,
+            logs: (migrationLogs.length ? migrationLogs : migrationJob.migration_log || []).slice(-20),
+          }
+        : null,
+      quality_results: migrationJob
+        ? {
+            sonar_quality_gate: migrationJob.sonar_quality_gate,
+            sonar_bugs: migrationJob.sonar_bugs,
+            sonar_vulnerabilities: migrationJob.sonar_vulnerabilities,
+            sonar_code_smells: migrationJob.sonar_code_smells,
+            sonar_coverage: migrationJob.sonar_coverage,
+            fossa_policy_status: fossaResult?.compliance_status ?? migrationJob.fossa_policy_status ?? null,
+            fossa_total_dependencies: fossaResult?.total_dependencies ?? migrationJob.fossa_total_dependencies ?? null,
+            fossa_license_issues: migrationJob.fossa_license_issues ?? null,
+            fossa_vulnerabilities: fossaResult?.vulnerabilities ?? migrationJob.fossa_vulnerabilities ?? null,
+            fossa_outdated_dependencies: fossaResult?.outdated_dependencies ?? migrationJob.fossa_outdated_dependencies ?? null,
+          }
+        : null,
+    };
+
+    window.sessionStorage.setItem(CHATBOT_MIGRATOR_CONTEXT_KEY, JSON.stringify(context));
+  }, [
+    step,
+    selectedRepo,
+    repoUrl,
+    repoAnalysis,
+    userSelectedVersion,
+    selectedSourceVersion,
+    selectedTargetVersion,
+    selectedConversions,
+    migrationApproach,
+    runTests,
+    runSonar,
+    runFossa,
+    fixBusinessLogic,
+    riskLevel,
+    migrationJob,
+    migrationLogs,
+    fossaResult,
+  ]);
 
   const migrationApproachOptions = [
     {
@@ -757,6 +852,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     } else {
       window.sessionStorage.removeItem(WIZARD_REPO_ANALYSIS_KEY);
       window.localStorage.removeItem(WIZARD_REPO_ANALYSIS_KEY);
+      window.sessionStorage.removeItem(CHATBOT_MIGRATOR_CONTEXT_KEY);
+      window.localStorage.removeItem(CHATBOT_MIGRATOR_CONTEXT_KEY);
     }
   }, [repoAnalysis]);
 
@@ -1353,6 +1450,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       window.localStorage.removeItem(WIZARD_REPO_URL_KEY);
       window.localStorage.removeItem(WIZARD_SELECTED_REPO_KEY);
       window.localStorage.removeItem(WIZARD_REPO_ANALYSIS_KEY);
+      window.sessionStorage.removeItem(CHATBOT_MIGRATOR_CONTEXT_KEY);
+      window.localStorage.removeItem(CHATBOT_MIGRATOR_CONTEXT_KEY);
     }
   };
 

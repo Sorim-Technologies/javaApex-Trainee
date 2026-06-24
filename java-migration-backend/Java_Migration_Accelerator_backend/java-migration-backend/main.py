@@ -3,6 +3,7 @@ Java Migration Backend - Main FastAPI Application
 Handles Java 7 → Java 18 migration automation using OpenRewrite
 """
 import sys
+import json
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,7 @@ import re
 import logging
 from datetime import datetime, timezone
 from github import GithubException
+import httpx
 
 # Force unbuffered output for immediate logging
 sys.stdout.reconfigure(line_buffering=True)
@@ -31,8 +33,11 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
-load_dotenv()
 
+# Load .env from current backend folder and root project folder (if available)
+load_dotenv()
+root_dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..", ".env"))
+load_dotenv(root_dotenv_path, override=False)
 
 from services.github_service import GitHubService
 from services.gitlab_service import GitLabService
@@ -42,6 +47,8 @@ from services.sonarqube_service import SonarQubeService
 from services.auth_service import router as auth_router
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
+from services.groq_chatbot_service import GroqChatbotService
+from services.ollama_chatbot_service import OllamaChatbotService
 
 
 app = FastAPI(
@@ -74,6 +81,12 @@ app.include_router(auth_router, prefix="/api")
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 # Hugging Face token for LLM-based recommendations
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
+# Groq API key supported via environment variable or client-provided message field
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+# Ollama API key and endpoint for the chatbot
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")
+OLLAMA_API_URL = os.environ.get("OLLAMA_API_URL", "http://localhost:11434/api/chat")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
 
 # CORS middleware
 app.add_middleware(
@@ -98,6 +111,8 @@ sonarqube_service = SonarQubeService()
 # FOSSA service (provides simulated/dummy data when the CLI/API is unavailable)
 fossa_service = FossaService()
 hf_recommendation_service = HFRecommendationService()
+groq_chatbot_service = GroqChatbotService()
+ollama_chatbot_service = OllamaChatbotService()
 
 # In-memory storage for migration jobs (use Redis/DB in production)
 migration_jobs = {}
@@ -157,6 +172,14 @@ class GitPlatform(str, Enum):
     GITHUB = "github"
     GITLAB = "gitlab"
 
+
+class ChatbotMessageRequest(BaseModel):
+    message: str = Field(..., description="User question for the Java Migration chatbot")
+    api_key: Optional[str] = Field(default=None, description="Optional chatbot API key supplied by the client")
+    context: Optional[Dict[str, Any]] = Field(default=None, description="Displayed repository analysis or migration result context")
+
+class ChatbotMessageResponse(BaseModel):
+    reply: str
 
 class MigrationRequest(BaseModel):
     source_repo_url: str = Field(description="Repository URL (GitHub or GitLab)")
@@ -403,7 +426,8 @@ async def get_github_repo_visibility(repo_url: str, token: str = ""):
     """Check repository visibility without falling back to the server default token."""
     try:
         owner, repo = await github_service.parse_repo_url(repo_url)
-        repo_info = await github_service.get_repo_info(token.strip(), owner, repo)
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_info = await github_service.get_repo_info(effective_token, owner, repo)
 
         return {
             "owner": owner,
@@ -669,6 +693,56 @@ async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
         import traceback
         print(f"[FOSSA ANALYZE ERROR] repo_url={repo_url} error={e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def generate_chatbot_reply(message: str, api_key: str | None, context: Optional[Dict[str, Any]] = None) -> str:
+    # Primary: Groq (cloud)
+    if GROQ_API_KEY:
+        try:
+            return await groq_chatbot_service.generate_reply(message, GROQ_API_KEY, context)
+        except Exception as groq_err:
+            print(f"[CHATBOT] Groq failed, falling back to Ollama: {groq_err}")
+
+    # Fallback: Ollama (local)
+    ollama_key = api_key or OLLAMA_API_KEY or ""
+    try:
+        return await ollama_chatbot_service.generate_reply(message, ollama_key, context)
+    except Exception as ollama_err:
+        raise HTTPException(status_code=503, detail=f"Both Groq and Ollama failed. Last error: {ollama_err}")
+
+
+@app.post("/api/chatbot/message", response_model=ChatbotMessageResponse)
+async def chatbot_message(request: ChatbotMessageRequest):
+    """Answer user chatbot questions about the Java Migration application."""
+    if not request.message or not request.message.strip():
+        raise HTTPException(status_code=400, detail="Question is required.")
+
+    try:
+        reply = await generate_chatbot_reply(request.message, request.api_key, request.context)
+        if not reply:
+            reply = "I can only answer questions related to this Java Migration application."
+        return ChatbotMessageResponse(reply=reply)
+    except HTTPException:
+        raise
+    except httpx.ConnectError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Unable to connect to the chatbot service. Groq may be unreachable and Ollama is not running at {OLLAMA_API_URL}.",
+        ) from e
+    except httpx.TimeoutException as e:
+        raise HTTPException(
+            status_code=504,
+            detail="The chatbot model took too long to respond. Try a shorter question or wait for Ollama to finish loading the model.",
+        ) from e
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Chatbot service returned {e.response.status_code}: {e.response.text}",
+        ) from e
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=503, detail=f"Chatbot service request failed: {str(e)}") from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chatbot failed: {str(e)}")
 
 
 # Migration Endpoints

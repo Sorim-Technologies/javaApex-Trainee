@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import apexLogo from "../assets/logo.jpg";
 import { GITHUB_AUTH_LOGIN_URL } from "../services/api";
+import ChatbotWidget from "./ChatbotWidget";
 
 const shellStyles: { [key: string]: React.CSSProperties } = {
   root: {
@@ -332,6 +333,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <span>© {new Date().getFullYear()} <a href="https://sorim.ai/">Sorim.ai</a></span>
         </div>
       </footer>
+      <ChatbotWidget />
     </div>
   );
 };
