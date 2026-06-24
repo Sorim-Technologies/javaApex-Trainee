@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import apexLogo from "../assets/apexlogo.png";
 
 interface HeaderProps {
@@ -7,6 +8,12 @@ interface HeaderProps {
 }
 
 export default function Header({ showBackButton = false, onBackToHome }: HeaderProps) {
+  const navigate = useNavigate();
+
+  const openSupport = () => {
+    window.dispatchEvent(new Event("open-support-modal"));
+  };
+
   const styles: { [key: string]: React.CSSProperties } = {
     navbar: {
       display: "flex",
@@ -45,6 +52,9 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       display: "flex",
       alignItems: "center",
       gap: 6,
+      border: "none",
+      background: "transparent",
+      fontFamily: "inherit",
     },
     iconButton: {
       width: 34,
@@ -83,14 +93,15 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
 
       {/* Navigation Links */}
       <div style={styles.navLinks}>
-        <a
+        <button
+          type="button"
           style={styles.navLink}
           onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "#e2e8f0")}
-          href="#"
+          onClick={() => navigate("/docs")}
         >
           Documentation
-        </a>
+        </button>
         <a
           style={styles.navLink}
           onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
@@ -101,14 +112,15 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
         >
           GitHub
         </a>
-        <a
+        <button
+          type="button"
           style={styles.navLink}
           onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "#e2e8f0")}
-          href="#"
+          onClick={openSupport}
         >
           Support Us
-        </a>
+        </button>
         
         {showBackButton && onBackToHome ? (
           <button
@@ -141,6 +153,15 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
             e.currentTarget.style.color = "#e2e8f0";
           }}
           title="Profile"
+          aria-label="Create frontend demo profile"
+          onClick={() => {
+            window.localStorage.setItem("javapex_mock_user", JSON.stringify({
+              name: "Landing Demo User",
+              email: "landing.demo@example.com",
+              provider: "Landing Profile",
+            }));
+            navigate("/");
+          }}
         >
           👤
         </button>

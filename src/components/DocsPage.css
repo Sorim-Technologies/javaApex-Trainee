@@ -1,0 +1,161 @@
+.docs-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  padding: 32px 40px;
+  background: #f8fafc;
+  box-sizing: border-box;
+}
+
+.docs-page__hero,
+.docs-page__panel,
+.docs-page__support {
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.docs-page__hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px;
+}
+
+.docs-page__eyebrow {
+  margin-bottom: 8px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.docs-page h1,
+.docs-page h2,
+.docs-page p {
+  margin: 0;
+}
+
+.docs-page h1 {
+  color: #0f172a;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.05;
+}
+
+.docs-page h2 {
+  color: #1e293b;
+  font-size: 18px;
+}
+
+.docs-page p {
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.docs-page__hero p {
+  max-width: 760px;
+  margin-top: 14px;
+  font-size: 16px;
+}
+
+.docs-page button {
+  border: 0;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 12px 18px;
+  white-space: nowrap;
+}
+
+.docs-page button:hover,
+.docs-page button:focus-visible {
+  background: #1d4ed8;
+  outline: none;
+}
+
+.docs-page__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.docs-page__card {
+  padding: 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.docs-page__card p {
+  margin-top: 10px;
+}
+
+.docs-page__panel {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 24px;
+  padding: 26px;
+}
+
+.docs-page__panel p {
+  margin-top: 10px;
+}
+
+.docs-page__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.docs-page__links span {
+  padding: 8px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.docs-page__support {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 26px;
+}
+
+.docs-page__support p {
+  margin-top: 6px;
+}
+
+@media (max-width: 760px) {
+  .docs-page {
+    padding: 22px 18px;
+  }
+
+  .docs-page__hero,
+  .docs-page__support {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .docs-page__grid,
+  .docs-page__panel {
+    grid-template-columns: 1fr;
+  }
+
+  .docs-page button {
+    width: 100%;
+  }
+}

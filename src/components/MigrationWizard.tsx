@@ -38,6 +38,7 @@ interface JavaVersionOption {
 type RecommendationLevel = "Highly Recommended" | "Recommended" | "Alternative";
 type ConfidenceLevel = "High" | "Medium" | "Low";
 type MigrationEffort = "Low" | "Medium" | "High";
+type SourceInputType = "github" | "zip";
 
 interface RankedJavaVersionRecommendation {
   javaVersion: string;
@@ -53,6 +54,7 @@ interface RankedJavaVersionRecommendation {
 
 interface PersistedWizardFormState {
   maxVisitedIndicatorStep: number;
+  sourceInputType: SourceInputType;
   isPrivateRepo: boolean;
   patToken: string;
   currentPath: string;
@@ -221,6 +223,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     if (typeof window === "undefined") return "";
     return readPersistedValue(WIZARD_REPO_URL_KEY) || "";
   });
+  const [sourceInputType, setSourceInputType] = useState<SourceInputType>(
+    persistedFormState?.sourceInputType ?? "github"
+  );
+  const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
+  const [zipUploadStatus, setZipUploadStatus] = useState<"idle" | "ready" | "uploading" | "success" | "error">("idle");
+  const [zipUploadMessage, setZipUploadMessage] = useState("");
+  const [zipProjectId, setZipProjectId] = useState("");
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<RepoInfo | null>(() =>
     readSessionJson<RepoInfo>(WIZARD_SELECTED_REPO_KEY)
@@ -670,6 +679,120 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     else setRiskLevel("high");
   };
 
+  const formatFileSize = (sizeInBytes: number) => {
+    if (sizeInBytes < 1024) return `${sizeInBytes} B`;
+    if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
+    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const uploadZipFileToBackend = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE_URL}/repositories/upload-zip`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(payload?.detail || payload?.message || "Failed to upload ZIP file.");
+    }
+
+    return payload as {
+      analysis?: RepoAnalysis;
+      repoAnalysis?: RepoAnalysis;
+      repository?: Partial<RepoInfo>;
+      project_id?: string;
+      source_id?: string;
+      repo_url?: string;
+      source_repo_url?: string;
+      project_name?: string;
+      file_name?: string;
+      message?: string;
+    };
+  };
+
+  const handleZipFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    setSelectedZipFile(null);
+    setZipProjectId("");
+    setZipUploadMessage("");
+    setSelectedRepo(null);
+    setRepoAnalysis(null);
+    setRepoFiles([]);
+    setCurrentPath("");
+    setPathHistory([""]);
+    setError("");
+
+    if (!file) {
+      setZipUploadStatus("idle");
+      return;
+    }
+
+    const isZipFile = file.name.toLowerCase().endsWith(".zip") || file.type === "application/zip" || file.type === "application/x-zip-compressed";
+
+    if (!isZipFile) {
+      setZipUploadStatus("error");
+      setZipUploadMessage("Invalid file type. Please upload only a .zip file.");
+      event.target.value = "";
+      return;
+    }
+
+    setSelectedZipFile(file);
+    setZipUploadStatus("ready");
+    setZipUploadMessage(`Valid ZIP file selected: ${file.name} (${formatFileSize(file.size)})`);
+  };
+
+  const handleZipContinue = async () => {
+    if (!selectedZipFile) {
+      setZipUploadStatus("error");
+      setZipUploadMessage("Please select a .zip file before continuing.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+    setZipUploadStatus("uploading");
+    setZipUploadMessage("Uploading and analyzing ZIP file...");
+
+    try {
+      const uploadResult = await uploadZipFileToBackend(selectedZipFile);
+      const analysis = uploadResult.analysis || uploadResult.repoAnalysis;
+
+      if (!analysis) {
+        throw new Error("ZIP uploaded, but repository analysis was not returned by the backend.");
+      }
+
+      const projectId = uploadResult.project_id || uploadResult.source_id || `zip-${Date.now()}`;
+      const projectName = uploadResult.project_name || selectedZipFile.name.replace(/\.zip$/i, "");
+      const sourceUrl = uploadResult.repo_url || uploadResult.source_repo_url || `zip://${projectId}`;
+
+      setZipProjectId(projectId);
+      setSelectedRepo({
+        name: projectName,
+        full_name: projectName,
+        url: sourceUrl,
+        default_branch: "uploaded-zip",
+        language: "Java",
+        description: `Uploaded ZIP file: ${selectedZipFile.name}`,
+        ...(uploadResult.repository || {}),
+      } as RepoInfo);
+      applyRepositoryAnalysis(analysis);
+      setZipUploadStatus("success");
+      setZipUploadMessage(uploadResult.message || `${selectedZipFile.name} uploaded and analyzed successfully.`);
+      setStep(2);
+    } catch (err: any) {
+      const message = err?.message || "Failed to upload and analyze ZIP file.";
+      setZipUploadStatus("error");
+      setZipUploadMessage(message);
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRepositoryContinue = async () => {
     if (!urlValidation.valid) return;
 
@@ -787,6 +910,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   useEffect(() => {
     writeSessionJson(WIZARD_FORM_STATE_KEY, {
       maxVisitedIndicatorStep,
+      sourceInputType,
       isPrivateRepo,
       patToken,
       currentPath,
@@ -814,6 +938,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     } satisfies PersistedWizardFormState);
   }, [
     maxVisitedIndicatorStep,
+    sourceInputType,
     isPrivateRepo,
     patToken,
     currentPath,
@@ -1349,7 +1474,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const buildMigrationRequest = () => {
-    const repoName = selectedRepo?.name || repoUrl.split("/").pop()?.replace(".git", "") || "repo";
+    const repoName = selectedRepo?.name || selectedZipFile?.name.replace(/\.zip$/i, "") || repoUrl.split("/").pop()?.replace(".git", "") || "repo";
     const finalTargetRepoName = targetRepoName || (
       migrationApproach === "branch"
         ? buildTargetBranchName(repoName, targetRepoTimestamp)
@@ -1363,9 +1488,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     };
 
     return {
+      source_type: sourceInputType,
       source_repo_url: selectedRepo?.url || repoUrl,
+      zip_project_id: sourceInputType === "zip" ? zipProjectId : undefined,
+      zip_file_name: sourceInputType === "zip" ? selectedZipFile?.name : undefined,
       target_repo_name: finalTargetRepoName,
-      platform: detectPlatform(selectedRepo?.url || repoUrl),
+      platform: sourceInputType === "zip" ? "zip" : detectPlatform(selectedRepo?.url || repoUrl),
       source_java_version: userSelectedVersion || selectedSourceVersion,
       target_java_version: selectedTargetVersion,
       token: currentToken,
@@ -1379,7 +1507,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   useEffect(() => {
-    if (step !== 4 || !selectedTargetVersion || (!selectedRepo && !repoUrl)) {
+    if (step !== 4 || !selectedTargetVersion || (!selectedRepo && sourceInputType === "zip") || (!selectedRepo && !repoUrl && sourceInputType === "github")) {
       return;
     }
 
@@ -1417,6 +1545,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     selectedRepo,
     repoUrl,
     currentToken,
+    sourceInputType,
+    zipProjectId,
+    selectedZipFile,
     migrationApproach,
     targetRepoName,
     targetRepoTimestamp,
@@ -1430,8 +1561,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   ]);
 
   const handleStartMigration = () => {
-    if (!selectedRepo && !repoUrl) {
+    if (sourceInputType === "github" && !selectedRepo && !repoUrl) {
       setError("Please select a repository or enter a repository URL");
+      return;
+    }
+
+    if (sourceInputType === "zip" && !selectedRepo) {
+      setError("Please upload and analyze a ZIP file before starting the migration.");
       return;
     }
 
@@ -1468,6 +1604,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setStep(1);
     setMaxVisitedIndicatorStep(1);
     setRepoUrl("");
+    setSourceInputType("github");
+    setSelectedZipFile(null);
+    setZipUploadStatus("idle");
+    setZipUploadMessage("");
+    setZipProjectId("");
     setRepos([]);
     setSelectedRepo(null);
     setRepoAnalysis(null);
@@ -1593,157 +1734,280 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   const renderStep1 = () => {
+    const isGithubSelected = sourceInputType === "github";
+    const isZipSelected = sourceInputType === "zip";
+
     return (
       <div style={styles.card}>
         <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🔗</span>
+          <span style={styles.stepIcon}>{isZipSelected ? "📦" : "🔗"}</span>
           <div>
             <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
+            <p style={styles.subtitle}>Choose a GitHub repository or upload a local ZIP file to start migration analysis.</p>
           </div>
         </div>
 
-        <div style={styles.field}>
-          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
-            Repository URL
-            {/* Info Button with Tooltip */}
-            <div style={{ position: "relative", display: "inline-block" }}>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  backgroundColor: "#e2e8f0",
-                  color: "#64748b",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "help",
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#3b82f6";
-                  e.currentTarget.style.color = "#fff";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "block";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e2e8f0";
-                  e.currentTarget.style.color = "#64748b";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "none";
-                }}
-              >
-                i
-              </span>
-              {/* Tooltip */}
-              <div
-                style={{
-                  display: "none",
-                  position: "absolute",
-                  top: 24,
-                  left: 0,
-                  backgroundColor: "#1e293b",
-                  color: "#fff",
-                  padding: "12px 16px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  whiteSpace: "nowrap",
-                  zIndex: 1000,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
-                <div>• https://github.com/owner/repo</div>
-                <div>• github.com/owner/repo</div>
-                <div>• owner/repo</div>
-                {/* Arrow */}
-                <div style={{
-                  position: "absolute",
-                  top: -6,
-                  left: 9,
-                  width: 0,
-                  height: 0,
-                  borderLeft: "6px solid transparent",
-                  borderRight: "6px solid transparent",
-                  borderBottom: "6px solid #1e293b"
-                }} />
-              </div>
-            </div>
-          </label>
-          <input
-            type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
-            value={repoUrl}
-            onChange={(e) => {
-              setRepoUrl(e.target.value);
-              setSelectedRepo(null);
-              setRepoAnalysis(null);
-              setIsPrivateRepo(false);
-              setPatToken("");
+        <div className="source-option-tabs" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginBottom: 22 }}>
+          <button
+            type="button"
+            className={`source-option-tab ${isGithubSelected ? "source-option-tab--active" : ""}`}
+            onClick={() => {
+              setSourceInputType("github");
               setError("");
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && urlValidation.valid) {
-                void handleRepositoryContinue();
-              }
+            style={{
+              padding: "14px 16px",
+              borderRadius: 14,
+              border: isGithubSelected ? "2px solid #3b82f6" : "1px solid #dbe3ef",
+              background: isGithubSelected ? "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)" : "#ffffff",
+              cursor: "pointer",
+              textAlign: "left",
+              transition: "all 0.25s ease",
             }}
-            placeholder="https://github.com/owner/repository"
-          />
-          {!shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
-              Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
-            </div>
-          )}
-          {repoAccessCheckLoading && !shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
-              Checking repository access...
-            </div>
-          )}
-          {shouldShowPatInput && (
-            <div style={{ marginTop: 16 }}>
-              <label style={{ ...styles.label, fontWeight: 500 }}>
-                GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
-              </label>
-              <input
-                type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
-                value={showEnterpriseToken ? githubToken : patToken}
-                onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
-                placeholder="Paste your GitHub PAT here"
-                autoComplete="off"
-              />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                {showEnterpriseToken
-                  ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                  : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
-              </div>
-            </div>
-          )}
-          {repoUrl && !urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
-              ⚠️ {urlValidation.message}
-            </div>
-          )}
-          {urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
-              ✓ Valid repository URL
-            </div>
-          )}
-        </div>
-
-        <div style={styles.btnRow}>
-          <button
-            style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
-            disabled={!urlValidation.valid}
-            onClick={() => void handleRepositoryContinue()}
           >
-            Continue →
+            <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800, color: isGithubSelected ? "#1d4ed8" : "#0f172a" }}>
+              <span>🔗</span>
+              GitHub Repository
+            </div>
+            <div style={{ marginTop: 5, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
+              Analyze a public, private, or enterprise Git repository URL.
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`source-option-tab ${isZipSelected ? "source-option-tab--active" : ""}`}
+            onClick={() => {
+              setSourceInputType("zip");
+              setError("");
+            }}
+            style={{
+              padding: "14px 16px",
+              borderRadius: 14,
+              border: isZipSelected ? "2px solid #f59e0b" : "1px solid #dbe3ef",
+              background: isZipSelected ? "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)" : "#ffffff",
+              cursor: "pointer",
+              textAlign: "left",
+              transition: "all 0.25s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800, color: isZipSelected ? "#b45309" : "#0f172a" }}>
+              <span>📦</span>
+              Upload ZIP File
+            </div>
+            <div style={{ marginTop: 5, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
+              Upload a local project ZIP and process it like a repository.
+            </div>
           </button>
         </div>
+
+        {isGithubSelected && (
+          <>
+            <div style={styles.field}>
+              <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
+                Repository URL
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      backgroundColor: "#e2e8f0",
+                      color: "#64748b",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "help",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#3b82f6";
+                      e.currentTarget.style.color = "#fff";
+                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (tooltip) tooltip.style.display = "block";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#e2e8f0";
+                      e.currentTarget.style.color = "#64748b";
+                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (tooltip) tooltip.style.display = "none";
+                    }}
+                  >
+                    i
+                  </span>
+                  <div
+                    style={{
+                      display: "none",
+                      position: "absolute",
+                      top: 24,
+                      left: 0,
+                      backgroundColor: "#1e293b",
+                      color: "#fff",
+                      padding: "12px 16px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      whiteSpace: "nowrap",
+                      zIndex: 1000,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
+                    <div>• https://github.com/owner/repo</div>
+                    <div>• github.com/owner/repo</div>
+                    <div>• owner/repo</div>
+                    <div style={{
+                      position: "absolute",
+                      top: -6,
+                      left: 9,
+                      width: 0,
+                      height: 0,
+                      borderLeft: "6px solid transparent",
+                      borderRight: "6px solid transparent",
+                      borderBottom: "6px solid #1e293b"
+                    }} />
+                  </div>
+                </div>
+              </label>
+              <input
+                type="text"
+                style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
+                value={repoUrl}
+                onChange={(e) => {
+                  setRepoUrl(e.target.value);
+                  setSelectedRepo(null);
+                  setRepoAnalysis(null);
+                  setIsPrivateRepo(false);
+                  setPatToken("");
+                  setError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && urlValidation.valid) {
+                    void handleRepositoryContinue();
+                  }
+                }}
+                placeholder="https://github.com/owner/repository"
+              />
+              {!shouldShowPatInput && (
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
+                  Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+                </div>
+              )}
+              {repoAccessCheckLoading && !shouldShowPatInput && (
+                <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
+                  Checking repository access...
+                </div>
+              )}
+              {shouldShowPatInput && (
+                <div style={{ marginTop: 16 }}>
+                  <label style={{ ...styles.label, fontWeight: 500 }}>
+                    GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                  </label>
+                  <input
+                    type="password"
+                    style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
+                    value={showEnterpriseToken ? githubToken : patToken}
+                    onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
+                    placeholder="Paste your GitHub PAT here"
+                    autoComplete="off"
+                  />
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    {showEnterpriseToken
+                      ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
+                      : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+                  </div>
+                </div>
+              )}
+              {repoUrl && !urlValidation.valid && (
+                <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
+                  ⚠️ {urlValidation.message}
+                </div>
+              )}
+              {urlValidation.valid && (
+                <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
+                  ✓ Valid repository URL
+                </div>
+              )}
+            </div>
+
+            <div style={styles.btnRow}>
+              <button
+                style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
+                disabled={!urlValidation.valid}
+                onClick={() => void handleRepositoryContinue()}
+              >
+                Continue →
+              </button>
+            </div>
+          </>
+        )}
+
+        {isZipSelected && (
+          <>
+            <div style={styles.field}>
+              <label style={styles.label}>Upload Project ZIP</label>
+              <label
+                className={`zip-upload-box ${zipUploadStatus === "ready" ? "zip-upload-box--ready" : ""} ${zipUploadStatus === "error" ? "zip-upload-box--error" : ""} ${zipUploadStatus === "success" ? "zip-upload-box--success" : ""}`}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  minHeight: 150,
+                  padding: "24px",
+                  border: `2px dashed ${zipUploadStatus === "error" ? "#ef4444" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#22c55e" : "#cbd5e1"}`,
+                  borderRadius: 16,
+                  background: zipUploadStatus === "error" ? "#fef2f2" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#f0fdf4" : "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                  cursor: zipUploadStatus === "uploading" ? "not-allowed" : "pointer",
+                  textAlign: "center",
+                  transition: "all 0.25s ease",
+                }}
+              >
+                <input
+                  type="file"
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  disabled={zipUploadStatus === "uploading"}
+                  onChange={handleZipFileChange}
+                  style={{ display: "none" }}
+                />
+                <div style={{ fontSize: 34 }}>{zipUploadStatus === "success" || zipUploadStatus === "ready" ? "✅" : zipUploadStatus === "error" ? "⚠️" : "📦"}</div>
+                <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                  {zipUploadStatus === "ready" ? "Valid ZIP File Selected" : selectedZipFile ? selectedZipFile.name : "Choose a .zip file"}
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+                  Only .zip project files are accepted. The backend will extract and analyze the project contents.
+                </div>
+              </label>
+
+              {zipUploadMessage && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontSize: 12,
+                    color: zipUploadStatus === "error" ? "#dc2626" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#16a34a" : "#475569",
+                    fontWeight: zipUploadStatus === "error" || zipUploadStatus === "success" || zipUploadStatus === "ready" ? 700 : 500,
+                  }}
+                >
+                  {zipUploadStatus === "uploading" ? "⏳ " : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "✓ " : zipUploadStatus === "error" ? "⚠️ " : ""}
+                  {zipUploadMessage}
+                </div>
+              )}
+            </div>
+
+            <div style={styles.btnRow}>
+              <button
+                style={{ ...styles.primaryBtn, opacity: !selectedZipFile || zipUploadStatus === "uploading" ? 0.5 : 1 }}
+                disabled={!selectedZipFile || zipUploadStatus === "uploading"}
+                onClick={() => void handleZipContinue()}
+              >
+                {zipUploadStatus === "uploading" ? "Uploading..." : "Upload & Continue →"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -2425,21 +2689,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
                   {/* Discovery Info */}
                   <div style={styles.discoveryContent}>
-                    <div style={styles.discoveryItem}>
+                    <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
                       <span style={styles.discoveryIcon}>📊</span>
                       <div>
                         <div style={styles.discoveryTitle}>Repository Analysis</div>
                         <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
                       </div>
                     </div>
-                    <div style={styles.discoveryItem}>
+                    <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
                       <span style={styles.discoveryIcon}>🔧</span>
                       <div>
                         <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis?.build_tool || "Detecting..."}</div>
                         <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
                       </div>
                     </div>
-                    <div style={styles.discoveryItem}>
+                    <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
                       <span style={styles.discoveryIcon}>☕</span>
                       <div>
                         <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}</div>
@@ -2449,7 +2713,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   </div>
 
                   {(detectedJavaVersion || detectedBuildType) && (
-                    <div style={styles.detectedConfigCard}>
+                    <div className="inner-card-hover discovery-inner-card" style={styles.detectedConfigCard}>
                       <div style={styles.detectedConfigHeader}>
                         <div>
                           <div style={styles.detectedConfigTitle}>Detected Configuration</div>
@@ -2687,22 +2951,22 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     </div>
                   ) : (
                     <div style={styles.frameworkGrid}>
-                      <div style={styles.frameworkItem}>
+                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
                         <span>🍃</span>
                         <span>Spring Boot</span>
                         {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('spring')) && <span style={styles.detectedBadge}>Detected</span>}
                       </div>
-                      <div style={styles.frameworkItem}>
+                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
                         <span>🗄️</span>
                         <span>JPA/Hibernate</span>
                         {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('hibernate') || d.artifact_id.includes('jpa')) && <span style={styles.detectedBadge}>Detected</span>}
                       </div>
-                      <div style={styles.frameworkItem}>
+                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
                         <span>🧪</span>
                         <span>JUnit</span>
                         {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('junit')) && <span style={styles.detectedBadge}>Detected</span>}
                       </div>
-                      <div style={styles.frameworkItem}>
+                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
                         <span>📝</span>
                         <span>Log4j/SLF4J</span>
                         {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('log4j') || d.artifact_id.includes('slf4j')) && <span style={styles.detectedBadge}>Detected</span>}
@@ -2711,7 +2975,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   )}
 
                   {repoAnalysis && (
-                    <div style={styles.structureBox}>
+                    <div className="inner-card-hover discovery-inner-card" style={styles.structureBox}>
                       <div style={styles.structureTitle}>Project Structure Summary</div>
                       <div style={styles.structureGrid}>
                         <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
@@ -2759,14 +3023,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       {selectedRepo && repoAnalysis && (
         <>
           <div style={styles.discoveryContent}>
-            <div style={styles.discoveryItem}>
+            <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
               <span style={styles.discoveryIcon}>🔧</span>
               <div>
                 <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis.build_tool || "Not Detected"}</div>
                 <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
               </div>
             </div>
-            <div style={styles.discoveryItem}>
+            <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
               <span style={styles.discoveryIcon}>☕</span>
               <div>
                 <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis.java_version || repoAnalysis.java_version_from_build) || "Version Detection Failed"}</div>
@@ -2783,7 +3047,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </label>
               <div style={styles.dependenciesList}>
                 {repoAnalysis.dependencies.map((dep, idx) => (
-                  <div key={idx} style={styles.dependencyItem}>
+                  <div key={idx} className="inner-card-hover dependency-inner-card" style={styles.dependencyItem}>
                     <span style={{ flex: 2 }}>{dep.group_id}:{dep.artifact_id}</span>
                     <span style={{ ...styles.dependencyVersion, flex: 1, textAlign: "center" }}>{dep.current_version}</span>
                     <span style={{ ...styles.detectedBadge, flex: 1, textAlign: "center", backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb", color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280" }}>
@@ -2794,7 +3058,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
           ) : (
-            <div style={styles.infoBox}>
+            <div className="inner-card-hover info-inner-card" style={styles.infoBox}>
               No dependencies detected. This could be a simple Java project without external dependencies.
             </div>
           )}
@@ -2802,22 +3066,22 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           {/* Framework Detection */}
           <div style={styles.sectionTitle}>🎯 Detected Frameworks & Libraries</div>
           <div style={styles.frameworkGrid}>
-            <div style={styles.frameworkItem}>
+            <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
               <span>🍃</span>
               <span>Spring Boot</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('spring')) && <span style={styles.detectedBadge}>Detected</span>}
             </div>
-            <div style={styles.frameworkItem}>
+            <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
               <span>🗄️</span>
               <span>JPA/Hibernate</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('hibernate') || d.artifact_id.includes('jpa')) && <span style={styles.detectedBadge}>Detected</span>}
             </div>
-            <div style={styles.frameworkItem}>
+            <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
               <span>🧪</span>
               <span>JUnit</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('junit')) && <span style={styles.detectedBadge}>Detected</span>}
             </div>
-            <div style={styles.frameworkItem}>
+            <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
               <span>📝</span>
               <span>Log4j/SLF4J</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('log4j') || d.artifact_id.includes('slf4j')) && <span style={styles.detectedBadge}>Detected</span>}
@@ -2851,13 +3115,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
 
           <div style={styles.assessmentGrid}>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
-                <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{(repoAnalysis.java_version || repoAnalysis.java_version_from_build) || "Version Detection Failed"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
+            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
+                <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{(repoAnalysis.java_version || repoAnalysis.java_version_from_build) || "Version Detection Failed"}</div></div>
+            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
+            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
           </div>
 
-          <div style={styles.structureBox}>
+          <div className="inner-card-hover discovery-inner-card" style={styles.structureBox}>
             <div style={styles.structureTitle}>Project Structure</div>
             <div style={styles.structureGrid}>
               <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
@@ -2897,10 +3161,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
 
           <div style={styles.assessmentGrid}>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{repoAnalysis.java_version || "Unknown"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
+            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
+            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{repoAnalysis.java_version || "Unknown"}</div></div>
+            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
+            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
           </div>
 
           {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
@@ -2908,7 +3172,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               <label style={styles.label}>Detected Dependencies ({repoAnalysis.dependencies.length})</label>
               <div style={styles.dependenciesList}>
                 {repoAnalysis.dependencies.map((dep, idx) => (
-                  <div key={idx} style={styles.dependencyItem}>
+                  <div key={idx} className="inner-card-hover dependency-inner-card" style={styles.dependencyItem}>
                     <span style={{ flex: 2 }}>{dep.group_id}:{dep.artifact_id}</span>
                     <span style={{ ...styles.dependencyVersion, flex: 1, textAlign: "center" }}>{dep.current_version}</span>
                     <span style={{ ...styles.detectedBadge, flex: 1, textAlign: "center", backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb", color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280" }}>
@@ -3135,7 +3399,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               return (
                 <article
                   key={recommendation.javaVersion}
-                  className={`java-recommendation-card${isSelected ? " java-recommendation-card--selected" : ""}`}
+                  className={`inner-card-hover strategy-inner-card java-recommendation-card${isSelected ? " java-recommendation-card--selected" : ""}`}
                 >
                   <div className="java-recommendation-card__top">
                     <div className="java-recommendation-card__rank">#{index + 1}</div>
@@ -3270,7 +3534,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           ].filter((item) => item.title !== "Code Quality").map((item, idx) => (
             <div
               key={idx}
+              className="inner-card-hover migration-modernize-card"
               style={{
+                "--inner-card-accent": item.color,
+                "--inner-card-bg": `${item.color}12`,
+                "--inner-card-shadow": `${item.color}30`,
                 position: "relative",
                 padding: 20,
                 backgroundColor: "#fff",
@@ -3279,7 +3547,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
                 transition: "all 0.2s ease",
                 cursor: "default"
-              }}
+              } as React.CSSProperties}
             >
               {item.showInfo && (
                 <div style={{ position: "absolute", top: 12, right: 12 }}>
@@ -3412,7 +3680,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 12 }}>
           Preview code changes
         </div>
-        <div style={{ padding: 16, border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#fff" }}>
+        <div className="inner-card-hover migration-preview-card" style={{ padding: 16, border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#fff" }}>
           {migrationPreviewLoading && (
             <div style={{ fontSize: 14, color: "#475569" }}>
               Analyzing the connected repository and building a real migration preview...
@@ -3428,19 +3696,19 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           {!migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
             <>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#eff6ff", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
+                <div className="inner-card-hover migration-chip-card migration-chip-card--files" style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#eff6ff", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
                   {migrationPreview.summary.files_to_modify} files to modify
                 </div>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#ecfdf5", color: "#047857", fontSize: 13, fontWeight: 600 }}>
+                <div className="inner-card-hover migration-chip-card migration-chip-card--changes" style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#ecfdf5", color: "#047857", fontSize: 13, fontWeight: 600 }}>
                   {migrationPreview.summary.total_changes} planned changes
                 </div>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#faf5ff", color: "#7c3aed", fontSize: 13, fontWeight: 600 }}>
+                <div className="inner-card-hover migration-chip-card migration-chip-card--diffs" style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#faf5ff", color: "#7c3aed", fontSize: 13, fontWeight: 600 }}>
                   {migrationPreview.file_diffs.length} preview diffs
                 </div>
               </div>
 
               {codeChanges.length > 0 ? (
-                <div style={{ border: "1px solid #d0d7de", borderRadius: 8, overflow: "hidden" }}>
+                <div className="inner-card-hover migration-diff-card" style={{ border: "1px solid #d0d7de", borderRadius: 8, overflow: "hidden" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid #d0d7de" }}>
                     <span style={{ fontWeight: 600, color: "#1e293b" }}>Repo-specific migration diff preview</span>
                     <span style={{ fontSize: 12, color: "#64748b" }}>Read only</span>
@@ -3523,7 +3791,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           ))}
         </select>
         {selectedConversions.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", backgroundColor: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 8, marginTop: 12 }}>
+          <div className="inner-card-hover migration-conversion-card" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", backgroundColor: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 8, marginTop: 12 }}>
             <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0c4a6e" }}>
               ✓ {conversionTypes.find((c) => c.id === selectedConversions[0])?.name} selected
             </span>
@@ -3585,6 +3853,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           ].map((option) => (
             <div key={option.key} style={{ position: "relative", height: '100%' }}>
               <div
+              className="inner-card-hover migration-option-card"
               onClick={() => {
               if (option.key === "runSonar") {
                   setRunSonar(!runSonar);
@@ -3763,21 +4032,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       </div>
       {selectedRepo && (
         <div style={styles.discoveryContent}>
-          <div style={styles.discoveryItem}>
+          <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
             <span style={styles.discoveryIcon}>📊</span>
             <div>
               <div style={styles.discoveryTitle}>Repository Analysis</div>
               <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
             </div>
           </div>
-          <div style={styles.discoveryItem}>
+          <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
             <span style={styles.discoveryIcon}>🔧</span>
             <div>
               <div style={styles.discoveryTitle}>Build Tools Detection</div>
               <div style={styles.discoveryDesc}>Identifying Maven, Gradle, or other build systems</div>
             </div>
           </div>
-          <div style={styles.discoveryItem}>
+          <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
             <span style={styles.discoveryIcon}>📦</span>
             <div>
               <div style={styles.discoveryTitle}>Dependencies Scan</div>
@@ -3809,12 +4078,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               <div style={styles.sectionTitle}>📊 Assessment Report</div>
               <div style={{ ...styles.riskBadge, backgroundColor: riskLevel === "low" ? "#dcfce7" : riskLevel === "medium" ? "#fef3c7" : "#fee2e2", color: riskLevel === "low" ? "#166534" : riskLevel === "medium" ? "#92400e" : "#991b1b" }}>Risk Level: {riskLevel.toUpperCase()}</div>
               <div style={styles.assessmentGrid}>
-                <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
-                <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{repoAnalysis.java_version || "Unknown"}</div></div>
-                <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
-                <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
+                <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
+                <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{repoAnalysis.java_version || "Unknown"}</div></div>
+                <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
+                <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
               </div>
-              <div style={styles.structureBox}>
+              <div className="inner-card-hover discovery-inner-card" style={styles.structureBox}>
                 <div style={styles.structureTitle}>Project Structure</div>
                 <div style={styles.structureGrid}>
                   <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
@@ -3825,11 +4094,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 </div>
               </div>
               {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
-                <div style={styles.dependenciesBox}>
+                <div className="inner-card-hover dependency-inner-card" style={styles.dependenciesBox}>
                   <div style={styles.sectionTitle}>📦 Dependencies ({repoAnalysis.dependencies.length})</div>
                   <div style={styles.dependenciesList}>
                     {repoAnalysis.dependencies.slice(0, 5).map((dep, idx) => (
-                      <div key={idx} style={styles.dependencyItem}>
+                      <div key={idx} className="inner-card-hover dependency-inner-card" style={styles.dependencyItem}>
                         <span>{dep.group_id}:{dep.artifact_id}</span>
                         <span style={styles.dependencyVersion}>{dep.current_version}</span>
                       </div>
@@ -3840,7 +4109,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               )}
             </>
           ) : (
-            <div style={styles.infoBox}>
+            <div className="inner-card-hover info-inner-card" style={styles.infoBox}>
               Repository selected, but analysis is not available yet.
               <br />
               <button
@@ -4063,7 +4332,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <label style={styles.label}>Detected Dependencies ({repoAnalysis.dependencies.length})</label>
           <div style={styles.dependenciesList}>
             {repoAnalysis.dependencies.slice(0, 10).map((dep, idx) => (
-              <div key={idx} style={styles.dependencyItem}>
+              <div key={idx} className="inner-card-hover dependency-inner-card" style={styles.dependencyItem}>
                 <span>{dep.group_id}:{dep.artifact_id}</span>
                 <span style={styles.dependencyVersion}>{dep.current_version}</span>
                 <span style={{ ...styles.detectedBadge, backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb", color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280" }}>
@@ -4084,7 +4353,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             { id: "hibernate", name: "Hibernate / JPA", detected: false },
             { id: "junit", name: "JUnit 4 → 5", detected: true },
           ].map((fw) => (
-            <label key={fw.id} style={styles.frameworkItem}>
+            <label key={fw.id} className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
               <input type="checkbox" checked={selectedFrameworks.includes(fw.id)} onChange={() => handleFrameworkToggle(fw.id)} style={styles.checkbox} />
               <span>{fw.name}</span>
               {fw.detected && <span style={styles.detectedBadge}>Detected</span>}
@@ -4127,7 +4396,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
         )}
       </div>
-      <div style={styles.warningBox}>
+      <div className="inner-card-hover risk-inner-card" style={styles.warningBox}>
         <div style={styles.warningTitle}>⚠️ Common Issues to Watch</div>
         <ul style={styles.warningList}>
           <li><strong>javax.xml.bind</strong> - Missing in Java 11+</li>
@@ -4139,21 +4408,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       <div style={styles.field}>
         <label style={styles.label}>Migration Options</label>
         <div style={styles.optionsGrid}>
-          <label style={styles.optionItem}>
+          <label className="inner-card-hover migration-inner-card" style={styles.optionItem}>
             <input type="checkbox" checked={runTests} onChange={(e) => setRunTests(e.target.checked)} style={styles.checkbox} />
               <div>
               <div style={{ fontWeight: 500, fontSize: 16 }}>Run Tests</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>Execute test suite after migration</div>
             </div>
           </label>
-          <label style={styles.optionItem}>
+          <label className="inner-card-hover migration-inner-card" style={styles.optionItem}>
             <input type="checkbox" checked={runSonar} onChange={(e) => setRunSonar(e.target.checked)} style={styles.checkbox} />
             <div>
               <div style={{ fontWeight: 500, fontSize: 16 }}>SonarQube Analysis</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>Run code quality analysis</div>
             </div>
           </label>
-          <label style={styles.optionItem}>
+          <label className="inner-card-hover migration-inner-card" style={styles.optionItem}>
   <input
     type="checkbox"
     checked={runFossa}
@@ -4167,7 +4436,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     </div>
   </div>
 </label>
-          <label style={styles.optionItem}>
+          <label className="inner-card-hover migration-inner-card" style={styles.optionItem}>
             <input type="checkbox" checked={fixBusinessLogic} onChange={(e) => setFixBusinessLogic(e.target.checked)} style={styles.checkbox} />
             <div>
               <div style={{ fontWeight: 500, fontSize: 16 }}>Fix Business Logic Issues</div>
@@ -4314,13 +4583,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.progressBar}><div style={{ ...styles.progressFill, width: `${migrationJob?.progress_percent ?? 0}%` }} /></div>
         </div>
         <div style={styles.statsGrid}>
-          <div style={styles.statBox}><div style={styles.statValue}>{migrationJob.files_modified}</div><div style={styles.statLabel}>Files Modified</div></div>
-          <div style={styles.statBox}><div style={styles.statValue}>{migrationJob.issues_fixed}</div><div style={styles.statLabel}>Issues Fixed</div></div>
-          <div style={styles.statBox}><div style={{ ...styles.statValue, color: migrationJob.total_errors > 0 ? "#ef4444" : "#22c55e" }}>{migrationJob.total_errors}</div><div style={styles.statLabel}>Errors</div></div>
-          <div style={styles.statBox}><div style={{ ...styles.statValue, color: migrationJob.total_warnings > 0 ? "#f59e0b" : "#22c55e" }}>{migrationJob.total_warnings}</div><div style={styles.statLabel}>Warnings</div></div>
+          <div className="inner-card-hover result-inner-card" style={styles.statBox}><div style={styles.statValue}>{migrationJob.files_modified}</div><div style={styles.statLabel}>Files Modified</div></div>
+          <div className="inner-card-hover result-inner-card" style={styles.statBox}><div style={styles.statValue}>{migrationJob.issues_fixed}</div><div style={styles.statLabel}>Issues Fixed</div></div>
+          <div className="inner-card-hover result-inner-card" style={styles.statBox}><div style={{ ...styles.statValue, color: migrationJob.total_errors > 0 ? "#ef4444" : "#22c55e" }}>{migrationJob.total_errors}</div><div style={styles.statLabel}>Errors</div></div>
+          <div className="inner-card-hover result-inner-card" style={styles.statBox}><div style={{ ...styles.statValue, color: migrationJob.total_warnings > 0 ? "#f59e0b" : "#22c55e" }}>{migrationJob.total_warnings}</div><div style={styles.statLabel}>Warnings</div></div>
         </div>
         {migrationJob.status === "completed" && migrationJob.target_repo && (
-          <div style={styles.successBox}>
+          <div className="inner-card-hover success-inner-card" style={styles.successBox}>
             <div style={styles.successTitle}>🎉 Migration Successful!</div>
             <a href={getRepositoryLink(migrationJob.target_repo) || "#"} target="_blank" rel="noreferrer" style={styles.repoLink}>View Migrated Repository →</a>
           </div>
@@ -4371,7 +4640,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🏗️ Repository Information</h3>
             <div style={styles.reportGrid}>
-              <div style={styles.reportItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.reportItem}>
                 <span style={styles.reportLabel}>Source Repository</span>
                 <span style={styles.reportValue}>
                   {migrationJob.source_repo && migrationJob.source_repo.startsWith('http') ? (
@@ -4383,7 +4652,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   )}
                 </span>
               </div>
-              <div style={styles.reportItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.reportItem}>
                 <span style={styles.reportLabel}>Target Repository</span>
                 <span style={styles.reportValue}>
                   {migrationJob.target_repo && migrationJob.target_repo.startsWith('http') ? (
@@ -4395,11 +4664,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   )}
                 </span>
               </div>
-              <div style={styles.reportItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.reportItem}>
                 <span style={styles.reportLabel}>Java Version Migration</span>
                 <span style={styles.reportValue}>{migrationJob.source_java_version} → {migrationJob.target_java_version}</span>
               </div>
-              <div style={styles.reportItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.reportItem}>
                 <span style={styles.reportLabel}>Migration Completed</span>
                 <span style={styles.reportValue}>{migrationJob.completed_at ? new Date(migrationJob.completed_at).toLocaleString() : "In Progress"}</span>
               </div>
@@ -4410,21 +4679,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🔄 Changes Made</h3>
             <div style={styles.changesGrid}>
-              <div style={styles.changeItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.changeItem}>
                 <span style={styles.changeIcon}>📄</span>
                 <div>
                   <div style={styles.changeTitle}>Files Modified</div>
                   <div style={styles.changeValue}>{migrationJob.files_modified} files updated</div>
                 </div>
               </div>
-              <div style={styles.changeItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.changeItem}>
                 <span style={styles.changeIcon}>🔧</span>
                 <div>
                   <div style={styles.changeTitle}>Code Transformations</div>
                   <div style={styles.changeValue}>{migrationJob.issues_fixed} code issues fixed</div>
                 </div>
               </div>
-              <div style={styles.changeItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.changeItem}>
                 <span style={styles.changeIcon}>📦</span>
                 <div>
                   <div style={styles.changeTitle}>Dependencies Updated</div>
@@ -4440,7 +4709,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             {migrationJob.dependencies && migrationJob.dependencies.length > 0 ? (
               <div style={styles.dependenciesReport}>
                 {migrationJob.dependencies.map((dep, idx) => (
-                  <div key={idx} style={styles.dependencyReportItem}>
+                  <div key={idx} className="inner-card-hover result-inner-card" style={styles.dependencyReportItem}>
                     <span style={styles.dependencyName}>{dep.group_id}:{dep.artifact_id}</span>
                     <span style={styles.dependencyChange}>
                       {dep.current_version} → {dep.new_version || 'latest'}
@@ -4452,23 +4721,23 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 ))}
               </div>
             ) : (
-              <div style={styles.noData}>No dependency updates were required</div>
+              <div className="inner-card-hover info-inner-card" style={styles.noData}>No dependency updates were required</div>
             )}
           </div>
 
           {/* Errors Fixed */}
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🐛 Errors Fixed</h3>
-            <div style={styles.errorsSummary}>
-              <div style={styles.errorStat}>
+            <div className="inner-card-hover result-summary-card" style={styles.errorsSummary}>
+              <div className="inner-card-hover risk-inner-card" style={styles.errorStat}>
                 <span style={styles.errorCount}>{migrationJob.errors_fixed || 0}</span>
                 <span style={styles.errorLabel}>Errors Fixed</span>
               </div>
-              <div style={styles.errorStat}>
+              <div className="inner-card-hover risk-inner-card" style={styles.errorStat}>
                 <span style={styles.errorCount}>{migrationJob.total_errors}</span>
                 <span style={styles.errorLabel}>Remaining Errors</span>
               </div>
-              <div style={styles.errorStat}>
+              <div className="inner-card-hover risk-inner-card" style={styles.errorStat}>
                 <span style={styles.errorCount}>{migrationJob.total_warnings}</span>
                 <span style={styles.errorLabel}>Warnings</span>
               </div>
@@ -4479,28 +4748,28 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🧠 Business Logic Improvements</h3>
             <div style={styles.businessLogicGrid}>
-              <div style={styles.businessItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.businessItem}>
                 <span style={styles.businessIcon}>🛡️</span>
                 <div>
                   <div style={styles.businessTitle}>Null Safety</div>
                   <div style={styles.businessDesc}>Added null checks and Objects.equals() usage</div>
                 </div>
               </div>
-              <div style={styles.businessItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.businessItem}>
                 <span style={styles.businessIcon}>⚡</span>
                 <div>
                   <div style={styles.businessTitle}>Performance</div>
                   <div style={styles.businessDesc}>Optimized String operations and collections</div>
                 </div>
               </div>
-              <div style={styles.businessItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.businessItem}>
                 <span style={styles.businessIcon}>🔧</span>
                 <div>
                   <div style={styles.businessTitle}>Code Quality</div>
                   <div style={styles.businessDesc}>Improved exception handling and logging</div>
                 </div>
               </div>
-              <div style={styles.businessItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.businessItem}>
                 <span style={styles.businessIcon}>📝</span>
                 <div>
                   <div style={styles.businessTitle}>Modern APIs</div>
@@ -4533,7 +4802,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             </h3>
             
             {showCodeChanges && (
-              <div style={{
+              <div className="inner-card-hover result-diff-card" style={{
                 border: "1px solid #d0d7de",
                 borderRadius: 8,
                 overflow: "hidden",
@@ -4576,6 +4845,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     <div key={idx}>
                       {/* File Header */}
                       <div
+                        className="inner-card-hover result-file-diff-header"
                         onClick={() => setSelectedDiffFile(selectedDiffFile === change.filePath ? null : change.filePath)}
                         style={{
                           display: "flex",
@@ -4735,7 +5005,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
          {runSonar && ( <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🔍 SonarQube Code Quality & Coverage</h3>
             <div style={styles.sonarqubeGrid}>
-              <div style={styles.sonarqubeItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.sonarqubeItem}>
                 <div style={styles.qualityGate}>
                   <span style={{ ...styles.gateStatus, backgroundColor: migrationJob.sonar_quality_gate === "PASSED" ? "#22c55e" : "#22c55e" }}>
                     {migrationJob.sonar_quality_gate || "N/A"}
@@ -4743,7 +5013,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   <span style={styles.gateLabel}>Quality Gate</span>
                 </div>
               </div>
-              <div style={styles.sonarqubeItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.sonarqubeItem}>
                 <div style={styles.coverageMeter}>
                   <div style={styles.coverageCircle}>
                     <span style={styles.coveragePercent}>{migrationJob.sonar_coverage}%</span>
@@ -4753,19 +5023,19 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
             <div style={styles.qualityMetrics}>
-              <div style={styles.metricItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.metricItem}>
                 <span style={{ ...styles.metricValue, color: migrationJob.sonar_bugs > 0 ? "#ef4444" : "#22c55e" }}>
                   {migrationJob.sonar_bugs}
                 </span>
                 <span style={styles.metricLabel}>Bugs</span>
               </div>
-              <div style={styles.metricItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.metricItem}>
                 <span style={{ ...styles.metricValue, color: migrationJob.sonar_vulnerabilities > 0 ? "#ef4444" : "#22c55e" }}>
                   {migrationJob.sonar_vulnerabilities}
                 </span>
                 <span style={styles.metricLabel}>Vulnerabilities</span>
               </div>
-              <div style={styles.metricItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.metricItem}>
                 <span style={{ ...styles.metricValue, color: migrationJob.sonar_code_smells > 0 ? "#f59e0b" : "#22c55e" }}>
                   {migrationJob.sonar_code_smells}
                 </span>
@@ -4783,7 +5053,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       <div style={styles.sonarqubeGrid}>
         
         {/* Policy Status */}
-        <div style={styles.sonarqubeItem}>
+        <div className="inner-card-hover result-inner-card" style={styles.sonarqubeItem}>
           <div style={styles.qualityGate}>
             <span
               style={{
@@ -4798,7 +5068,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
 
         {/* Dependency Count */}
-        <div style={styles.sonarqubeItem}>
+        <div className="inner-card-hover result-inner-card" style={styles.sonarqubeItem}>
           <div style={styles.coverageMeter}>
             <div style={styles.coverageCircle}>
               <span style={styles.coveragePercent}>
@@ -4813,7 +5083,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       {/* FOSSA Metrics */}
       <div style={styles.qualityMetrics}>
         
-          <div style={styles.metricItem}>
+          <div className="inner-card-hover result-inner-card" style={styles.metricItem}>
             <span
               style={{
                 ...styles.metricValue,
@@ -4825,7 +5095,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             <span style={styles.metricLabel}>License Issues</span>
           </div>
 
-        <div style={styles.metricItem}>
+        <div className="inner-card-hover result-inner-card" style={styles.metricItem}>
           <span
             style={{
               ...styles.metricValue,
@@ -4837,7 +5107,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <span style={styles.metricLabel}>Vulnerabilities</span>
         </div>
 
-        <div style={styles.metricItem}>
+        <div className="inner-card-hover result-inner-card" style={styles.metricItem}>
           <span
             style={{
               ...styles.metricValue,
@@ -4857,24 +5127,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🧪 Unit Test Report</h3>
             <div style={styles.testReportGrid}>
-              <div style={styles.testMetric}>
+              <div className="inner-card-hover result-inner-card" style={styles.testMetric}>
                 <span style={styles.testValue}>10</span>
                 <span style={styles.testLabel}>Tests Run</span>
               </div>
-              <div style={styles.testMetric}>
+              <div className="inner-card-hover result-inner-card" style={styles.testMetric}>
                 <span style={{ ...styles.testValue, color: "#22c55e" }}>10</span>
                 <span style={styles.testLabel}>Tests Passed</span>
               </div>
-              <div style={styles.testMetric}>
+              <div className="inner-card-hover result-inner-card" style={styles.testMetric}>
                 <span style={{ ...styles.testValue, color: "#ef4444" }}>0</span>
                 <span style={styles.testLabel}>Tests Failed</span>
               </div>
-              <div style={styles.testMetric}>
+              <div className="inner-card-hover result-inner-card" style={styles.testMetric}>
                 <span style={styles.testValue}>100%</span>
                 <span style={styles.testLabel}>Success Rate</span>
               </div>
             </div>
-            <div style={styles.testStatus}>
+            <div className="inner-card-hover success-inner-card" style={styles.testStatus}>
               <span style={styles.testStatusIcon}>✅</span>
               <span>All unit tests passed successfully</span>
             </div>
@@ -4884,21 +5154,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🚀 JMeter Performance Test Report</h3>
             <div style={styles.jmeterGrid}>
-              <div style={styles.jmeterItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.jmeterItem}>
                 <span style={styles.jmeterLabel}>API Endpoints Tested</span>
                 <span style={styles.jmeterValue}>{migrationJob?.api_endpoints_validated ?? 0}</span>
               </div>
-              <div style={styles.jmeterItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.jmeterItem}>
                 <span style={styles.jmeterLabel}>Working Endpoints</span>
                 <span style={{ ...styles.jmeterValue, color: (migrationJob?.api_endpoints_working ?? 0) === (migrationJob?.api_endpoints_validated ?? 0) && (migrationJob?.api_endpoints_validated ?? 0) > 0 ? "#22c55e" : "#f59e0b" }}>
                   {migrationJob?.api_endpoints_working ?? 0}/{migrationJob?.api_endpoints_validated ?? 0}
                 </span>
               </div>
-              <div style={styles.jmeterItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.jmeterItem}>
                 <span style={styles.jmeterLabel}>Average Response Time</span>
                 <span style={styles.jmeterValue}>245ms</span>
               </div>
-              <div style={styles.jmeterItem}>
+              <div className="inner-card-hover result-inner-card" style={styles.jmeterItem}>
                 <span style={styles.jmeterLabel}>Throughput</span>
                 <span style={styles.jmeterValue}>150 req/sec</span>
               </div>
@@ -4908,13 +5178,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           {/* Migration Log */}
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>📋 Migration Log</h3>
-            <div style={styles.logsContainer}>
+            <div className="inner-card-hover result-log-card" style={styles.logsContainer}>
               {migrationLogs.length > 0 ? (
                 migrationLogs.map((log, index) => (
                   <div key={index} style={styles.logEntry}>{log}</div>
                 ))
               ) : (
-                <div style={styles.noLogs}>No migration logs available</div>
+                <div className="inner-card-hover info-inner-card" style={styles.noLogs}>No migration logs available</div>
               )}
             </div>
           </div>
@@ -4925,7 +5195,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             <div style={styles.issuesContainer}>
               {migrationJob.issues && migrationJob.issues.length > 0 ? (
                 migrationJob.issues.slice(0, 10).map((issue) => (
-                  <div key={issue.id} style={styles.issueItem}>
+                  <div key={issue.id} className="inner-card-hover risk-inner-card" style={styles.issueItem}>
                     <div style={styles.issueHeader}>
                       <span style={{ ...styles.issueSeverity, backgroundColor: issue.severity === "error" ? "#fee2e2" : issue.severity === "warning" ? "#fef3c7" : "#e0f2fe" }}>
                         {issue.severity.toUpperCase()}
@@ -4938,7 +5208,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   </div>
                 ))
               ) : (
-                <div style={styles.noIssues}>No issues found - migration completed successfully!</div>
+                <div className="inner-card-hover success-inner-card" style={styles.noIssues}>No issues found - migration completed successfully!</div>
               )}
             </div>
           </div>
@@ -5449,7 +5719,7 @@ For questions or issues:
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "#f8fafc", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
+  container: { flex: 1, display: "flex", flexDirection: "column", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "#f8fafc", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "visible" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
   stepIndicatorContainer: { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
@@ -5457,7 +5727,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.2s ease", cursor: "pointer", whiteSpace: "nowrap" },
   stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "all 0.2s ease" },
   stepLabel: { display: "flex", flexDirection: "column" },
-  main: { width: "100%", maxWidth: "100vw", padding: "24px 40px", minHeight: "calc(100vh - 160px)", boxSizing: "border-box" },
+  main: { flex: 1, width: "100%", maxWidth: "100vw", padding: "24px 40px", boxSizing: "border-box" },
   card: { background: "#fff", borderRadius: 12, padding: "28px 32px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0" },
   stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" },
   stepIcon: { fontSize: 36 },

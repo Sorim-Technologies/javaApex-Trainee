@@ -649,3 +649,374 @@
     width: 100%;
   }
 }
+
+/* =========================================================
+   INNER CARD ONLY HOVER EFFECTS
+   Main page wrapper cards stay fixed. Only inner cards hover.
+   ========================================================= */
+
+/* Stop overall/container cards from moving on hover */
+.premium-card:hover,
+.glass-card:hover,
+.card-hover:hover {
+  transform: none !important;
+}
+
+/* Shared inner card animation */
+.inner-card-hover,
+.file-item,
+.repo-card,
+.metric-card,
+.java-recommendation-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    border-color 0.28s ease,
+    background 0.28s ease;
+}
+
+/* Small colour strip animation for all inner cards */
+.inner-card-hover::before,
+.repo-card::before,
+.metric-card::before,
+.java-recommendation-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 3px;
+  transition: left 0.35s ease;
+}
+
+.inner-card-hover:hover::before,
+.repo-card:hover::before,
+.metric-card:hover::before,
+.java-recommendation-card:hover::before {
+  left: 0;
+}
+
+/* Discovery inner cards - Blue */
+.discovery-inner-card:hover,
+.repo-card:hover,
+.file-item:hover {
+  transform: translateY(-6px);
+  border-color: #3b82f6 !important;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+  box-shadow: 0 16px 34px rgba(59, 130, 246, 0.22) !important;
+}
+
+.discovery-inner-card::before,
+.repo-card::before,
+.file-item::before {
+  background: #3b82f6;
+}
+
+/* Framework / detected component cards - Cyan */
+.framework-inner-card:hover,
+.info-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #06b6d4 !important;
+  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%) !important;
+  box-shadow: 0 16px 34px rgba(6, 182, 212, 0.22) !important;
+}
+
+.framework-inner-card::before,
+.info-inner-card::before {
+  background: #06b6d4;
+}
+
+/* Dependency inner cards - Indigo */
+.dependency-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #6366f1 !important;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+  box-shadow: 0 16px 34px rgba(99, 102, 241, 0.22) !important;
+}
+
+.dependency-inner-card::before {
+  background: #6366f1;
+}
+
+/* Strategy / recommendation inner cards - Purple */
+.strategy-inner-card:hover,
+.assessment-inner-card:hover,
+.java-recommendation-card:hover {
+  transform: translateY(-6px);
+  border-color: #8b5cf6 !important;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+  box-shadow: 0 16px 34px rgba(139, 92, 246, 0.22) !important;
+}
+
+.strategy-inner-card::before,
+.assessment-inner-card::before,
+.java-recommendation-card::before {
+  background: #8b5cf6;
+}
+
+/* Migration option inner cards - Orange */
+.migration-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #f59e0b !important;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+  box-shadow: 0 16px 34px rgba(245, 158, 11, 0.24) !important;
+}
+
+.migration-inner-card::before {
+  background: #f59e0b;
+}
+
+/* Result / report inner cards - Green */
+.result-inner-card:hover,
+.success-inner-card:hover,
+.metric-card:hover {
+  transform: translateY(-6px);
+  border-color: #10b981 !important;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  box-shadow: 0 16px 34px rgba(16, 185, 129, 0.22) !important;
+}
+
+.result-inner-card::before,
+.success-inner-card::before,
+.metric-card::before {
+  background: #10b981;
+}
+
+/* Warning / risk inner cards - Red */
+.risk-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #ef4444 !important;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+  box-shadow: 0 16px 34px rgba(239, 68, 68, 0.22) !important;
+}
+
+.risk-inner-card::before {
+  background: #ef4444;
+}
+
+/* Keep selected cards clear and stronger */
+.java-recommendation-card--selected:hover,
+.conversion-selected:hover {
+  border-color: #4f46e5 !important;
+  background: linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%) !important;
+  box-shadow: 0 18px 38px rgba(79, 70, 229, 0.28) !important;
+}
+
+/* Buttons inside hovered cards should stay clickable and clean */
+.inner-card-hover button,
+.java-recommendation-card button {
+  position: relative;
+  z-index: 2;
+}
+
+/* Respect reduced-motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .inner-card-hover,
+  .file-item,
+  .repo-card,
+  .metric-card,
+  .java-recommendation-card {
+    transition: none;
+  }
+
+  .inner-card-hover:hover,
+  .file-item:hover,
+  .repo-card:hover,
+  .metric-card:hover,
+  .java-recommendation-card:hover {
+    transform: none;
+  }
+}
+
+
+/* ===================================================
+   INNER CARD HOVER EFFECTS - MIGRATION & RESULT FIX
+   Only inner cards/items hover. Outer page cards stay unchanged.
+   =================================================== */
+
+/* Stop overall page card hover movement */
+.premium-card:hover,
+.card-hover:hover {
+  transform: none !important;
+}
+
+.inner-card-hover {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease !important;
+}
+
+.inner-card-hover:hover {
+  transform: translateY(-6px) scale(1.01) !important;
+  border-color: var(--inner-card-accent, #6366f1) !important;
+  background: linear-gradient(135deg, var(--inner-card-bg, #eef2ff) 0%, #ffffff 100%) !important;
+  box-shadow: 0 16px 34px var(--inner-card-shadow, rgba(99, 102, 241, 0.22)) !important;
+}
+
+.inner-card-hover::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: var(--inner-card-accent, #6366f1);
+  transition: width 0.25s ease;
+}
+
+.inner-card-hover:hover::after {
+  width: 100%;
+}
+
+/* Migration page inner cards */
+.migration-modernize-card {
+  --inner-card-accent: #f59e0b;
+  --inner-card-bg: #fffbeb;
+  --inner-card-shadow: rgba(245, 158, 11, 0.24);
+}
+
+.migration-option-card {
+  --inner-card-accent: #f97316;
+  --inner-card-bg: #fff7ed;
+  --inner-card-shadow: rgba(249, 115, 22, 0.24);
+}
+
+.migration-preview-card,
+.migration-diff-card {
+  --inner-card-accent: #0891b2;
+  --inner-card-bg: #ecfeff;
+  --inner-card-shadow: rgba(8, 145, 178, 0.22);
+}
+
+.migration-conversion-card {
+  --inner-card-accent: #2563eb;
+  --inner-card-bg: #eff6ff;
+  --inner-card-shadow: rgba(37, 99, 235, 0.22);
+}
+
+.migration-chip-card--files {
+  --inner-card-accent: #2563eb;
+  --inner-card-bg: #eff6ff;
+  --inner-card-shadow: rgba(37, 99, 235, 0.2);
+}
+
+.migration-chip-card--changes {
+  --inner-card-accent: #10b981;
+  --inner-card-bg: #ecfdf5;
+  --inner-card-shadow: rgba(16, 185, 129, 0.2);
+}
+
+.migration-chip-card--diffs {
+  --inner-card-accent: #8b5cf6;
+  --inner-card-bg: #f5f3ff;
+  --inner-card-shadow: rgba(139, 92, 246, 0.2);
+}
+
+/* Result page inner cards */
+.result-inner-card,
+.result-summary-card,
+.result-diff-card,
+.result-file-diff-header,
+.result-log-card {
+  --inner-card-accent: #10b981;
+  --inner-card-bg: #ecfdf5;
+  --inner-card-shadow: rgba(16, 185, 129, 0.22);
+}
+
+.success-inner-card {
+  --inner-card-accent: #22c55e;
+  --inner-card-bg: #f0fdf4;
+  --inner-card-shadow: rgba(34, 197, 94, 0.22);
+}
+
+.risk-inner-card {
+  --inner-card-accent: #ef4444;
+  --inner-card-bg: #fef2f2;
+  --inner-card-shadow: rgba(239, 68, 68, 0.22);
+}
+
+.info-inner-card {
+  --inner-card-accent: #3b82f6;
+  --inner-card-bg: #eff6ff;
+  --inner-card-shadow: rgba(59, 130, 246, 0.2);
+}
+
+.dependency-inner-card {
+  --inner-card-accent: #7c3aed;
+  --inner-card-bg: #f5f3ff;
+  --inner-card-shadow: rgba(124, 58, 237, 0.22);
+}
+
+.assessment-inner-card {
+  --inner-card-accent: #06b6d4;
+  --inner-card-bg: #ecfeff;
+  --inner-card-shadow: rgba(6, 182, 212, 0.22);
+}
+
+.discovery-inner-card {
+  --inner-card-accent: #3b82f6;
+  --inner-card-bg: #eff6ff;
+  --inner-card-shadow: rgba(59, 130, 246, 0.2);
+}
+
+/* Keep dark diff content readable */
+.result-diff-card:hover,
+.migration-diff-card:hover {
+  background: #ffffff !important;
+}
+
+
+/* ===================================================
+   CONNECT PAGE SOURCE OPTIONS + ZIP UPLOAD
+   =================================================== */
+.source-option-tab:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.10);
+}
+
+.source-option-tab--active {
+  box-shadow: 0 12px 28px rgba(59, 130, 246, 0.16);
+}
+
+.source-option-tab--active:nth-child(2) {
+  box-shadow: 0 12px 28px rgba(245, 158, 11, 0.18);
+}
+
+.zip-upload-box:hover {
+  border-color: #f59e0b !important;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+  transform: translateY(-4px);
+  box-shadow: 0 16px 34px rgba(245, 158, 11, 0.18);
+}
+
+
+.zip-upload-box--ready {
+  border-color: #22c55e !important;
+  background: #f0fdf4 !important;
+}
+
+.zip-upload-box--ready:hover {
+  border-color: #22c55e !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+  box-shadow: 0 16px 34px rgba(34, 197, 94, 0.18);
+}
+
+.zip-upload-box--success:hover {
+  border-color: #22c55e !important;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+  box-shadow: 0 16px 34px rgba(34, 197, 94, 0.18);
+}
+
+.zip-upload-box--error:hover {
+  border-color: #ef4444 !important;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+  box-shadow: 0 16px 34px rgba(239, 68, 68, 0.18);
+}
+
+@media (max-width: 720px) {
+  .source-option-tabs {
+    grid-template-columns: 1fr !important;
+  }
+}

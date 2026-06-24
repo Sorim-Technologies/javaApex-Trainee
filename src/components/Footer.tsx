@@ -1,34 +1,27 @@
-import React from "react";
+import apexLogo from "../assets/logo.jpg";
+import "./Footer.css";
 
-export default function Footer() {
-  const styles: { [key: string]: React.CSSProperties } = {
-    footer: {
-      borderTop: "1px solid #1e293b",
-      padding: "32px 40px",
-      textAlign: "center",
-      backgroundColor: "rgba(15, 20, 25, 0.5)",
-      fontSize: 14,
-      color: "#94a3b8",
-    },
-    copyright: {
-      marginBottom: 12,
-    },
-    poweredBy: {
-      fontSize: 13,
-      color: "#64748b",
-      marginTop: 12,
-    },
-    sorimai: {
-      color: "#3b82f6",
-      fontWeight: 700,
-    },
-  };
+type FooterVariant = "light" | "dark";
 
+export default function Footer({
+  variant = "dark",
+  fixed = false,
+}: {
+  variant?: FooterVariant;
+  fixed?: boolean;
+}) {
   return (
-    <footer style={styles.footer}>
-      <div style={styles.copyright}>© 2026 javaAPEX. All rights reserved.</div>
-      <div style={styles.poweredBy}>
-        Powered by <span style={styles.sorimai}>Sorim.ai</span>
+    <footer className={`app-footer app-footer--${variant}${fixed ? " app-footer--fixed" : ""}`}>
+      <div className="app-footer__content">
+        <div className="app-footer__brand" aria-label="JavaAPEX">
+          <img src={apexLogo} alt="JavaAPEX" className="app-footer__logo" />
+        </div>
+        <div className="app-footer__copyright">
+          © {new Date().getFullYear()}{" "}
+          <a href="https://sorim.ai/" target="_blank" rel="noreferrer">
+            Sorim.ai
+          </a>
+        </div>
       </div>
     </footer>
   );
