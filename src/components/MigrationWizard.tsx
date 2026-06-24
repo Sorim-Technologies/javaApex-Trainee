@@ -2754,146 +2754,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
           )}
-{repoAnalysis.api_endpoints_by_method && (
-      <div
-        style={{
-          marginTop: 24,
-          padding: 20,
-          background: "#f8fafc",
-          border: "1px solid #e2e8f0",
-          borderRadius: 12,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            color: "#1e293b",
-            marginBottom: 16,
-          }}
-        >
-          🔗 API Endpoint Detection
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 12,
-            marginBottom: 20,
-          }}
-        >
-          {Object.entries(repoAnalysis.api_endpoints_by_method).map(([method, endpoints]) => (
-            <div
-              key={method}
-              style={{
-                padding: 14,
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: 10,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#475569",
-                  marginBottom: 6,
-                }}
-              >
-                {method}
-              </div>
-              <div
-                style={{
-                  fontSize: 24,
-                  fontWeight: 800,
-                  color:
-                    method === "GET"
-                      ? "#2563eb"
-                      : method === "POST"
-                      ? "#16a34a"
-                      : method === "PUT"
-                      ? "#ca8a04"
-                      : method === "DELETE"
-                      ? "#dc2626"
-                      : "#64748b",
-                }}
-              >
-                {endpoints.length}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {Object.entries(repoAnalysis.api_endpoints_by_method).map(([method, endpoints]) => (
-          endpoints.length > 0 && (
-            <div key={method} style={{ marginBottom: 20 }}>
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#0f172a",
-                  marginBottom: 10,
-                }}
-              >
-                {method} APIs
-              </div>
-
-              <div style={{ overflowX: "auto" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    background: "#ffffff",
-                    borderRadius: 10,
-                    overflow: "hidden",
-                  }}
-                >
-                  <thead>
-                    <tr style={{ background: "#e2e8f0" }}>
-                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
-                        API Method Name
-                      </th>
-                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
-                        API Path
-                      </th>
-                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
-                        File
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {endpoints.map((api, index) => (
-                      <tr key={index} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                        <td style={{ padding: 12, fontSize: 13, fontWeight: 600 }}>
-                          {api.name}
-                        </td>
-                        <td style={{ padding: 12, fontSize: 13 }}>
-                          <code
-                            style={{
-                              background: "#f1f5f9",
-                              padding: "4px 8px",
-                              borderRadius: 6,
-                              color: "#1d4ed8",
-                            }}
-                          >
-                            {api.path}
-                          </code>
-                        </td>
-                        <td style={{ padding: 12, fontSize: 13, color: "#475569" }}>
-                          {api.file}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )
-        ))}
-      </div> 
- )}
         </>
       )}
 
@@ -3165,6 +3025,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderMigrationStep = () => {
     const apiEndpointCount = repoAnalysis?.api_endpoints?.length ?? 0;
     const codeRefactoringEndpointLabel = `API endpoints: ${apiEndpointCount}`;
+    const apiEndpointsByMethod =
+  repoAnalysis?.api_endpoints_by_method || {
+    GET: [],
+    POST: [],
+    PUT: [],
+    DELETE: [],
+    PATCH: [],
+    OTHER: [],
+  };
 
     return (
     <div style={styles.card}>
@@ -3328,23 +3197,134 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.4 }}>
                     {item.desc}
                   </div>
-                  {item.detail && (
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        marginTop: 8,
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        backgroundColor: `${item.color}12`,
-                        color: item.color,
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {item.detail}
-                    </div>
-                  )}
+                 {item.detail && (
+  <div style={{ position: "relative", display: "inline-block", marginTop: 8 }}>
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "4px 10px",
+        borderRadius: 999,
+        backgroundColor: `${item.color}12`,
+        color: item.color,
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: item.title === "Code Refactoring" ? "pointer" : "default",
+      }}
+      onMouseEnter={(e) => {
+        if (item.title !== "Code Refactoring") return;
+        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+        if (tooltip) tooltip.style.display = "block";
+      }}
+      onMouseLeave={(e) => {
+        if (item.title !== "Code Refactoring") return;
+        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+        if (tooltip) tooltip.style.display = "none";
+      }}
+    >
+      {item.detail}
+    </div>
+
+    {item.title === "Code Refactoring" && apiEndpointCount > 0 && (
+      <div
+        style={{
+          display: "none",
+          position: "absolute",
+          top: 34,
+          left: 0,
+          width: 560,
+          maxHeight: 340,
+          overflowY: "auto",
+          background: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 12,
+          boxShadow: "0 12px 30px rgba(15, 23, 42, 0.18)",
+          padding: 16,
+          zIndex: 3000,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.display = "block";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.display = "none";
+        }}
+      >
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 800,
+            color: "#0f172a",
+            marginBottom: 12,
+          }}
+        >
+          🔗 Detected API Endpoints
+        </div>
+
+        {Object.entries(apiEndpointsByMethod).map(([method, endpoints]) =>
+          endpoints.length > 0 ? (
+            <div key={method} style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  color:
+                    method === "GET"
+                      ? "#2563eb"
+                      : method === "POST"
+                      ? "#16a34a"
+                      : method === "PUT"
+                      ? "#ca8a04"
+                      : method === "DELETE"
+                      ? "#dc2626"
+                      : "#64748b",
+                  marginBottom: 8,
+                }}
+              >
+                {method} APIs ({endpoints.length})
+              </div>
+
+              {endpoints.map((api, index) => (
+                <div
+                  key={`${method}-${index}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "150px 1fr",
+                    gap: 10,
+                    padding: "7px 0",
+                    borderBottom: "1px solid #f1f5f9",
+                    fontSize: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: "#1e293b",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {api.name || "Unnamed API"}
+                  </div>
+
+                  <code
+                    style={{
+                      background: "#f1f5f9",
+                      color: "#1d4ed8",
+                      padding: "4px 7px",
+                      borderRadius: 6,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {api.path}
+                  </code>
+                </div>
+              ))}
+            </div>
+          ) : null
+        )}
+      </div>
+    )}
+  </div>
+)}
                 </div>
               </div>
               <div style={{

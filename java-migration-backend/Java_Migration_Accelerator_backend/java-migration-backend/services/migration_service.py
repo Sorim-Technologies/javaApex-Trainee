@@ -688,6 +688,65 @@ class MigrationService:
                 "method": method,
                 "file": file_name,
             })
+                    # Java Servlet endpoint detection: @WebServlet("/LoginSrv")
+        servlet_match = re.search(r'@WebServlet\s*\((.*?)\)', content, re.DOTALL)
+
+        if servlet_match:
+            annotation_args = servlet_match.group(1)
+
+            servlet_paths = []
+
+            # @WebServlet("/LoginSrv")
+            direct_match = re.search(r'["\']([^"\']+)["\']', annotation_args)
+            if direct_match:
+                servlet_paths.append(direct_match.group(1))
+
+            # @WebServlet(urlPatterns = {"/LoginSrv", "/login"})
+            url_patterns = re.findall(r'["\'](/[^"\']+)["\']', annotation_args)
+            servlet_paths.extend(url_patterns)
+
+            servlet_paths = list(dict.fromkeys(servlet_paths))
+
+            servlet_class_match = re.search(r'class\s+(\w+)\s+extends\s+HttpServlet', content)
+            servlet_name = servlet_class_match.group(1) if servlet_class_match else file_name.replace(".java", "")
+
+            has_do_get = re.search(r'\bdoGet\s*\(', content)
+            has_do_post = re.search(r'\bdoPost\s*\(', content)
+            has_do_put = re.search(r'\bdoPut\s*\(', content)
+            has_do_delete = re.search(r'\bdoDelete\s*\(', content)
+
+            for servlet_path in servlet_paths:
+                if has_do_get:
+                    endpoints.append({
+                        "name": servlet_name + ".doGet",
+                        "path": servlet_path,
+                        "method": "GET",
+                        "file": file_name,
+                    })
+
+                if has_do_post:
+                    endpoints.append({
+                        "name": servlet_name + ".doPost",
+                        "path": servlet_path,
+                        "method": "POST",
+                        "file": file_name,
+                    })
+
+                if has_do_put:
+                    endpoints.append({
+                        "name": servlet_name + ".doPut",
+                        "path": servlet_path,
+                        "method": "PUT",
+                        "file": file_name,
+                    })
+
+                if has_do_delete:
+                    endpoints.append({
+                        "name": servlet_name + ".doDelete",
+                        "path": servlet_path,
+                        "method": "DELETE",
+                        "file": file_name,
+                    })
 
         return endpoints
 
