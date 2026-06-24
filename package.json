@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:frontend": "vite",
+    "dev:backend": "java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend/venv/Scripts/python.exe java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend/main.py",
     "build": "npx vite build",
     "lint": "eslint .",
     "preview": "vite preview"

@@ -3,7 +3,7 @@ Java Migration Backend - Main FastAPI Application
 Handles Java 7 → Java 18 migration automation using OpenRewrite
 """
 import sys
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, UploadFile, File
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +14,11 @@ import uuid
 import os
 import re
 import logging
+import shutil
+import tempfile
+import zipfile
 from datetime import datetime, timezone
+from pathlib import Path
 from github import GithubException
 
 # Force unbuffered output for immediate logging
@@ -101,6 +105,7 @@ hf_recommendation_service = HFRecommendationService()
 
 # In-memory storage for migration jobs (use Redis/DB in production)
 migration_jobs = {}
+uploaded_projects = {}
 
 
 class JavaVersion(str, Enum):
@@ -172,6 +177,135 @@ class MigrationRequest(BaseModel):
     run_sonar: bool = Field(default=True, description="Run SonarQube analysis")
     run_fossa: bool = Field(default=False, description="Run FOSSA license and dependency scan")
     fix_business_logic: bool = Field(default=True, description="Attempt to fix business logic issues")
+
+
+def is_local_source_url(source_url: str) -> bool:
+    return bool(source_url and source_url.startswith("local://"))
+
+
+def get_uploaded_project(source_url: str) -> Dict[str, Any]:
+    upload_id = source_url.replace("local://", "", 1)
+    project = uploaded_projects.get(upload_id)
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Uploaded project not found. Please upload the ZIP again.")
+
+    project_root = project.get("project_root")
+    if not project_root or not os.path.exists(project_root):
+        raise HTTPException(status_code=404, detail="Uploaded project files are no longer available. Please upload the ZIP again.")
+
+    return project
+
+
+def ensure_local_path(base_path: str, relative_path: str = "") -> str:
+    base = Path(base_path).resolve()
+    target = (base / relative_path).resolve()
+
+    if os.path.commonpath([str(base), str(target)]) != str(base):
+        raise HTTPException(status_code=400, detail="Invalid project path.")
+
+    return str(target)
+
+
+def detect_project_root(extract_dir: str) -> str:
+    entries = [
+        os.path.join(extract_dir, entry)
+        for entry in os.listdir(extract_dir)
+        if entry not in {"__MACOSX"} and not entry.startswith(".DS_Store")
+    ]
+
+    if len(entries) == 1 and os.path.isdir(entries[0]):
+        return entries[0]
+
+    return extract_dir
+
+
+def build_local_repo_info(project: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "name": project["name"],
+        "full_name": project["name"],
+        "default_branch": "local",
+        "language": "Java",
+        "description": "Uploaded local project",
+    }
+
+
+def build_local_repo_analysis(project: Dict[str, Any], analysis: Dict[str, Any], repo_url: str) -> Dict[str, Any]:
+    src_main = os.path.join(project["project_root"], "src", "main")
+    src_test = os.path.join(project["project_root"], "src", "test")
+    java_files = analysis.get("java_files", [])
+
+    return {
+        **build_local_repo_info(project),
+        "source_type": "local",
+        "source_name": project["name"],
+        "source_repo_url": repo_url,
+        "build_tool": analysis.get("build_tool"),
+        "java_version": analysis.get("java_version"),
+        "has_tests": bool(analysis.get("test_files", 0) > 0 or os.path.exists(src_test)),
+        "dependencies": analysis.get("dependencies", []),
+        "api_endpoints": analysis.get("api_endpoints", []),
+        "java_files": [
+            os.path.relpath(path, project["project_root"]).replace("\\", "/")
+            for path in java_files
+        ],
+        "structure": {
+            "has_pom_xml": os.path.exists(os.path.join(project["project_root"], "pom.xml")),
+            "has_build_gradle": (
+                os.path.exists(os.path.join(project["project_root"], "build.gradle"))
+                or os.path.exists(os.path.join(project["project_root"], "build.gradle.kts"))
+            ),
+            "has_src_main": os.path.exists(src_main),
+            "has_src_test": os.path.exists(src_test),
+        }
+    }
+
+
+def list_local_project_files(project_root: str, path: str = "") -> List[Dict[str, Any]]:
+    target_dir = ensure_local_path(project_root, path)
+
+    if not os.path.exists(target_dir):
+        raise HTTPException(status_code=404, detail=f"Path not found: {path}")
+    if not os.path.isdir(target_dir):
+        raise HTTPException(status_code=400, detail=f"Path is not a directory: {path}")
+
+    ignored_dirs = {".git", "node_modules", "target", "build", "out", "__pycache__"}
+    results = []
+
+    for entry in sorted(os.listdir(target_dir), key=lambda item: (not os.path.isdir(os.path.join(target_dir, item)), item.lower())):
+        if entry in ignored_dirs:
+            continue
+
+        full_path = os.path.join(target_dir, entry)
+        rel_path = os.path.relpath(full_path, project_root).replace("\\", "/")
+        results.append({
+            "name": entry,
+            "path": rel_path if rel_path != "." else "",
+            "type": "dir" if os.path.isdir(full_path) else "file",
+            "size": 0 if os.path.isdir(full_path) else os.path.getsize(full_path),
+            "url": rel_path if rel_path != "." else "",
+        })
+
+    return results
+
+
+def read_local_project_file(project_root: str, file_path: str) -> str:
+    target_file = ensure_local_path(project_root, file_path)
+
+    if not os.path.exists(target_file):
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+    if os.path.isdir(target_file):
+        raise HTTPException(status_code=400, detail=f"Path is a directory: {file_path}")
+
+    with open(target_file, "r", encoding="utf-8", errors="ignore") as handle:
+        return handle.read()
+
+
+def clone_local_project_to_workspace(project_root: str) -> str:
+    clone_dir = tempfile.mkdtemp(prefix="local_project_clone_")
+    shutil.rmtree(clone_dir)
+    shutil.copytree(project_root, clone_dir)
+    return clone_dir
 
 
 def normalize_target_repo_name(target_repo_name: str, fallback_repo_name: str, timestamp: str) -> str:
@@ -362,10 +496,76 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
 
 # New endpoints for direct repo URL input
 
+@app.post("/api/local/upload-project")
+async def upload_local_project(file: UploadFile = File(...)):
+    """Upload a ZIP file containing a local Java project for analysis."""
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Please upload a ZIP file containing the project.")
+
+    workspace_dir = tempfile.mkdtemp(prefix="uploaded_java_project_")
+    archive_path = os.path.join(workspace_dir, filename)
+    extract_dir = os.path.join(workspace_dir, "extracted")
+    os.makedirs(extract_dir, exist_ok=True)
+
+    try:
+        with open(archive_path, "wb") as output:
+            shutil.copyfileobj(file.file, output)
+
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            archive.extractall(extract_dir)
+
+        project_root = detect_project_root(extract_dir)
+        if not os.path.exists(project_root):
+            raise HTTPException(status_code=400, detail="The uploaded ZIP did not contain a readable project.")
+
+        upload_id = str(uuid.uuid4())
+        project_name = os.path.splitext(os.path.basename(filename))[0] or f"uploaded-project-{upload_id[:8]}"
+        uploaded_projects[upload_id] = {
+            "id": upload_id,
+            "name": project_name,
+            "workspace_dir": workspace_dir,
+            "project_root": project_root,
+            "archive_name": filename,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return {
+            "id": upload_id,
+            "repo_url": f"local://{upload_id}",
+            "name": project_name,
+            "full_name": project_name,
+            "default_branch": "local",
+            "language": "Java",
+            "description": f"Uploaded from {filename}",
+            "source_type": "local",
+        }
+    except zipfile.BadZipFile:
+        shutil.rmtree(workspace_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail="The uploaded file is not a valid ZIP archive.")
+    except HTTPException:
+        shutil.rmtree(workspace_dir, ignore_errors=True)
+        raise
+    except Exception as e:
+        shutil.rmtree(workspace_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process uploaded project: {str(e)}")
+    finally:
+        await file.close()
+
 @app.get("/api/github/analyze-url")
 async def analyze_repo_url(repo_url: str, token: str = ""):
     """Analyze a repository directly by URL (token only needed for private repos or higher rate limits)"""
     try:
+        if is_local_source_url(repo_url):
+            project = get_uploaded_project(repo_url)
+            analysis = await migration_service.analyze_project(project["project_root"])
+            return {
+                "repo_url": repo_url,
+                "owner": "local",
+                "repo": project["name"],
+                "analysis": build_local_repo_analysis(project, analysis, repo_url)
+            }
+
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         owner, repo = await github_service.parse_repo_url(repo_url)
         analysis = await github_service.analyze_repository(effective_token, owner, repo, repo_url, include_deep_analysis=False)
@@ -402,8 +602,19 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
 async def get_github_repo_visibility(repo_url: str, token: str = ""):
     """Check repository visibility without falling back to the server default token."""
     try:
+        if is_local_source_url(repo_url):
+            project = get_uploaded_project(repo_url)
+            return {
+                "owner": "local",
+                "repo": project["name"],
+                "visibility": "public",
+                "requires_token": False,
+                "message": "Uploaded local project is ready for analysis."
+            }
+
         owner, repo = await github_service.parse_repo_url(repo_url)
-        repo_info = await github_service.get_repo_info(token.strip(), owner, repo)
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_info = await github_service.get_repo_info(effective_token, owner, repo)
 
         return {
             "owner": owner,
@@ -434,6 +645,16 @@ async def get_github_repo_visibility(repo_url: str, token: str = ""):
 async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
     """List all files in a repository (uses default token for rate limits)"""
     try:
+        if is_local_source_url(repo_url):
+            project = get_uploaded_project(repo_url)
+            return {
+                "repo_url": repo_url,
+                "owner": "local",
+                "repo": project["name"],
+                "path": path,
+                "files": list_local_project_files(project["project_root"], path)
+            }
+
         # Always use default token to avoid rate limits
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         owner, repo = await github_service.parse_repo_url(repo_url)
@@ -469,6 +690,16 @@ async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
 async def get_file_content(repo_url: str, file_path: str, token: str = ""):
     """Get the content of a file from a repository (uses default token for rate limits)"""
     try:
+        if is_local_source_url(repo_url):
+            project = get_uploaded_project(repo_url)
+            return {
+                "repo_url": repo_url,
+                "owner": "local",
+                "repo": project["name"],
+                "file_path": file_path,
+                "content": read_local_project_file(project["project_root"], file_path)
+            }
+
         # Always use default token to avoid rate limits
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         owner, repo = await github_service.parse_repo_url(repo_url)
@@ -502,13 +733,14 @@ async def get_file_content(repo_url: str, file_path: str, token: str = ""):
 async def update_java_version(repo_url: str, java_version: str, file_path: str, token: str = ""):
     """Update Java version in pom.xml or build.gradle file"""
     try:
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
-        owner, repo = await github_service.parse_repo_url(repo_url)
+        if is_local_source_url(repo_url):
+            project = get_uploaded_project(repo_url)
+            clone_path = project["project_root"]
+        else:
+            effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+            owner, repo = await github_service.parse_repo_url(repo_url)
+            clone_path = await github_service.clone_repository(effective_token, repo_url)
         
-        # Clone repository
-        clone_path = await github_service.clone_repository(effective_token, repo_url)
-        
-        # Update the file
         file_full_path = os.path.join(clone_path, file_path)
         if not os.path.exists(file_full_path):
             raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
@@ -870,18 +1102,20 @@ async def preview_migration_changes(request: MigrationRequest):
     """Preview what changes will be made during migration without actually applying them"""
     try:
         print(f"[PREVIEW] Starting migration preview for: {request.source_repo_url}")
+        repo_service = gitlab_service if request.platform == GitPlatform.GITLAB else github_service
 
-        # Determine which service to use based on platform
-        if request.platform == GitPlatform.GITLAB:
-            repo_service = gitlab_service
-        else:  # GitHub is default
-            repo_service = github_service
-
-        # Clone repository
-        clone_path = await repo_service.clone_repository(
-            request.token,  # Use the generic token field
-            request.source_repo_url
-        )
+        if is_local_source_url(request.source_repo_url):
+            project = get_uploaded_project(request.source_repo_url)
+            clone_path = clone_local_project_to_workspace(project["project_root"])
+            repository_label = project["name"]
+            platform_label = "local"
+        else:
+            clone_path = await repo_service.clone_repository(
+                request.token,
+                request.source_repo_url
+            )
+            repository_label = request.source_repo_url
+            platform_label = request.platform.value
         print(f"[PREVIEW] Repository cloned to: {clone_path}")
 
         # Analyze current state
@@ -900,8 +1134,8 @@ async def preview_migration_changes(request: MigrationRequest):
         file_diffs = await generate_file_diffs(clone_path, preview_changes)
 
         return {
-            "repository": request.source_repo_url,
-            "platform": request.platform.value,
+            "repository": repository_label,
+            "platform": platform_label,
             "source_version": request.source_java_version,
             "target_version": request.target_java_version.value,
             "conversions": request.conversion_types,
@@ -1683,21 +1917,23 @@ async def run_migration(job_id: str, request: MigrationRequest):
     job = migration_jobs[job_id]
 
     try:
-        # Determine which service to use based on platform
-        if request.platform == GitPlatform.GITLAB:
-            repo_service = gitlab_service
-            token_field = "token"
-        else:  # GitHub is default
-            repo_service = github_service
-            token_field = "token"  # Updated to match new field name
+        repo_service = gitlab_service if request.platform == GitPlatform.GITLAB else github_service
 
         # Step 1: Clone repository
-        update_job(job_id, MigrationStatus.CLONING, 5, "Cloning source repository...")
-        clone_path = await repo_service.clone_repository(
-            request.token,  # Use the generic token field
-            request.source_repo_url
-        )
-        add_log(job_id, f"Repository cloned to {clone_path}")
+        if is_local_source_url(request.source_repo_url):
+            project = get_uploaded_project(request.source_repo_url)
+            update_job(job_id, MigrationStatus.CLONING, 5, "Preparing uploaded project...")
+            clone_path = clone_local_project_to_workspace(project["project_root"])
+            source_repo_name = project["name"]
+            add_log(job_id, f"Uploaded project prepared at {clone_path}")
+        else:
+            update_job(job_id, MigrationStatus.CLONING, 5, "Cloning source repository...")
+            clone_path = await repo_service.clone_repository(
+                request.token,
+                request.source_repo_url
+            )
+            _, source_repo_name = await repo_service.parse_repo_url(request.source_repo_url)
+            add_log(job_id, f"Repository cloned to {clone_path}")
         
         # Step 2: Analyze project and detect initial issues
         update_job(job_id, MigrationStatus.ANALYZING, 15, "Analyzing project structure and detecting issues...")
@@ -1816,7 +2052,6 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 add_log(job_id, f"FOSSA ERROR: {str(fossa_err)}")
         
         # Step 6: Push migrated code using the selected destination strategy
-        _, source_repo_name = await repo_service.parse_repo_url(request.source_repo_url)
         now = datetime.now().strftime("%Y%m%d-%H%M%S")
 
         # Use user token or fall back to default token
@@ -1824,6 +2059,10 @@ async def run_migration(job_id: str, request: MigrationRequest):
         add_log(job_id, f"Using GitHub token: {'user-provided' if request.token and request.token.strip() else 'default'}")
 
         migration_approach = (request.migration_approach or "fork").strip().lower()
+
+        if migration_approach == "branch" and is_local_source_url(request.source_repo_url):
+            add_log(job_id, "Branch migration is not available for uploaded ZIP sources. Switching to a new repository push.")
+            migration_approach = "fork"
 
         if migration_approach == "branch":
             target_branch_name = normalize_target_branch_name(

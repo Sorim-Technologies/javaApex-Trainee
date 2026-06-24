@@ -58,6 +58,7 @@ export interface RepoInfo {
   default_branch: string;
   language: string | null;
   description: string | null;
+  source_type?: "remote" | "local";
 }
 
 export interface RepoFile {
@@ -73,6 +74,17 @@ export interface RepoUrlAnalysis {
   owner: string;
   repo: string;
   analysis: RepoAnalysis;
+}
+
+export interface LocalProjectUploadResponse {
+  id: string;
+  repo_url: string;
+  name: string;
+  full_name: string;
+  default_branch: string;
+  language: string | null;
+  description: string | null;
+  source_type: "local";
 }
 
 export interface RepoVisibilityInfo {
@@ -301,6 +313,18 @@ export async function analyzeRepoUrl(repoUrl: string, token: string = ""): Promi
     `${API_BASE_URL}/github/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
   );
   return parseJsonResponse<RepoUrlAnalysis>(response, 'Failed to analyze repository');
+}
+
+export async function uploadLocalProjectZip(file: File): Promise<LocalProjectUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/local/upload-project`, {
+    method: "POST",
+    body: formData,
+  });
+
+  return parseJsonResponse<LocalProjectUploadResponse>(response, "Failed to upload local project");
 }
 
 export async function getRepoVisibility(repoUrl: string, token: string = ""): Promise<RepoVisibilityInfo> {

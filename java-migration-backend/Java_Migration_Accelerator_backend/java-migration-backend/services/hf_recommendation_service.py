@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class HFRecommendationService:
     def __init__(self) -> None:
+        
         self.hf_token = os.getenv("HF_TOKEN", "").strip()
         self.endpoint = "https://router.huggingface.co/v1/chat/completions"
         self.model = os.getenv("HF_MODEL", "openai/gpt-oss-120b:fastest")
@@ -151,7 +152,7 @@ class HFRecommendationService:
 
     def _build_prompt_payload(self, analysis_payload: Dict[str, Any]) -> Dict[str, Any]:
         dependencies = analysis_payload.get("dependencies") or []
-
+    
         return {
             "source_java_version": str(analysis_payload.get("source_java_version", "")),
             "detected_java_version": analysis_payload.get("detected_java_version"),

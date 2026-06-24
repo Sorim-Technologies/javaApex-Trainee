@@ -5,6 +5,7 @@ import {
   fetchRepositories,
   analyzeRepository,
   analyzeRepoUrl,
+  uploadLocalProjectZip,
   getRepoVisibility,
   listRepoFiles,
   getFileContent,
@@ -18,7 +19,7 @@ import {
   getMigrationFossa,
   // Import API_BASE_URL for dynamic URL construction
 } from "../services/api";
-import { API_BASE_URL } from "../services/api";
+import { API_BASE_URL, APP_BASE_URL } from "../services/api";
 import type {
   RepoInfo,
   RepoAnalysis,
@@ -205,6 +206,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [isPrivateRepo, setIsPrivateRepo] = useState(
     persistedFormState?.isPrivateRepo ?? false
   );
+  const [localZipFile, setLocalZipFile] = useState<File | null>(null);
+  const [localUploadLoading, setLocalUploadLoading] = useState(false);
   const [patToken, setPatToken] = useState(persistedFormState?.patToken ?? "");
   // Show token input only for GitHub Enterprise
   const isEnterpriseGithub = (url: string) => {
@@ -238,19 +241,19 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
     if (isGithubUrl || isGitlabUrl || isShortFormat) {
       if (url !== normalized) {
-        return { 
-          valid: true, 
-          normalizedUrl: normalized, 
-          message: `✓ URL normalized (removed tree/blob paths)` 
+        return {
+          valid: true,
+          normalizedUrl: normalized,
+          message: `✓ URL normalized (removed tree/blob paths)`
         };
       }
       return { valid: true, normalizedUrl: normalized, message: "" };
     }
 
-    return { 
-      valid: false, 
-      normalizedUrl: "", 
-      message: "Invalid URL format. Use: https://github.com/owner/repo, https://github.<enterprise>.com/owner/repo, or owner/repo" 
+    return {
+      valid: false,
+      normalizedUrl: "",
+      message: "Invalid URL format. Use: https://github.com/owner/repo, https://github.<enterprise>.com/owner/repo, or owner/repo"
     };
   };
 
@@ -322,7 +325,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     persistedFormState?.pathHistory?.length ? persistedFormState.pathHistory : [""]
   );
   const [showFileExplorer, setShowFileExplorer] = useState(true);
-  
+
   // High-risk project states (no pom.xml/build.gradle or unknown Java version)
   const [isHighRiskProject, setIsHighRiskProject] = useState(
     persistedFormState?.isHighRiskProject ?? false
@@ -333,10 +336,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [suggestedJavaVersion, setSuggestedJavaVersion] = useState(
     persistedFormState?.suggestedJavaVersion ?? "auto"
   );
-  const [detectedFrameworks, setDetectedFrameworks] = useState<{name: string; path: string; type: string}[]>(
+  const [detectedFrameworks, setDetectedFrameworks] = useState<{ name: string; path: string; type: string }[]>(
     persistedFormState?.detectedFrameworks ?? []
   );
-  const [viewingFrameworkFile, setViewingFrameworkFile] = useState<{name: string; path: string; content: string} | null>(null);
+  const [viewingFrameworkFile, setViewingFrameworkFile] = useState<{ name: string; path: string; content: string } | null>(null);
   const [frameworkFileLoading, setFrameworkFileLoading] = useState(false);
   const [fossaResult, setFossaResult] = useState<any | null>(null);
   const [fossaLoading, setFossaLoading] = useState(false);
@@ -662,17 +665,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       return;
     }
 
-    setError("");
-    setRepoAnalysis(null);
-    setRepoFiles([]);
-    setCurrentPath("");
-    setPathHistory([""]);
-    setSelectedFile(null);
-    setFileContent("");
-    setEditedContent("");
-    setIsEditing(false);
-    setIsJavaProject(null);
-    setDetectedFrameworks([]);
+    resetSelectedSourceState();
     setSelectedRepo({
       name: normalizedUrl.split('/').pop() || "",
       full_name: normalizedUrl
@@ -681,17 +674,79 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       url: normalizedUrl,
       default_branch: "main",
       language: "Java",
-      description: ""
+      description: "",
+      source_type: "remote",
     });
     setStep(2);
   };
 
+  const handleLocalProjectUpload = async () => {
+    if (!localZipFile) {
+      setError("Please choose a project ZIP file to upload.");
+      return;
+    }
+
+    setLocalUploadLoading(true);
+    setRepoUrl("");
+    setIsPrivateRepo(false);
+    setPatToken("");
+    resetSelectedSourceState();
+
+    try {
+      const uploadedProject = await uploadLocalProjectZip(localZipFile);
+      setSelectedRepo({
+        name: uploadedProject.name,
+        full_name: uploadedProject.full_name,
+        url: uploadedProject.repo_url,
+        default_branch: uploadedProject.default_branch,
+        language: uploadedProject.language,
+        description: uploadedProject.description,
+        source_type: "local",
+      });
+      setStep(2);
+    } catch (err: any) {
+      setError(err?.message || "Failed to upload local project.");
+    } finally {
+      setLocalUploadLoading(false);
+    }
+  };
+
   useEffect(() => {
-    getJavaVersions().then((versions) => {
-      setSourceVersions(versions.source_versions);
-      setTargetVersions(versions.target_versions);
-    });
-    getConversionTypes().then(setConversionTypes);
+    let isMounted = true;
+
+    const loadInitialData = async () => {
+      try {
+        const [versions, types] = await Promise.all([
+          getJavaVersions(),
+          getConversionTypes(),
+        ]);
+
+        if (!isMounted) return;
+
+        setSourceVersions(versions.source_versions);
+        setTargetVersions(versions.target_versions);
+        setConversionTypes(types);
+      } catch (err) {
+        if (!isMounted) return;
+
+        const message =
+          err instanceof Error && err.message
+            ? err.message
+            : `Backend API is not reachable at ${API_BASE_URL}.`;
+
+        const setupHint = message.includes("Failed to fetch")
+          ? `Backend API is not reachable at ${APP_BASE_URL}. Start the FastAPI server on port 8001 and refresh the page.`
+          : message;
+
+        setError(setupHint);
+      }
+    };
+
+    void loadInitialData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -856,6 +911,32 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const detectedJavaVersion = (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build || "").toString().trim();
   const detectedJavaStructureLabel = detectedJavaVersion ? `✓ Java ${detectedJavaVersion}` : "✗ Java version";
+  const detectedBuildFile = useMemo(() => {
+    if (!repoAnalysis) {
+      return null;
+    }
+
+    const normalizedBuildTool = repoAnalysis.build_tool?.toLowerCase();
+
+    if (normalizedBuildTool === "maven" || repoAnalysis.structure?.has_pom_xml) {
+      return "pom.xml";
+    }
+
+    if (normalizedBuildTool === "gradle" || repoAnalysis.structure?.has_build_gradle) {
+      return "build.gradle";
+    }
+
+    return null;
+  }, [repoAnalysis]);
+  const buildFileStructureLabel = detectedBuildFile ? `âœ“ ${detectedBuildFile}` : "âœ— Build file";
+  const cleanDetectedJavaStructureLabel = detectedJavaVersion
+    ? `Java ${detectedJavaVersion}`
+    : "Java version";
+  const cleanBuildFileStructureLabel = detectedBuildFile
+    ? detectedBuildFile
+    : "Build file";
+  const srcMainStructureLabel = "src/main";
+  const srcTestStructureLabel = "src/test";
   const availableTargetVersions = useMemo(() => {
     const sourceVersionNumber = parseJavaVersion(selectedSourceVersion);
     if (sourceVersionNumber === null) {
@@ -871,27 +952,27 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const plannedCodeRefactoringTooltip = useMemo(() => {
     const previewDescriptions = migrationPreview
       ? Array.from(
-          new Map(
-            Object.values(migrationPreview.changes.file_changes)
-              .flatMap((fileChanges) => fileChanges)
-              .map((change) => [change.description, change])
-          ).values()
-        )
+        new Map(
+          Object.values(migrationPreview.changes.file_changes)
+            .flatMap((fileChanges) => fileChanges)
+            .map((change) => [change.description, change])
+        ).values()
+      )
       : [];
 
     const refactoringSteps = previewDescriptions.length > 0
       ? previewDescriptions.slice(0, 5).map((change) => {
-          const occurrences = change.occurrences && change.occurrences > 1
-            ? ` (${change.occurrences} matches)`
-            : "";
-          return `${change.description}${occurrences}`;
-        })
+        const occurrences = change.occurrences && change.occurrences > 1
+          ? ` (${change.occurrences} matches)`
+          : "";
+        return `${change.description}${occurrences}`;
+      })
       : [
-          `Upgrade Java language and build compatibility from Java ${selectedSourceVersion} to Java ${selectedTargetVersion || "the selected target version"}`,
-          "Refactor deprecated or incompatible Java APIs to supported equivalents",
-          "Modernize exception handling, imports, and resource-management patterns",
-          "Adjust framework and dependency usage for target-version compatibility",
-        ];
+        `Upgrade Java language and build compatibility from Java ${selectedSourceVersion} to Java ${selectedTargetVersion || "the selected target version"}`,
+        "Refactor deprecated or incompatible Java APIs to supported equivalents",
+        "Modernize exception handling, imports, and resource-management patterns",
+        "Adjust framework and dependency usage for target-version compatibility",
+      ];
 
     if (migrationPreview?.changes.dependencies_to_update?.length) {
       refactoringSteps.push(
@@ -954,17 +1035,17 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     if (step === 5 && migrationJob) {
       // Start animation immediately at 10%
       setAnimationProgress(10);
-      
+
       const animationInterval = setInterval(() => {
         setAnimationProgress(prev => {
           const actualProgress = migrationJob?.progress_percent || 0;
           const status = migrationJob?.status;
-          
+
           // If migration is completed, go to 100%
           if (status === "completed") {
             return 100;
           }
-          
+
           // Smoothly catch up to actual progress, or animate forward if backend is slow
           if (actualProgress > prev) {
             return actualProgress;
@@ -976,7 +1057,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           return prev;
         });
       }, 500);
-      
+
       return () => clearInterval(animationInterval);
     } else if (step !== 5) {
       setAnimationProgress(0);
@@ -1134,7 +1215,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     let interval: ReturnType<typeof setInterval>;
     let lastUpdateTime = Date.now();
     let stuckCheckInterval: ReturnType<typeof setInterval>;
-    
+
     if (step >= 5 && migrationJob?.status && migrationJob.status !== "completed" && migrationJob.status !== "failed") {
       interval = setInterval(() => {
         getMigrationStatus(migrationJob!.job_id)
@@ -1154,7 +1235,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           })
           .catch(() => setError("Failed to fetch migration status."));
       }, 2000);
-      
+
       // Check if migration appears to be stuck (same status for > 30 seconds)
       stuckCheckInterval = setInterval(() => {
         const timeSinceLastUpdate = Date.now() - lastUpdateTime;
@@ -1163,8 +1244,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         }
       }, 15000);
     }
-    
-    return () => { 
+
+    return () => {
       if (interval) clearInterval(interval);
       if (stuckCheckInterval) clearInterval(stuckCheckInterval);
     };
@@ -1182,15 +1263,34 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     );
   };
 
+  const resetSelectedSourceState = () => {
+    setError("");
+    setRepoAnalysis(null);
+    setRepoFiles([]);
+    setCurrentPath("");
+    setPathHistory([""]);
+    setSelectedFile(null);
+    setFileContent("");
+    setEditedContent("");
+    setIsEditing(false);
+    setIsJavaProject(null);
+    setDetectedFrameworks([]);
+  };
+
   const buildMigrationRequest = () => {
+    const effectiveMigrationApproach =
+      selectedRepo?.source_type === "local" && migrationApproach === "branch"
+        ? "fork"
+        : migrationApproach;
     const repoName = selectedRepo?.name || repoUrl.split("/").pop()?.replace(".git", "") || "repo";
     const finalTargetRepoName = targetRepoName || (
-      migrationApproach === "branch"
+      effectiveMigrationApproach === "branch"
         ? buildTargetBranchName(repoName, targetRepoTimestamp)
         : buildTargetRepoUrl(repoName, targetRepoTimestamp)
     );
 
     const detectPlatform = (url: string) => {
+      if (url.startsWith("local://")) return "github";
       if (url.includes("gitlab.com")) return "gitlab";
       if (url.includes("github.com")) return "github";
       return "github";
@@ -1203,7 +1303,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       source_java_version: userSelectedVersion || selectedSourceVersion,
       target_java_version: selectedTargetVersion,
       token: currentToken,
-      migration_approach: migrationApproach,
+      migration_approach: effectiveMigrationApproach,
       conversion_types: selectedConversions,
       run_tests: runTests,
       run_sonar: runSonar,
@@ -1364,63 +1464,63 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         const isUnlocked = s.id <= maxVisitedIndicatorStep;
 
         return (
-        <React.Fragment key={s.id}>
-          <div 
-            style={{ 
-              display: "flex", 
-              flexDirection: "column", 
-              alignItems: "center", 
-              gap: 8,
-              opacity: 1,
-              cursor: isUnlocked && !isActive ? "pointer" : "default",
-              transition: "all 0.3s ease"
-            }} 
-            onClick={() => isUnlocked && !isActive && setStep(s.id)}
-          >
-            <div style={{ 
-              ...styles.stepCircle, 
-              backgroundColor: isCompleted ? "#22c55e" : isActive ? "#3b82f6" : "#e5e7eb", 
-              color: currentIndicatorStep >= s.id ? "#fff" : "#6b7280",
-              width: 44,
-              height: 44,
-              fontSize: 18,
-              boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none"
-            }}>
-              {step > s.id ? "✓" : s.icon}
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ 
-                fontWeight: isActive ? 700 : 500, 
-                fontSize: 13, 
-                color: isActive ? "#3b82f6" : isCompleted ? "#22c55e" : "#64748b",
-                marginBottom: 2
+          <React.Fragment key={s.id}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 8,
+                opacity: 1,
+                cursor: isUnlocked && !isActive ? "pointer" : "default",
+                transition: "all 0.3s ease"
+              }}
+              onClick={() => isUnlocked && !isActive && setStep(s.id)}
+            >
+              <div style={{
+                ...styles.stepCircle,
+                backgroundColor: isCompleted ? "#22c55e" : isActive ? "#3b82f6" : "#e5e7eb",
+                color: currentIndicatorStep >= s.id ? "#fff" : "#6b7280",
+                width: 44,
+                height: 44,
+                fontSize: 18,
+                boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none"
               }}>
-                {s.name}
+                {step > s.id ? "✓" : s.icon}
               </div>
-              <div style={{ 
-                fontSize: 10, 
-                color: isActive ? "#64748b" : "#94a3b8",
-                maxWidth: 100,
-                lineHeight: 1.3
-              }}>
-                {s.description}
+              <div style={{ textAlign: "center" }}>
+                <div style={{
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: 13,
+                  color: isActive ? "#3b82f6" : isCompleted ? "#22c55e" : "#64748b",
+                  marginBottom: 2
+                }}>
+                  {s.name}
+                </div>
+                <div style={{
+                  fontSize: 10,
+                  color: isActive ? "#64748b" : "#94a3b8",
+                  maxWidth: 100,
+                  lineHeight: 1.3
+                }}>
+                  {s.description}
+                </div>
               </div>
             </div>
-          </div>
-          {/* Connector Line */}
-          {index < MIGRATION_STEPS.length - 1 && (
-            <div style={{
-              flex: 1,
-              height: 3,
-              backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : "#e5e7eb",
-              marginTop: -50,
-              marginLeft: -10,
-              marginRight: -10,
-              borderRadius: 2,
-              transition: "background-color 0.3s ease"
-            }} />
-          )}
-        </React.Fragment>
+            {/* Connector Line */}
+            {index < MIGRATION_STEPS.length - 1 && (
+              <div style={{
+                flex: 1,
+                height: 3,
+                backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : "#e5e7eb",
+                marginTop: -50,
+                marginLeft: -10,
+                marginRight: -10,
+                borderRadius: 2,
+                transition: "background-color 0.3s ease"
+              }} />
+            )}
+          </React.Fragment>
         );
       })}
     </div>
@@ -1433,11 +1533,195 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <span style={styles.stepIcon}>🔗</span>
           <div>
             <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
+            <p style={styles.subtitle}>Enter a repository URL or upload a local project ZIP to start migration analysis.</p>
           </div>
         </div>
 
-        <div style={styles.field}>
+        <div style={styles.connectOptionsGrid}>
+          <div style={styles.connectOptionCard}>
+            <div style={styles.connectOptionTitle}>Repository URL</div>
+            <div style={styles.connectOptionSubtitle}>Analyze directly from GitHub or GitLab.</div>
+            <div style={styles.field}>
+              <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
+                Repository URL
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      backgroundColor: "#e2e8f0",
+                      color: "#64748b",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "help",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#3b82f6";
+                      e.currentTarget.style.color = "#fff";
+                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (tooltip) tooltip.style.display = "block";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#e2e8f0";
+                      e.currentTarget.style.color = "#64748b";
+                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (tooltip) tooltip.style.display = "none";
+                    }}
+                  >
+                    i
+                  </span>
+                  <div
+                    style={{
+                      display: "none",
+                      position: "absolute",
+                      top: 24,
+                      left: 0,
+                      backgroundColor: "#1e293b",
+                      color: "#fff",
+                      padding: "12px 16px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      whiteSpace: "nowrap",
+                      zIndex: 1000,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
+                    <div>- https://github.com/owner/repo</div>
+                    <div>- github.com/owner/repo</div>
+                    <div>- owner/repo</div>
+                    <div style={{
+                      position: "absolute",
+                      top: -6,
+                      left: 9,
+                      width: 0,
+                      height: 0,
+                      borderLeft: "6px solid transparent",
+                      borderRight: "6px solid transparent",
+                      borderBottom: "6px solid #1e293b"
+                    }} />
+                  </div>
+                </div>
+              </label>
+              <input
+                type="text"
+                style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
+                value={repoUrl}
+                onChange={(e) => {
+                  setRepoUrl(e.target.value);
+                  setSelectedRepo(null);
+                  setRepoAnalysis(null);
+                  setIsPrivateRepo(false);
+                  setPatToken("");
+                  setLocalZipFile(null);
+                  setError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && urlValidation.valid) {
+                    void handleRepositoryContinue();
+                  }
+                }}
+                placeholder="https://github.com/owner/repository"
+              />
+              {!shouldShowPatInput && (
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
+                  Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+                </div>
+              )}
+              {repoAccessCheckLoading && !shouldShowPatInput && (
+                <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
+                  Checking repository access...
+                </div>
+              )}
+              {shouldShowPatInput && (
+                <div style={{ marginTop: 16 }}>
+                  <label style={{ ...styles.label, fontWeight: 500 }}>
+                    GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                  </label>
+                  <input
+                    type="password"
+                    style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
+                    value={showEnterpriseToken ? githubToken : patToken}
+                    onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
+                    placeholder="Paste your GitHub PAT here"
+                    autoComplete="off"
+                  />
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    {showEnterpriseToken
+                      ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
+                      : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+                  </div>
+                </div>
+              )}
+              {repoUrl && !urlValidation.valid && (
+                <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
+                  Invalid URL: {urlValidation.message}
+                </div>
+              )}
+              {urlValidation.valid && (
+                <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
+                  Valid repository URL
+                </div>
+              )}
+            </div>
+            <div style={styles.connectOptionActions}>
+              <button
+                style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
+                disabled={!urlValidation.valid}
+                onClick={() => void handleRepositoryContinue()}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+
+          <div style={styles.connectOptionCard}>
+            <div style={styles.connectOptionTitle}>Local Project ZIP</div>
+            <div style={styles.connectOptionSubtitle}>Upload a zipped Maven or Gradle project from your machine.</div>
+            <div style={styles.localUploadBox}>
+              <label style={styles.filePickerLabel}>
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setLocalZipFile(file);
+                    setRepoUrl("");
+                    setSelectedRepo(null);
+                    setRepoAnalysis(null);
+                    setError("");
+                  }}
+                  style={styles.fileInput}
+                />
+                <span style={styles.filePickerButton}>Choose ZIP</span>
+                <span style={styles.filePickerName}>{localZipFile?.name || "No file selected"}</span>
+              </label>
+              <div style={styles.localUploadHint}>
+                Upload the whole project as a ZIP file. We&apos;ll extract it, detect Maven or Gradle, and continue with the same flow.
+              </div>
+              {localZipFile && (
+                <div style={styles.localUploadSelected}>Selected: {localZipFile.name}</div>
+              )}
+            </div>
+            <div style={styles.connectOptionActions}>
+              <button
+                style={{ ...styles.primaryBtn, opacity: !localZipFile || localUploadLoading ? 0.5 : 1 }}
+                disabled={!localZipFile || localUploadLoading}
+                onClick={() => void handleLocalProjectUpload()}
+              >
+                {localUploadLoading ? "Uploading..." : "Upload & Analyze"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ ...styles.field, display: "none" }}>
           <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
             Repository URL
             {/* Info Button with Tooltip */}
@@ -1569,7 +1853,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           )}
         </div>
 
-        <div style={styles.btnRow}>
+        <div style={{ ...styles.btnRow, display: "none" }}>
           <button
             style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
             disabled={!urlValidation.valid}
@@ -1723,859 +2007,858 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     };
 
     return (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔍</span>
-        <div>
-          <h2 style={styles.title}>Repository Discovery & Dependencies</h2>
-          <p style={styles.subtitle}>{MIGRATION_STEPS[1].summary}</p>
-        </div>
-        {analysisLoading && (
-          <div style={styles.timerBadge}>
-            <span style={styles.timerLabel}>Live Timer</span>
-            <span style={styles.timerValue}>{formattedAnalysisElapsed}</span>
+      <div style={styles.card}>
+        <div style={styles.stepHeader}>
+          <span style={styles.stepIcon}>🔍</span>
+          <div>
+            <h2 style={styles.title}>Repository Discovery & Dependencies</h2>
+            <p style={styles.subtitle}>{MIGRATION_STEPS[1].summary}</p>
           </div>
-        )}
-      </div>
+          {analysisLoading && (
+            <div style={styles.timerBadge}>
+              <span style={styles.timerLabel}>Live Timer</span>
+              <span style={styles.timerValue}>{formattedAnalysisElapsed}</span>
+            </div>
+          )}
+        </div>
 
-      {selectedRepo && (
-        <>
-          {analysisLoading ? <div style={styles.loadingBox}><div style={styles.spinner}></div><span>Analyzing repository...</span></div> : (
-            <>
-              {/* Not a Java Project Alert or No Framework Detected */}
-              {isJavaProject === false ? (
-                <div style={{
-                  background: "#fef2f2",
-                  border: "2px solid #ef4444",
-                  borderRadius: 12,
-                  padding: 20,
-                  marginBottom: 24,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 16
-                }}>
-                  <span style={{ fontSize: 32 }}>⚠️</span>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>
-                      This is not a Java Project
-                    </div>
-                    <div style={{ fontSize: 14, color: "#b91c1c", lineHeight: 1.6 }}>
-                      The repository you connected does not appear to be a Java project. 
-                      This tool is designed specifically for Java application migration. 
-                      Please connect a repository that contains Java source code, 
-                      Maven (pom.xml), or Gradle (build.gradle) configuration files.
-                    </div>
-                    <button 
-                      style={{ 
-                        marginTop: 16, 
-                        backgroundColor: "#ef4444", 
-                        color: "#fff", 
-                        border: "none", 
-                        borderRadius: 8, 
-                        padding: "10px 20px", 
-                        fontWeight: 600, 
-                        cursor: "pointer",
-                        fontSize: 14
-                      }}
-                      onClick={() => {
-                        setStep(1);
-                        setSelectedRepo(null);
-                        setRepoAnalysis(null);
-                        setIsJavaProject(null);
-                        setRepoUrl("");
-                      }}
-                    >
-                      ← Connect Different Repository
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Java project but no framework detected */}
-              {isJavaProject && detectedFrameworks.length === 0 && (
-                <div style={{
-                  background: "#fef9c3",
-                  border: "2px solid #facc15",
-                  borderRadius: 12,
-                  padding: 20,
-                  marginBottom: 24,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 16
-                }}>
-                  <span style={{ fontSize: 32 }}>ℹ️</span>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
-                      Java Project Detected (No Framework)
-                    </div>
-                    <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.6 }}>
-                      This repository contains Java source files but no recognized framework (e.g., Spring, Spring Boot, Jakarta EE) was detected. You can still proceed with migration, but some automation features may be limited.
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Show discovery content only if it's a Java project */}
-              {isJavaProject !== false && (
-                <>
-                  {/* High Risk Project Warning (no pom.xml/build.gradle or unknown Java version) */}
-                  {isHighRiskProject && !highRiskConfirmed && (
-                    <div style={{
-                      background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
-                      border: "2px solid #f59e0b",
-                      borderRadius: 12,
-                      padding: 24,
-                      marginBottom: 24,
-                      boxShadow: "0 4px 12px rgba(245, 158, 11, 0.15)"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
-                        <span style={{ fontSize: 40 }}>⚠️</span>
-                        <div>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
-                            High Risk Migration Detected
-                          </div>
-                      <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.7 }}>
-                            This project may be missing Java version configuration and may require additional setup:
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Missing Items */}
-                      <div style={{
-                        background: "rgba(255,255,255,0.7)",
-                        borderRadius: 8,
-                        padding: 16,
-                        marginBottom: 20
-                      }}>
-                        <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>🔍 Missing Components:</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                          {!repoAnalysis?.structure?.has_pom_xml && !repoAnalysis?.structure?.has_build_gradle && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> No pom.xml or build.gradle
-                            </div>
-                          )}
-                          {(!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Java version not detected
-                            </div>
-                          )}
-                          {!repoAnalysis?.structure?.has_src_main && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Non-standard project structure
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Suggested Configuration */}
-                      <div style={{
-                        background: "rgba(255,255,255,0.7)",
-                        borderRadius: 8,
-                        padding: 16,
-                        marginBottom: 20
-                      }}>
-                        <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>💡 Suggested Configuration:</div>
-                        
-                        {/* Java Version Selection */}
-                        <div style={{ marginBottom: 16 }}>
-                          <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#78350f", marginBottom: 6 }}>
-                            {sourceVersionStatus === "detected" ? "Java version automatically detected" : "Select Source Java Version:"}
-                          </label>
-                          {sourceVersionStatus === "detected" && suggestedJavaVersion !== "auto" ? (
-                            <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #d1d5db", backgroundColor: "#f8fafc", minWidth: 200, color: "#0f172a" }}>
-                              Java {suggestedJavaVersion} detected from source code
-                            </div>
-                          ) : (
-                            <>
-                              <select
-                                value={suggestedJavaVersion}
-                                onChange={(e) => {
-                                  setSuggestedJavaVersion(e.target.value);
-                                  setSelectedSourceVersion(e.target.value === "auto" ? "8" : e.target.value); // Default to 8 if auto-detect
-                                  setUserSelectedVersion(e.target.value);
-                                  setSourceVersionStatus("detected");
-                                }}
-                                style={{
-                                  padding: "10px 14px",
-                                  borderRadius: 6,
-                                  border: "1px solid #d97706",
-                                  fontSize: 14,
-                                  backgroundColor: "#fff",
-                                  cursor: "pointer",
-                                  minWidth: 200
-                                }}
-                              >
-                                <option value="auto">🔍 Auto-detect from code (Recommended)</option>
-                                <option value="7">Java 7 (Legacy)</option>
-                                <option value="8">Java 8 (LTS)</option>
-                                <option value="11">Java 11 (LTS)</option>
-                                <option value="17">Java 17 (LTS)</option>
-                                <option value="21">Java 21 (LTS)</option>
-                              </select>
-                              <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                                💡 Auto-detect analyzes your code to determine the correct Java version
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        <div style={{ marginBottom: 16, padding: 16, borderRadius: 8, backgroundColor: "#eef2ff", border: "1px solid #c7d2fe" }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1e3a8a" }}>
-                            {buildConversionLabel}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>
-                            {buildConversionNote}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Action Buttons */}
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <button
-                          onClick={() => {
-                            setHighRiskConfirmed(true);
-                            setSelectedSourceVersion(suggestedJavaVersion);
-                          }}
-                          style={{
-                            backgroundColor: "#f59e0b",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 8,
-                            padding: "12px 24px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: 14,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8
-                          }}
-                        >
-                          {buildConversionLabel}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setStep(1);
-                            setSelectedRepo(null);
-                            setRepoAnalysis(null);
-                            setIsJavaProject(null);
-                            setIsHighRiskProject(false);
-                            setRepoUrl("");
-                          }}
-                          style={{
-                            backgroundColor: "#fff",
-                            color: "#92400e",
-                            border: "2px solid #f59e0b",
-                            borderRadius: 8,
-                            padding: "12px 24px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: 14
-                          }}
-                        >
-                          ← Choose Different Repository
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Show content only after high-risk confirmation or if not high-risk */}
-                  {(!isHighRiskProject || highRiskConfirmed) && (
-                    <>
-                  {/* GitHub-like File Explorer */}
-                  <div style={styles.sectionTitle}>📂 Repository Files</div>
+        {selectedRepo && (
+          <>
+            {analysisLoading ? <div style={styles.loadingBox}><div style={styles.spinner}></div><span>Analyzing repository...</span></div> : (
+              <>
+                {/* Not a Java Project Alert or No Framework Detected */}
+                {isJavaProject === false ? (
                   <div style={{
-                    border: "1px solid #d0d7de",
-                    borderRadius: 8,
-                    overflow: "hidden",
+                    background: "#fef2f2",
+                    border: "2px solid #ef4444",
+                    borderRadius: 12,
+                    padding: 20,
                     marginBottom: 24,
-                    backgroundColor: "#fff"
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 16
                   }}>
-                    {/* Header bar like GitHub */}
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px 16px",
-                      backgroundColor: "#f6f8fa",
-                      borderBottom: "1px solid #d0d7de"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedRepo.name}</span>
-                        {currentPath && (
-                          <>
-                            <span style={{ color: "#57606a" }}>/</span>
-                            <span style={{ color: "#0969da" }}>{currentPath}</span>
-                          </>
-                        )}
+                    <span style={{ fontSize: 32 }}>⚠️</span>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>
+                        This is not a Java Project
                       </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {currentPath && (
-                          <button
-                            onClick={navigateToRoot}
-                            style={{
-                              background: "none",
-                              border: "1px solid #d0d7de",
-                              borderRadius: 6,
-                              padding: "4px 12px",
-                              cursor: "pointer",
-                              fontSize: 12,
-                              color: "#24292f"
-                            }}
-                          >
-                            🏠 Root
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setShowFileExplorer(!showFileExplorer)}
-                          style={{
-                            background: "none",
-                            border: "1px solid #d0d7de",
-                            borderRadius: 6,
-                            padding: "4px 12px",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            color: "#24292f"
-                          }}
-                        >
-                          {showFileExplorer ? "🔽 Collapse" : "🔼 Expand"}
-                        </button>
+                      <div style={{ fontSize: 14, color: "#b91c1c", lineHeight: 1.6 }}>
+                        The repository you connected does not appear to be a Java project.
+                        This tool is designed specifically for Java application migration.
+                        Please connect a repository that contains Java source code,
+                        Maven (pom.xml), or Gradle (build.gradle) configuration files.
+                      </div>
+                      <button
+                        style={{
+                          marginTop: 16,
+                          backgroundColor: "#ef4444",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "10px 20px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontSize: 14
+                        }}
+                        onClick={() => {
+                          setStep(1);
+                          setSelectedRepo(null);
+                          setRepoAnalysis(null);
+                          setIsJavaProject(null);
+                          setRepoUrl("");
+                        }}
+                      >
+                        ← Connect Different Repository
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Java project but no framework detected */}
+                {isJavaProject && detectedFrameworks.length === 0 && (
+                  <div style={{
+                    background: "#fef9c3",
+                    border: "2px solid #facc15",
+                    borderRadius: 12,
+                    padding: 20,
+                    marginBottom: 24,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 16
+                  }}>
+                    <span style={{ fontSize: 32 }}>ℹ️</span>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
+                        Java Project Detected (No Framework)
+                      </div>
+                      <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.6 }}>
+                        This repository contains Java source files but no recognized framework (e.g., Spring, Spring Boot, Jakarta EE) was detected. You can still proceed with migration, but some automation features may be limited.
                       </div>
                     </div>
+                  </div>
+                )}
 
-                    {showFileExplorer && (
-                      <div style={{ display: "flex", minHeight: 400 }}>
-                        {/* File Tree - Left Panel */}
+                {/* Show discovery content only if it's a Java project */}
+                {isJavaProject !== false && (
+                  <>
+                    {/* High Risk Project Warning (no pom.xml/build.gradle or unknown Java version) */}
+                    {isHighRiskProject && !highRiskConfirmed && (
+                      <div style={{
+                        background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
+                        border: "2px solid #f59e0b",
+                        borderRadius: 12,
+                        padding: 24,
+                        marginBottom: 24,
+                        boxShadow: "0 4px 12px rgba(245, 158, 11, 0.15)"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
+                          <span style={{ fontSize: 40 }}>⚠️</span>
+                          <div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
+                              High Risk Migration Detected
+                            </div>
+                            <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.7 }}>
+                              This project may be missing Java version configuration and may require additional setup:
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Missing Items */}
                         <div style={{
-                          width: selectedFile ? "40%" : "100%",
-                          borderRight: selectedFile ? "1px solid #d0d7de" : "none",
-                          overflowY: "auto",
-                          maxHeight: 500
+                          background: "rgba(255,255,255,0.7)",
+                          borderRadius: 8,
+                          padding: 16,
+                          marginBottom: 20
                         }}>
-                          {/* Back navigation */}
-                          {currentPath && (
-                            <div
-                              onClick={navigateBack}
-                              style={{
+                          <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>🔍 Missing Components:</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                            {!repoAnalysis?.structure?.has_pom_xml && !repoAnalysis?.structure?.has_build_gradle && (
+                              <div style={{
+                                background: "#fef2f2",
+                                border: "1px solid #fecaca",
+                                borderRadius: 6,
+                                padding: "8px 12px",
+                                fontSize: 13,
+                                color: "#991b1b",
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 10,
-                                padding: "10px 16px",
-                                borderBottom: "1px solid #d0d7de",
-                                cursor: "pointer",
-                                backgroundColor: "#f6f8fa"
-                              }}
-                            >
-                              <span>⬆️</span>
-                              <span style={{ color: "#0969da", fontSize: 14 }}>..</span>
-                            </div>
-                          )}
-                          
-                          {/* File list */}
-                          {repoFiles.length > 0 ? (
-                            repoFiles.map((file, idx) => (
-                              <div
-                                key={idx}
-                                onClick={() => handleFileClick(file)}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 10,
-                                  padding: "10px 16px",
-                                  borderBottom: "1px solid #d0d7de",
-                                  cursor: "pointer",
-                                  backgroundColor: selectedFile?.path === file.path ? "#ddf4ff" : "transparent",
-                                  transition: "background-color 0.15s ease"
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (selectedFile?.path !== file.path) {
-                                    e.currentTarget.style.backgroundColor = "#f6f8fa";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (selectedFile?.path !== file.path) {
-                                    e.currentTarget.style.backgroundColor = "transparent";
-                                  }
-                                }}
-                              >
-                                <span style={{ fontSize: 16 }}>{getFileIcon(file)}</span>
-                                <span style={{
-                                  flex: 1,
-                                  color: file.type === "dir" ? "#0969da" : "#24292f",
-                                  fontWeight: file.type === "dir" ? 600 : 400,
-                                  fontSize: 14
-                                }}>
-                                  {file.name}
-                                </span>
-                                {file.type === "file" && file.size > 0 && (
-                                  <span style={{ fontSize: 12, color: "#57606a" }}>
-                                    {file.size < 1024 ? `${file.size} B` : `${Math.round(file.size / 1024)} KB`}
-                                  </span>
-                                )}
+                                gap: 6
+                              }}>
+                                <span>❌</span> No pom.xml or build.gradle
                               </div>
-                            ))
-                          ) : (
-                            <div style={{ padding: 20, textAlign: "center", color: "#57606a" }}>
-                              No files found
-                            </div>
-                          )}
+                            )}
+                            {(!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
+                              <div style={{
+                                background: "#fef2f2",
+                                border: "1px solid #fecaca",
+                                borderRadius: 6,
+                                padding: "8px 12px",
+                                fontSize: 13,
+                                color: "#991b1b",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6
+                              }}>
+                                <span>❌</span> Java version not detected
+                              </div>
+                            )}
+                            {!repoAnalysis?.structure?.has_src_main && (
+                              <div style={{
+                                background: "#fef2f2",
+                                border: "1px solid #fecaca",
+                                borderRadius: 6,
+                                padding: "8px 12px",
+                                fontSize: 13,
+                                color: "#991b1b",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6
+                              }}>
+                                <span>❌</span> Non-standard project structure
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* File Content - Right Panel */}
-                        {selectedFile && (
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                            {/* File header */}
-                            <div style={{
+                        {/* Suggested Configuration */}
+                        <div style={{
+                          background: "rgba(255,255,255,0.7)",
+                          borderRadius: 8,
+                          padding: 16,
+                          marginBottom: 20
+                        }}>
+                          <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>💡 Suggested Configuration:</div>
+
+                          {/* Java Version Selection */}
+                          <div style={{ marginBottom: 16 }}>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#78350f", marginBottom: 6 }}>
+                              {sourceVersionStatus === "detected" ? "Java version automatically detected" : "Select Source Java Version:"}
+                            </label>
+                            {sourceVersionStatus === "detected" && suggestedJavaVersion !== "auto" ? (
+                              <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #d1d5db", backgroundColor: "#f8fafc", minWidth: 200, color: "#0f172a" }}>
+                                Java {suggestedJavaVersion} detected from source code
+                              </div>
+                            ) : (
+                              <>
+                                <select
+                                  value={suggestedJavaVersion}
+                                  onChange={(e) => {
+                                    setSuggestedJavaVersion(e.target.value);
+                                    setSelectedSourceVersion(e.target.value === "auto" ? "8" : e.target.value); // Default to 8 if auto-detect
+                                    setUserSelectedVersion(e.target.value);
+                                    setSourceVersionStatus("detected");
+                                  }}
+                                  style={{
+                                    padding: "10px 14px",
+                                    borderRadius: 6,
+                                    border: "1px solid #d97706",
+                                    fontSize: 14,
+                                    backgroundColor: "#fff",
+                                    cursor: "pointer",
+                                    minWidth: 200
+                                  }}
+                                >
+                                  <option value="auto">🔍 Auto-detect from code (Recommended)</option>
+                                  <option value="7">Java 7 (Legacy)</option>
+                                  <option value="8">Java 8 (LTS)</option>
+                                  <option value="11">Java 11 (LTS)</option>
+                                  <option value="17">Java 17 (LTS)</option>
+                                  <option value="21">Java 21 (LTS)</option>
+                                </select>
+                                <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
+                                  💡 Auto-detect analyzes your code to determine the correct Java version
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          <div style={{ marginBottom: 16, padding: 16, borderRadius: 8, backgroundColor: "#eef2ff", border: "1px solid #c7d2fe" }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: "#1e3a8a" }}>
+                              {buildConversionLabel}
+                            </div>
+                            <div style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>
+                              {buildConversionNote}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <button
+                            onClick={() => {
+                              setHighRiskConfirmed(true);
+                              setSelectedSourceVersion(suggestedJavaVersion);
+                            }}
+                            style={{
+                              backgroundColor: "#f59e0b",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 8,
+                              padding: "12px 24px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              fontSize: 14,
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "8px 16px",
-                              backgroundColor: "#f6f8fa",
-                              borderBottom: "1px solid #d0d7de"
-                            }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span>{getFileIcon(selectedFile)}</span>
-                                <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedFile.name}</span>
-                                <span style={{
-                                  fontSize: 11,
-                                  padding: "2px 8px",
-                                  backgroundColor: "#ddf4ff",
-                                  borderRadius: 12,
-                                  color: "#0969da"
-                                }}>
-                                  {getFileLanguage(selectedFile.name)}
-                                </span>
-                              </div>
-                              <div style={{ display: "flex", gap: 8 }}>
+                              gap: 8
+                            }}
+                          >
+                            {buildConversionLabel}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setStep(1);
+                              setSelectedRepo(null);
+                              setRepoAnalysis(null);
+                              setIsJavaProject(null);
+                              setIsHighRiskProject(false);
+                              setRepoUrl("");
+                            }}
+                            style={{
+                              backgroundColor: "#fff",
+                              color: "#92400e",
+                              border: "2px solid #f59e0b",
+                              borderRadius: 8,
+                              padding: "12px 24px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              fontSize: 14
+                            }}
+                          >
+                            ← Choose Different Repository
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Show content only after high-risk confirmation or if not high-risk */}
+                    {(!isHighRiskProject || highRiskConfirmed) && (
+                      <>
+                        {/* GitHub-like File Explorer */}
+                        <div style={styles.sectionTitle}>📂 Repository Files</div>
+                        <div style={{
+                          border: "1px solid #d0d7de",
+                          borderRadius: 8,
+                          overflow: "hidden",
+                          marginBottom: 24,
+                          backgroundColor: "#fff"
+                        }}>
+                          {/* Header bar like GitHub */}
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "12px 16px",
+                            backgroundColor: "#f6f8fa",
+                            borderBottom: "1px solid #d0d7de"
+                          }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedRepo.name}</span>
+                              {currentPath && (
+                                <>
+                                  <span style={{ color: "#57606a" }}>/</span>
+                                  <span style={{ color: "#0969da" }}>{currentPath}</span>
+                                </>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              {currentPath && (
                                 <button
-                                  onClick={() => {
-                                    setSelectedFile(null);
-                                    setFileContent("");
-                                    setEditedContent("");
-                                    setIsEditing(false);
-                                  }}
+                                  onClick={navigateToRoot}
                                   style={{
                                     background: "none",
                                     border: "1px solid #d0d7de",
                                     borderRadius: 6,
-                                    padding: "6px 12px",
+                                    padding: "4px 12px",
                                     cursor: "pointer",
                                     fontSize: 12,
                                     color: "#24292f"
                                   }}
                                 >
-                                  ✖️ Close
+                                  🏠 Root
                                 </button>
-                              </div>
+                              )}
+                              <button
+                                onClick={() => setShowFileExplorer(!showFileExplorer)}
+                                style={{
+                                  background: "none",
+                                  border: "1px solid #d0d7de",
+                                  borderRadius: 6,
+                                  padding: "4px 12px",
+                                  cursor: "pointer",
+                                  fontSize: 12,
+                                  color: "#24292f"
+                                }}
+                              >
+                                {showFileExplorer ? "🔽 Collapse" : "🔼 Expand"}
+                              </button>
                             </div>
+                          </div>
 
-                            {/* File content */}
-                            <div style={{
-                              flex: 1,
-                              overflow: "auto",
-                              backgroundColor: "#0d1117",
-                              position: "relative"
-                            }}>
-                              {fileLoading ? (
-                                <div style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  height: "100%",
-                                  color: "#8b949e"
-                                }}>
-                                  <div style={styles.spinner}></div>
-                                  <span style={{ marginLeft: 10 }}>Loading file...</span>
-                                </div>
-                              ) : isEditing ? (
-                                <textarea
-                                  value={editedContent}
-                                  onChange={(e) => setEditedContent(e.target.value)}
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    minHeight: 350,
-                                    padding: 16,
+                          {showFileExplorer && (
+                            <div style={{ display: "flex", minHeight: 400 }}>
+                              {/* File Tree - Left Panel */}
+                              <div style={{
+                                width: selectedFile ? "40%" : "100%",
+                                borderRight: selectedFile ? "1px solid #d0d7de" : "none",
+                                overflowY: "auto",
+                                maxHeight: 500
+                              }}>
+                                {/* Back navigation */}
+                                {currentPath && (
+                                  <div
+                                    onClick={navigateBack}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 10,
+                                      padding: "10px 16px",
+                                      borderBottom: "1px solid #d0d7de",
+                                      cursor: "pointer",
+                                      backgroundColor: "#f6f8fa"
+                                    }}
+                                  >
+                                    <span>⬆️</span>
+                                    <span style={{ color: "#0969da", fontSize: 14 }}>..</span>
+                                  </div>
+                                )}
+
+                                {/* File list */}
+                                {repoFiles.length > 0 ? (
+                                  repoFiles.map((file, idx) => (
+                                    <div
+                                      key={idx}
+                                      onClick={() => handleFileClick(file)}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 10,
+                                        padding: "10px 16px",
+                                        borderBottom: "1px solid #d0d7de",
+                                        cursor: "pointer",
+                                        backgroundColor: selectedFile?.path === file.path ? "#ddf4ff" : "transparent",
+                                        transition: "background-color 0.15s ease"
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (selectedFile?.path !== file.path) {
+                                          e.currentTarget.style.backgroundColor = "#f6f8fa";
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (selectedFile?.path !== file.path) {
+                                          e.currentTarget.style.backgroundColor = "transparent";
+                                        }
+                                      }}
+                                    >
+                                      <span style={{ fontSize: 16 }}>{getFileIcon(file)}</span>
+                                      <span style={{
+                                        flex: 1,
+                                        color: file.type === "dir" ? "#0969da" : "#24292f",
+                                        fontWeight: file.type === "dir" ? 600 : 400,
+                                        fontSize: 14
+                                      }}>
+                                        {file.name}
+                                      </span>
+                                      {file.type === "file" && file.size > 0 && (
+                                        <span style={{ fontSize: 12, color: "#57606a" }}>
+                                          {file.size < 1024 ? `${file.size} B` : `${Math.round(file.size / 1024)} KB`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div style={{ padding: 20, textAlign: "center", color: "#57606a" }}>
+                                    No files found
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* File Content - Right Panel */}
+                              {selectedFile && (
+                                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                                  {/* File header */}
+                                  <div style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    padding: "8px 16px",
+                                    backgroundColor: "#f6f8fa",
+                                    borderBottom: "1px solid #d0d7de"
+                                  }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      <span>{getFileIcon(selectedFile)}</span>
+                                      <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedFile.name}</span>
+                                      <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 8px",
+                                        backgroundColor: "#ddf4ff",
+                                        borderRadius: 12,
+                                        color: "#0969da"
+                                      }}>
+                                        {getFileLanguage(selectedFile.name)}
+                                      </span>
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedFile(null);
+                                          setFileContent("");
+                                          setEditedContent("");
+                                          setIsEditing(false);
+                                        }}
+                                        style={{
+                                          background: "none",
+                                          border: "1px solid #d0d7de",
+                                          borderRadius: 6,
+                                          padding: "6px 12px",
+                                          cursor: "pointer",
+                                          fontSize: 12,
+                                          color: "#24292f"
+                                        }}
+                                      >
+                                        ✖️ Close
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* File content */}
+                                  <div style={{
+                                    flex: 1,
+                                    overflow: "auto",
                                     backgroundColor: "#0d1117",
-                                    color: "#c9d1d9",
-                                    border: "none",
-                                    outline: "none",
-                                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                                    fontSize: 13,
-                                    lineHeight: 1.5,
-                                    resize: "none",
-                                    boxSizing: "border-box"
-                                  }}
-                                />
-                              ) : (
-                                <pre style={{
-                                  margin: 0,
-                                  padding: 16,
-                                  color: "#c9d1d9",
-                                  fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                                  fontSize: 13,
-                                  lineHeight: 1.5,
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word"
-                                }}>
-                                  {fileContent || "// Empty file"}
-                                </pre>
+                                    position: "relative"
+                                  }}>
+                                    {fileLoading ? (
+                                      <div style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        height: "100%",
+                                        color: "#8b949e"
+                                      }}>
+                                        <div style={styles.spinner}></div>
+                                        <span style={{ marginLeft: 10 }}>Loading file...</span>
+                                      </div>
+                                    ) : isEditing ? (
+                                      <textarea
+                                        value={editedContent}
+                                        onChange={(e) => setEditedContent(e.target.value)}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          minHeight: 350,
+                                          padding: 16,
+                                          backgroundColor: "#0d1117",
+                                          color: "#c9d1d9",
+                                          border: "none",
+                                          outline: "none",
+                                          fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                                          fontSize: 13,
+                                          lineHeight: 1.5,
+                                          resize: "none",
+                                          boxSizing: "border-box"
+                                        }}
+                                      />
+                                    ) : (
+                                      <pre style={{
+                                        margin: 0,
+                                        padding: 16,
+                                        color: "#c9d1d9",
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                                        fontSize: 13,
+                                        lineHeight: 1.5,
+                                        whiteSpace: "pre-wrap",
+                                        wordBreak: "break-word"
+                                      }}>
+                                        {fileContent || "// Empty file"}
+                                      </pre>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Discovery Info */}
-                  <div style={styles.discoveryContent}>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>📊</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Repository Analysis</div>
-                        <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>🔧</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis?.build_tool || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>☕</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Current Java version detected in the project</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {(detectedJavaVersion || detectedBuildType) && (
-                    <div style={styles.detectedConfigCard}>
-                      <div style={styles.detectedConfigHeader}>
-                        <div>
-                          <div style={styles.detectedConfigTitle}>Detected Configuration</div>
-                          <div style={styles.detectedConfigSubtitle}>
-                            Restored discovery summary for the detected Java and build setup.
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={styles.detectedConfigActions}>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Java Version Detected: {detectedJavaVersion ? `Java ${detectedJavaVersion}` : "Unknown"}
-                        </button>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Build Detected: {detectedBuildType ? detectedBuildType.charAt(0).toUpperCase() + detectedBuildType.slice(1) : "Unknown"}
-                        </button>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Framework Detected: {primaryDetectedFramework || "None detected"}
-                        </button>
-                        {hasRecommendedBuildConversion && recommendedBuildConversionId && (
-                          <button
-                            type="button"
-                            style={{
-                              ...styles.detectedConfigActionBtn,
-                              ...(selectedConversions.includes(recommendedBuildConversionId)
-                                ? styles.detectedConfigActionBtnActive
-                                : {}),
-                            }}
-                            onClick={applyRecommendedBuildConversion}
-                          >
-                            {selectedConversions.includes(recommendedBuildConversionId)
-                              ? `${buildConversionLabel} Selected`
-                              : buildConversionLabel}
-                          </button>
-                        )}
-                      </div>
-
-                      <div style={styles.detectedConfigNote}>{buildConversionNote}</div>
-                    </div>
-                  )}
-
-                  {/* Framework Detection - Clickable with File Preview */}
-                  <div style={styles.sectionTitle}>🎯 Detected Frameworks & Libraries</div>
-                  
-                  {/* Framework File Viewer Modal */}
-                  {viewingFrameworkFile && (
-                    <div style={{
-                      position: "fixed",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      backgroundColor: "rgba(0,0,0,0.7)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      zIndex: 1000
-                    }}>
-                      <div style={{
-                        backgroundColor: "#fff",
-                        borderRadius: 12,
-                        width: "80%",
-                        maxWidth: 900,
-                        maxHeight: "85vh",
-                        overflow: "hidden",
-                        boxShadow: "0 25px 50px rgba(0,0,0,0.3)"
-                      }}>
-                        {/* Modal Header */}
-                        <div style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "16px 20px",
-                          backgroundColor: "#f6f8fa",
-                          borderBottom: "1px solid #d0d7de"
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontSize: 20 }}>📄</span>
-                            <div>
-                              <div style={{ fontWeight: 600, color: "#24292f" }}>{viewingFrameworkFile.name}</div>
-                              <div style={{ fontSize: 12, color: "#57606a" }}>{viewingFrameworkFile.path}</div>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{
-                              fontSize: 11,
-                              padding: "4px 10px",
-                              backgroundColor: "#ddf4ff",
-                              borderRadius: 12,
-                              color: "#0969da"
-                            }}>
-                              Read Only
-                            </span>
-                            <button
-                              onClick={() => setViewingFrameworkFile(null)}
-                              style={{
-                                background: "none",
-                                border: "1px solid #d0d7de",
-                                borderRadius: 6,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                                fontSize: 14,
-                                color: "#24292f"
-                              }}
-                            >
-                              ✖️ Close
-                            </button>
-                          </div>
-                        </div>
-                        {/* Modal Content */}
-                        <div style={{
-                          backgroundColor: "#0d1117",
-                          overflow: "auto",
-                          maxHeight: "calc(85vh - 70px)"
-                        }}>
-                          {frameworkFileLoading ? (
-                            <div style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 60,
-                              color: "#8b949e"
-                            }}>
-                              <div style={styles.spinner}></div>
-                              <span style={{ marginLeft: 12 }}>Loading file content...</span>
-                            </div>
-                          ) : (
-                            <pre style={{
-                              margin: 0,
-                              padding: 20,
-                              color: "#c9d1d9",
-                              fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                              fontSize: 13,
-                              lineHeight: 1.6,
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word"
-                            }}>
-                              {viewingFrameworkFile.content || "// File content unavailable"}
-                            </pre>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Detected Frameworks Grid - Clickable */}
-                  {detectedFrameworks.length > 0 ? (
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                      gap: 12,
-                      marginBottom: 20
-                    }}>
-                      {detectedFrameworks.map((fw, idx) => (
-                        <div
-                          key={idx}
-                          onClick={async () => {
-                            setFrameworkFileLoading(true);
-                            setViewingFrameworkFile({ name: fw.name, path: fw.path, content: "" });
-                            try {
-                              const response = await getFileContent(selectedRepo!.url, fw.path, currentToken);
-                              setViewingFrameworkFile({ name: fw.name, path: fw.path, content: response.content });
-                            } catch (err) {
-                              setViewingFrameworkFile({ name: fw.name, path: fw.path, content: `// Error loading file: ${fw.path}` });
-                            } finally {
-                              setFrameworkFileLoading(false);
-                            }
-                          }}
-                          style={{
+
+                        {/* Discovery Info */}
+                        <div style={styles.discoveryContent}>
+                          <div style={styles.discoveryItem}>
+                            <span style={styles.discoveryIcon}>📊</span>
+                            <div>
+                              <div style={styles.discoveryTitle}>Repository Analysis</div>
+                              <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
+                            </div>
+                          </div>
+                          <div style={styles.discoveryItem}>
+                            <span style={styles.discoveryIcon}>🔧</span>
+                            <div>
+                              <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis?.build_tool || "Detecting..."}</div>
+                              <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
+                            </div>
+                          </div>
+                          <div style={styles.discoveryItem}>
+                            <span style={styles.discoveryIcon}>☕</span>
+                            <div>
+                              <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}</div>
+                              <div style={styles.discoveryDesc}>Current Java version detected in the project</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {(detectedJavaVersion || detectedBuildType) && (
+                          <div style={styles.detectedConfigCard}>
+                            <div style={styles.detectedConfigHeader}>
+                              <div>
+                                <div style={styles.detectedConfigTitle}>Detected Configuration</div>
+                                <div style={styles.detectedConfigSubtitle}>
+                                  Restored discovery summary for the detected Java and build setup.
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={styles.detectedConfigActions}>
+                              <button type="button" style={styles.detectedConfigChip}>
+                                Java Version Detected: {detectedJavaVersion ? `Java ${detectedJavaVersion}` : "Unknown"}
+                              </button>
+                              <button type="button" style={styles.detectedConfigChip}>
+                                Build Detected: {detectedBuildType ? detectedBuildType.charAt(0).toUpperCase() + detectedBuildType.slice(1) : "Unknown"}
+                              </button>
+                              <button type="button" style={styles.detectedConfigChip}>
+                                Framework Detected: {primaryDetectedFramework || "None detected"}
+                              </button>
+                              {hasRecommendedBuildConversion && recommendedBuildConversionId && (
+                                <button
+                                  type="button"
+                                  style={{
+                                    ...styles.detectedConfigActionBtn,
+                                    ...(selectedConversions.includes(recommendedBuildConversionId)
+                                      ? styles.detectedConfigActionBtnActive
+                                      : {}),
+                                  }}
+                                  onClick={applyRecommendedBuildConversion}
+                                >
+                                  {selectedConversions.includes(recommendedBuildConversionId)
+                                    ? `${buildConversionLabel} Selected`
+                                    : buildConversionLabel}
+                                </button>
+                              )}
+                            </div>
+
+                            <div style={styles.detectedConfigNote}>{buildConversionNote}</div>
+                          </div>
+                        )}
+
+                        {/* Framework Detection - Clickable with File Preview */}
+                        <div style={styles.sectionTitle}>🎯 Detected Frameworks & Libraries</div>
+
+                        {/* Framework File Viewer Modal */}
+                        {viewingFrameworkFile && (
+                          <div style={{
+                            position: "fixed",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: "rgba(0,0,0,0.7)",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "14px 16px",
-                            backgroundColor: "#fff",
-                            border: "1px solid #d0d7de",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#f6f8fa";
-                            e.currentTarget.style.borderColor = "#0969da";
-                            e.currentTarget.style.boxShadow = "0 2px 8px rgba(9, 105, 218, 0.15)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#fff";
-                            e.currentTarget.style.borderColor = "#d0d7de";
-                            e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <span style={{ fontSize: 24 }}>
-                              {fw.type === "Testing Framework" ? "🧪" : 
-                               fw.type === "Application Framework" ? "🍃" : 
-                               fw.type === "ORM Framework" ? "🗄️" :
-                               fw.type === "Logging" ? "📝" :
-                               fw.type === "Mocking Framework" ? "🎭" :
-                               fw.type === "JSON Processing" ? "📦" : "📚"}
-                            </span>
-                            <div>
-                              <div style={{ fontWeight: 600, color: "#24292f", fontSize: 14 }}>{fw.name}</div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 11, color: "#57606a" }}>{fw.type}</span>
-                                <span style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  letterSpacing: "0.04em",
-                                  textTransform: "uppercase",
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  backgroundColor: getDetectedComponentCategory(fw.type) === "Framework" ? "#ede9fe" : "#e0f2fe",
-                                  color: getDetectedComponentCategory(fw.type) === "Framework" ? "#6d28d9" : "#075985",
-                                  border: getDetectedComponentCategory(fw.type) === "Framework" ? "1px solid #c4b5fd" : "1px solid #bae6fd"
-                                }}>
-                                  {getDetectedComponentCategory(fw.type)}
-                                </span>
+                            justifyContent: "center",
+                            zIndex: 1000
+                          }}>
+                            <div style={{
+                              backgroundColor: "#fff",
+                              borderRadius: 12,
+                              width: "80%",
+                              maxWidth: 900,
+                              maxHeight: "85vh",
+                              overflow: "hidden",
+                              boxShadow: "0 25px 50px rgba(0,0,0,0.3)"
+                            }}>
+                              {/* Modal Header */}
+                              <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "16px 20px",
+                                backgroundColor: "#f6f8fa",
+                                borderBottom: "1px solid #d0d7de"
+                              }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <span style={{ fontSize: 20 }}>📄</span>
+                                  <div>
+                                    <div style={{ fontWeight: 600, color: "#24292f" }}>{viewingFrameworkFile.name}</div>
+                                    <div style={{ fontSize: 12, color: "#57606a" }}>{viewingFrameworkFile.path}</div>
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{
+                                    fontSize: 11,
+                                    padding: "4px 10px",
+                                    backgroundColor: "#ddf4ff",
+                                    borderRadius: 12,
+                                    color: "#0969da"
+                                  }}>
+                                    Read Only
+                                  </span>
+                                  <button
+                                    onClick={() => setViewingFrameworkFile(null)}
+                                    style={{
+                                      background: "none",
+                                      border: "1px solid #d0d7de",
+                                      borderRadius: 6,
+                                      padding: "6px 12px",
+                                      cursor: "pointer",
+                                      fontSize: 14,
+                                      color: "#24292f"
+                                    }}
+                                  >
+                                    ✖️ Close
+                                  </button>
+                                </div>
+                              </div>
+                              {/* Modal Content */}
+                              <div style={{
+                                backgroundColor: "#0d1117",
+                                overflow: "auto",
+                                maxHeight: "calc(85vh - 70px)"
+                              }}>
+                                {frameworkFileLoading ? (
+                                  <div style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    padding: 60,
+                                    color: "#8b949e"
+                                  }}>
+                                    <div style={styles.spinner}></div>
+                                    <span style={{ marginLeft: 12 }}>Loading file content...</span>
+                                  </div>
+                                ) : (
+                                  <pre style={{
+                                    margin: 0,
+                                    padding: 20,
+                                    color: "#c9d1d9",
+                                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                                    fontSize: 13,
+                                    lineHeight: 1.6,
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word"
+                                  }}>
+                                    {viewingFrameworkFile.content || "// File content unavailable"}
+                                  </pre>
+                                )}
                               </div>
                             </div>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{
-                              fontSize: 11,
-                              padding: "3px 8px",
-                              backgroundColor: "#dcfce7",
-                              borderRadius: 10,
-                              color: "#166534"
-                            }}>
-                              Detected
-                            </span>
-                            <span style={{ color: "#0969da", fontSize: 12 }}>📂 View</span>
+                        )}
+
+                        {/* Detected Frameworks Grid - Clickable */}
+                        {detectedFrameworks.length > 0 ? (
+                          <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                            gap: 12,
+                            marginBottom: 20
+                          }}>
+                            {detectedFrameworks.map((fw, idx) => (
+                              <div
+                                key={idx}
+                                onClick={async () => {
+                                  setFrameworkFileLoading(true);
+                                  setViewingFrameworkFile({ name: fw.name, path: fw.path, content: "" });
+                                  try {
+                                    const response = await getFileContent(selectedRepo!.url, fw.path, currentToken);
+                                    setViewingFrameworkFile({ name: fw.name, path: fw.path, content: response.content });
+                                  } catch (err) {
+                                    setViewingFrameworkFile({ name: fw.name, path: fw.path, content: `// Error loading file: ${fw.path}` });
+                                  } finally {
+                                    setFrameworkFileLoading(false);
+                                  }
+                                }}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  padding: "14px 16px",
+                                  backgroundColor: "#fff",
+                                  border: "1px solid #d0d7de",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                  transition: "all 0.2s ease",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = "#f6f8fa";
+                                  e.currentTarget.style.borderColor = "#0969da";
+                                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(9, 105, 218, 0.15)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = "#fff";
+                                  e.currentTarget.style.borderColor = "#d0d7de";
+                                  e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                  <span style={{ fontSize: 24 }}>
+                                    {fw.type === "Testing Framework" ? "🧪" :
+                                      fw.type === "Application Framework" ? "🍃" :
+                                        fw.type === "ORM Framework" ? "🗄️" :
+                                          fw.type === "Logging" ? "📝" :
+                                            fw.type === "Mocking Framework" ? "🎭" :
+                                              fw.type === "JSON Processing" ? "📦" : "📚"}
+                                  </span>
+                                  <div>
+                                    <div style={{ fontWeight: 600, color: "#24292f", fontSize: 14 }}>{fw.name}</div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                      <span style={{ fontSize: 11, color: "#57606a" }}>{fw.type}</span>
+                                      <span style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        letterSpacing: "0.04em",
+                                        textTransform: "uppercase",
+                                        padding: "2px 8px",
+                                        borderRadius: 999,
+                                        backgroundColor: getDetectedComponentCategory(fw.type) === "Framework" ? "#ede9fe" : "#e0f2fe",
+                                        color: getDetectedComponentCategory(fw.type) === "Framework" ? "#6d28d9" : "#075985",
+                                        border: getDetectedComponentCategory(fw.type) === "Framework" ? "1px solid #c4b5fd" : "1px solid #bae6fd"
+                                      }}>
+                                        {getDetectedComponentCategory(fw.type)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{
+                                    fontSize: 11,
+                                    padding: "3px 8px",
+                                    backgroundColor: "#dcfce7",
+                                    borderRadius: 10,
+                                    color: "#166534"
+                                  }}>
+                                    Detected
+                                  </span>
+                                  <span style={{ color: "#0969da", fontSize: 12 }}>📂 View</span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={styles.frameworkGrid}>
-                      <div style={styles.frameworkItem}>
-                        <span>🍃</span>
-                        <span>Spring Boot</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('spring')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div style={styles.frameworkItem}>
-                        <span>🗄️</span>
-                        <span>JPA/Hibernate</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('hibernate') || d.artifact_id.includes('jpa')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div style={styles.frameworkItem}>
-                        <span>🧪</span>
-                        <span>JUnit</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('junit')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div style={styles.frameworkItem}>
-                        <span>📝</span>
-                        <span>Log4j/SLF4J</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('log4j') || d.artifact_id.includes('slf4j')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                    </div>
-                  )}
+                        ) : (
+                          <div style={styles.frameworkGrid}>
+                            <div style={styles.frameworkItem}>
+                              <span>🍃</span>
+                              <span>Spring Boot</span>
+                              {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('spring')) && <span style={styles.detectedBadge}>Detected</span>}
+                            </div>
+                            <div style={styles.frameworkItem}>
+                              <span>🗄️</span>
+                              <span>JPA/Hibernate</span>
+                              {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('hibernate') || d.artifact_id.includes('jpa')) && <span style={styles.detectedBadge}>Detected</span>}
+                            </div>
+                            <div style={styles.frameworkItem}>
+                              <span>🧪</span>
+                              <span>JUnit</span>
+                              {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('junit')) && <span style={styles.detectedBadge}>Detected</span>}
+                            </div>
+                            <div style={styles.frameworkItem}>
+                              <span>📝</span>
+                              <span>Log4j/SLF4J</span>
+                              {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('log4j') || d.artifact_id.includes('slf4j')) && <span style={styles.detectedBadge}>Detected</span>}
+                            </div>
+                          </div>
+                        )}
 
-                  {repoAnalysis && (
-                    <div style={styles.structureBox}>
-                      <div style={styles.structureTitle}>Project Structure Summary</div>
-                      <div style={styles.structureGrid}>
-                        <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
-                        <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
-                        <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "✓" : "✗"} src/main</span>
-                        <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "✓" : "✗"} src/test</span>
-                        <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{detectedJavaStructureLabel}</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-                    </>
-                  )}
-            </>
-          )}
-        </>
-      )}
+                        {repoAnalysis && (
+                          <div style={styles.structureBox}>
+                            <div style={styles.structureTitle}>Project Structure Summary</div>
+                            <div style={styles.structureGrid}>
+                              <span style={detectedBuildFile ? styles.structureFound : styles.structureMissing}>{cleanBuildFileStructureLabel}</span>
+                              <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{srcMainStructureLabel}</span>
+                              <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{srcTestStructureLabel}</span>
+                              <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{cleanDetectedJavaStructureLabel}</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
 
-      <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(1)}>← Back</button>
-        <button 
-          style={{ ...styles.primaryBtn, opacity: isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis ? 0.5 : 1 }} 
-          onClick={() => setStep(3)}
-          disabled={isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis}
-        >
-          Continue to Strategy →
-        </button>
+        <div style={styles.btnRow}>
+          <button style={styles.secondaryBtn} onClick={() => setStep(1)}>← Back</button>
+          <button
+            style={{ ...styles.primaryBtn, opacity: isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis ? 0.5 : 1 }}
+            onClick={() => setStep(3)}
+            disabled={isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis}
+          >
+            Continue to Strategy →
+          </button>
+        </div>
       </div>
-    </div>
     );
   };
 
@@ -2686,7 +2969,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           <div style={styles.assessmentGrid}>
             <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
-                <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{(repoAnalysis.java_version || repoAnalysis.java_version_from_build) || "Version Detection Failed"}</div></div>
+            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{(repoAnalysis.java_version || repoAnalysis.java_version_from_build) || "Version Detection Failed"}</div></div>
             <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
             <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
           </div>
@@ -2694,11 +2977,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.structureBox}>
             <div style={styles.structureTitle}>Project Structure</div>
             <div style={styles.structureGrid}>
-              <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
-              <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
-              <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "✓" : "✗"} src/main</span>
-              <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "✓" : "✗"} src/test</span>
-              <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{detectedJavaStructureLabel}</span>
+              <span style={detectedBuildFile ? styles.structureFound : styles.structureMissing}>{cleanBuildFileStructureLabel}</span>
+              <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{srcMainStructureLabel}</span>
+              <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{srcTestStructureLabel}</span>
+              <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{cleanDetectedJavaStructureLabel}</span>
             </div>
           </div>
         </>
@@ -2869,134 +3151,134 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       </div>
 
-        <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>Source Java Version</label>
-              <div style={{
-                padding: "12px 14px",
-                fontSize: 14,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                backgroundColor: "#f9fafb",
-                color: userSelectedVersion ? "#1e293b" : "#6b7280",
-                fontWeight: userSelectedVersion ? 600 : 500
-              }}>
-                {userSelectedVersion
-                  ? `Java ${selectedSourceVersion} (manually selected)`
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? `Java ${repoAnalysis.java_version} (detected)`
-                      : "Source don't have a java version")
-                }
+      <div style={styles.row}>
+        <div style={styles.field}>
+          <label style={styles.label}>Source Java Version</label>
+          <div style={{
+            padding: "12px 14px",
+            fontSize: 14,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            backgroundColor: "#f9fafb",
+            color: userSelectedVersion ? "#1e293b" : "#6b7280",
+            fontWeight: userSelectedVersion ? 600 : 500
+          }}>
+            {userSelectedVersion
+              ? `Java ${selectedSourceVersion} (manually selected)`
+              : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
+                ? `Java ${repoAnalysis.java_version} (detected)`
+                : "Source don't have a java version")
+            }
+          </div>
+          <p style={styles.helpText}>
+            {userSelectedVersion
+              ? "Source version manually selected in discovery step"
+              : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
+                ? "Java version detected from build configuration"
+                : "No Java version found - please select a source version below")
+            }
+          </p>
+          {/* Show version selector when not detected */}
+          {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
+            <div style={{ marginTop: 12 }}>
+              <select
+                value={selectedSourceVersion}
+                onChange={(e) => {
+                  setSelectedSourceVersion(e.target.value);
+                  setUserSelectedVersion(e.target.value); // Mark as user-selected
+                }}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 6,
+                  border: "1px solid #d97706",
+                  fontSize: 14,
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
+                  width: "100%"
+                }}
+              >
+                <option value="7">Java 7 (Legacy)</option>
+                <option value="8">Java 8 (LTS)</option>
+                <option value="11">Java 11 (LTS)</option>
+                <option value="17">Java 17 (LTS)</option>
+                <option value="21">Java 21 (LTS)</option>
+              </select>
+              <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
+                💡 Select the correct Java version for your project. This will be used as the source version for migration.
               </div>
-              <p style={styles.helpText}>
-                {userSelectedVersion
-                  ? "Source version manually selected in discovery step"
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? "Java version detected from build configuration"
-                      : "No Java version found - please select a source version below")
-                }
-              </p>
-              {/* Show version selector when not detected */}
-              {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                <div style={{ marginTop: 12 }}>
-                  <select
-                    value={selectedSourceVersion}
-                    onChange={(e) => {
-                      setSelectedSourceVersion(e.target.value);
-                      setUserSelectedVersion(e.target.value); // Mark as user-selected
-                    }}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 6,
-                      border: "1px solid #d97706",
-                      fontSize: 14,
-                      backgroundColor: "#fff",
-                      cursor: "pointer",
-                      width: "100%"
-                    }}
-                  >
-                    <option value="7">Java 7 (Legacy)</option>
-                    <option value="8">Java 8 (LTS)</option>
-                    <option value="11">Java 11 (LTS)</option>
-                    <option value="17">Java 17 (LTS)</option>
-                    <option value="21">Java 21 (LTS)</option>
-                  </select>
-                  <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                    💡 Select the correct Java version for your project. This will be used as the source version for migration.
+            </div>
+          )}
+        </div>
+        <div style={styles.field}>
+          <label style={styles.label}>Target Java Version</label>
+          {versionRecommendationLoading && (
+            <div style={{ ...styles.infoBox, marginBottom: 12 }}>
+              Fetching recommended target Java version from Hugging Face...
+            </div>
+          )}
+          {!versionRecommendationLoading && versionRecommendationError && (
+            <div style={{ ...styles.errorBox, marginBottom: 12 }}>
+              {versionRecommendationError}
+            </div>
+          )}
+          {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
+            <div
+              style={{
+                marginBottom: 12,
+                padding: 16,
+                borderRadius: 10,
+                border: "1px solid #bfdbfe",
+                background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                    Hugging Face Recommendation
                   </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginTop: 4 }}>
+                    Target Java {versionRecommendation.recommended_target_version}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={{ ...styles.secondaryBtn, padding: "8px 14px" }}
+                  onClick={() => setSelectedTargetVersion(versionRecommendation.recommended_target_version)}
+                >
+                  Use recommendation
+                </button>
+              </div>
+              <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
+                Confidence: <span style={{ fontWeight: 700, color: "#0f172a" }}>{versionRecommendation.confidence}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
+                {versionRecommendation.rationale.map((reason, index) => (
+                  <div key={index}>{index + 1}. {reason}</div>
+                ))}
+              </div>
+              {versionRecommendation.alternatives.length > 0 && (
+                <div style={{ fontSize: 12, color: "#475569", marginTop: 10 }}>
+                  Alternatives: {versionRecommendation.alternatives.map((value) => `Java ${value}`).join(", ")}
                 </div>
               )}
             </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Target Java Version</label>
-            {versionRecommendationLoading && (
-              <div style={{ ...styles.infoBox, marginBottom: 12 }}>
-                Fetching recommended target Java version from Hugging Face...
-              </div>
-            )}
-            {!versionRecommendationLoading && versionRecommendationError && (
-              <div style={{ ...styles.errorBox, marginBottom: 12 }}>
-                {versionRecommendationError}
-              </div>
-            )}
-            {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 16,
-                  borderRadius: 10,
-                  border: "1px solid #bfdbfe",
-                  background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                      Hugging Face Recommendation
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginTop: 4 }}>
-                      Target Java {versionRecommendation.recommended_target_version}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    style={{ ...styles.secondaryBtn, padding: "8px 14px" }}
-                    onClick={() => setSelectedTargetVersion(versionRecommendation.recommended_target_version)}
-                  >
-                    Use recommendation
-                  </button>
-                </div>
-                <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
-                  Confidence: <span style={{ fontWeight: 700, color: "#0f172a" }}>{versionRecommendation.confidence}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
-                  {versionRecommendation.rationale.map((reason, index) => (
-                    <div key={index}>{index + 1}. {reason}</div>
-                  ))}
-                </div>
-                {versionRecommendation.alternatives.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 10 }}>
-                    Alternatives: {versionRecommendation.alternatives.map((value) => `Java ${value}`).join(", ")}
-                  </div>
-                )}
-              </div>
-            )}
-            <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
-              <option value="" disabled>Select Java Version</option>
-              {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-            </select>
-            <p style={styles.helpText}>Only versions newer than the source Java version are available</p>
-          </div>
+          )}
+          <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
+            <option value="" disabled>Select Java Version</option>
+            {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+          </select>
+          <p style={styles.helpText}>Only versions newer than the source Java version are available</p>
         </div>
+      </div>
 
       <div style={styles.field}>
         <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
         <div style={{ display: "flex", gap: 8 }}>
-          <input 
-            type="text" 
-            style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }} 
-            value={targetRepoName} 
-            onChange={(e) => setTargetRepoName(e.target.value)} 
+          <input
+            type="text"
+            style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }}
+            value={targetRepoName}
+            onChange={(e) => setTargetRepoName(e.target.value)}
             placeholder={
               migrationApproach === "branch"
                 ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
@@ -3026,550 +3308,550 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const codeRefactoringEndpointLabel = `API endpoints: ${apiEndpointCount}`;
 
     return (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>⚡</span>
-        <div>
-          <h2 style={styles.title}>Build Modernization & Migration</h2>
-          <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
-        </div>
-      </div>
-
-      {/* Show what we plan to modernize */}
-      <div style={styles.sectionTitle}>🎯 Migration Configuration</div>
-
-      {/* What we'll modernize - Card Design */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-          ✨ What we'll modernize
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-          {[
-            {
-              icon: "☕",
-              title: "Java Version Upgrade",
-              desc: `From Java ${selectedSourceVersion} to Java ${selectedTargetVersion || "Select Java Version"}`,
-              color: "#2563eb"
-            },
-            {
-              icon: "🔧",
-              title: "Code Refactoring",
-              desc: apiEndpointCount > 0
-                ? `Modernize code patterns across ${apiEndpointCount} detected API endpoint${apiEndpointCount === 1 ? "" : "s"}`
-                : "Modernize code patterns and best practices",
-              color: "#059669",
-              showInfo: true,
-              tooltipContent: plannedCodeRefactoringTooltip,
-              detail: codeRefactoringEndpointLabel
-            },
-            {
-              icon: "📦",
-              title: "Dependencies",
-              desc: "Update and ensure compatibility",
-              color: "#7c3aed",
-              showInfo: true
-            },
-            {
-              icon: "🧠",
-              title: "Business Logic",
-              desc: "Improve performance and reliability",
-              color: "#dc2626",
-              showInfo: true
-            },
-            {
-              icon: "🧪",
-              title: "Testing",
-              desc: "Execute and validate test suites",
-              color: "#ea580c"
-            },
-            {
-              icon: "🔍",
-              title: "Code Quality",
-              desc: "Analysis and improvement",
-              color: "#0891b2"
-            }
-          ].filter((item) => item.title !== "Code Quality").map((item, idx) => (
-            <div
-              key={idx}
-              style={{
-                position: "relative",
-                padding: 20,
-                backgroundColor: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 12,
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                transition: "all 0.2s ease",
-                cursor: "default"
-              }}
-            >
-              {item.showInfo && (
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <button
-                    type="button"
-                    aria-label={`${item.title} information`}
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      border: "1px solid #cbd5e1",
-                      backgroundColor: "#fff",
-                      color: "#64748b",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </button>
-                  <div
-                    style={{
-                      ...styles.tooltip,
-                      left: "auto",
-                      right: 0,
-                      width: 320,
-                      minHeight: 140,
-                      background: "#fff",
-                      border: "1px solid #e2e8f0",
-                      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  >
-                    {item.tooltipContent && (
-                      <div
-                        style={{
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "flex-start",
-                          justifyContent: "flex-start",
-                          width: "100%",
-                        }}
-                      >
-                        {item.tooltipContent}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-                <div style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  backgroundColor: `${item.color}10`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 20
-                }}>
-                  {item.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>
-                    {item.title}
-                  </div>
-                  <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.4 }}>
-                    {item.desc}
-                  </div>
-                  {item.detail && (
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        marginTop: 8,
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        backgroundColor: `${item.color}12`,
-                        color: item.color,
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {item.detail}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div style={{
-                width: "100%",
-                height: 4,
-                backgroundColor: `${item.color}20`,
-                borderRadius: 2,
-                position: "relative",
-                overflow: "hidden"
-              }}>
-                <div style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  backgroundColor: item.color,
-                  borderRadius: 2
-                }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 12 }}>
-          Preview code changes
-        </div>
-        <div style={{ padding: 16, border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#fff" }}>
-          {migrationPreviewLoading && (
-            <div style={{ fontSize: 14, color: "#475569" }}>
-              Analyzing the connected repository and building a real migration preview...
-            </div>
-          )}
-
-          {!migrationPreviewLoading && migrationPreviewError && (
-            <div style={{ fontSize: 14, color: "#b91c1c" }}>
-              {migrationPreviewError}
-            </div>
-          )}
-
-          {!migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
-            <>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#eff6ff", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
-                  {migrationPreview.summary.files_to_modify} files to modify
-                </div>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#ecfdf5", color: "#047857", fontSize: 13, fontWeight: 600 }}>
-                  {migrationPreview.summary.total_changes} planned changes
-                </div>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#faf5ff", color: "#7c3aed", fontSize: 13, fontWeight: 600 }}>
-                  {migrationPreview.file_diffs.length} preview diffs
-                </div>
-              </div>
-
-              {codeChanges.length > 0 ? (
-                <div style={{ border: "1px solid #d0d7de", borderRadius: 8, overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid #d0d7de" }}>
-                    <span style={{ fontWeight: 600, color: "#1e293b" }}>Repo-specific migration diff preview</span>
-                    <span style={{ fontSize: 12, color: "#64748b" }}>Read only</span>
-                  </div>
-                  <div style={{ maxHeight: 420, overflowY: "auto" }}>
-                    {codeChanges.map((change, idx) => (
-                      <div key={idx}>
-                        <div
-                          onClick={() => setSelectedDiffFile(selectedDiffFile === change.filePath ? null : change.filePath)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "10px 16px",
-                            backgroundColor: selectedDiffFile === change.filePath ? "#f0f6fc" : "#fafbfc",
-                            borderBottom: "1px solid #d0d7de",
-                            cursor: "pointer"
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontSize: 14 }}>{selectedDiffFile === change.filePath ? "▼" : "▶"}</span>
-                            <span style={{ fontFamily: "'JetBrains Mono', 'Consolas', monospace", fontSize: 13, color: "#0969da" }}>
-                              {change.filePath}
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 600 }}>+{change.additions}</span>
-                            <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 600 }}>-{change.deletions}</span>
-                          </div>
-                        </div>
-
-                        {selectedDiffFile === change.filePath && (
-                          <div style={{ backgroundColor: "#0d1117", overflowX: "auto" }}>
-                            <div style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace", fontSize: 12, lineHeight: 1.5 }}>
-                              {change.diffLines.map((line, lineIdx) => (
-                                <div
-                                  key={lineIdx}
-                                  style={{
-                                    display: "flex",
-                                    backgroundColor: line.type === "add" ? "rgba(63, 185, 80, 0.15)" : line.type === "remove" ? "rgba(248, 81, 73, 0.15)" : "transparent",
-                                    borderLeft: `4px solid ${line.type === "add" ? "#3fb950" : line.type === "remove" ? "#f85149" : "transparent"}`
-                                  }}
-                                >
-                                  <span style={{ minWidth: 50, padding: "2px 10px", textAlign: "right", color: "#6e7681", backgroundColor: "rgba(110,118,129,0.1)", userSelect: "none" }}>
-                                    {line.lineNumber}
-                                  </span>
-                                  <span style={{ width: 24, padding: "2px 6px", textAlign: "center", color: line.type === "add" ? "#3fb950" : line.type === "remove" ? "#f85149" : "#8b949e", userSelect: "none" }}>
-                                    {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
-                                  </span>
-                                  <span style={{ flex: 1, padding: "2px 12px", color: "#e6edf3", whiteSpace: "pre" }}>
-                                    {line.content}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 14, color: "#475569" }}>
-                  No file-level diff preview is available for this repository yet.
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div style={styles.field}>
-        <label style={styles.label}>Conversion Types</label>
-        <select style={styles.select} value={selectedConversions[0] || ""} onChange={(e) => {
-          setSelectedConversions(e.target.value ? [e.target.value] : []);
-        }}>
-          <option value="">-- Select Conversion Type --</option>
-          {conversionTypes.map((ct) => (
-            <option key={ct.id} value={ct.id}>{ct.name} - {ct.description}</option>
-          ))}
-        </select>
-        {selectedConversions.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", backgroundColor: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 8, marginTop: 12 }}>
-            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0c4a6e" }}>
-              ✓ {conversionTypes.find((c) => c.id === selectedConversions[0])?.name} selected
-            </span>
-            <button style={{ background: "none", border: "none", color: "#0c4a6e", cursor: "pointer", fontSize: 18, padding: 0 }} onClick={() => setSelectedConversions([])}>×</button>
+      <div style={styles.card}>
+        <div style={styles.stepHeader}>
+          <span style={styles.stepIcon}>⚡</span>
+          <div>
+            <h2 style={styles.title}>Build Modernization & Migration</h2>
+            <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
           </div>
-        )}
-      </div>
+        </div>
 
+        {/* Show what we plan to modernize */}
+        <div style={styles.sectionTitle}>🎯 Migration Configuration</div>
 
-      <div style={styles.field}>
-        <label style={styles.label}>Migration Options</label>
-        <div 
-        style={{display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px", alignItems: 'stretch'}}>
-          {[
-            {
-              key: "runTests",
-              checked: runTests,
-              onChange: (checked: boolean) => setRunTests(checked),
-              title: "Run Test Suite",
-              desc: "Execute automated tests after migration",
-              tooltip: "Runs the project's test suite to ensure all functionality works correctly after migration. Includes unit tests, integration tests, and any configured test frameworks. Highly recommended to verify migration success.",
-              icon: "🧪",
-              color: "#22c55e",
-              recommended: true
-            },
-            {
-              key: "runSonar",   
-              checked: runSonar,
-              onChange: (checked: boolean) => setRunSonar(checked),
-              title: "SonarQube Analysis",
-              desc: "Run code quality and security analysis",
-              tooltip: "Performs comprehensive code quality analysis using SonarQube. Checks for bugs, vulnerabilities, code smells, test coverage, and maintainability metrics. Provides detailed quality gate status.",
-              icon: "🔍",
-              color: "#f59e0b",
-              recommended: false
-            },
-            {
-              key: "runFossa",
-              checked: runFossa,
-              onChange: (checked: boolean) => setRunFossa(checked),
-              title: "FOSSA License & Dependency Scan",
-              desc: "Run open-source dependency and license compliance analysis",
-              tooltip: "Scans project dependencies to detect open-source licenses, security risks, policy violations, and supply chain vulnerabilities. Generates a Software Bill of Materials (SBOM) and compliance reports.",
-              icon: "📜",
-              color: "#f59e0b",
-              recommended: false
-            },
-            {
-              key: "fixBusinessLogic",
-              checked: fixBusinessLogic,
-              onChange: (checked: boolean) => setFixBusinessLogic(checked),
-              title: "Fix Business Logic Issues",
-              desc: "Automatically improve code quality and patterns",
-              tooltip: "Applies automated code improvements including null safety, performance optimizations, modern API usage, and best practice implementations. Enhances code maintainability and reduces technical debt.",
-              icon: "🛠️",
-              color: "#3b82f6",
-              recommended: true
-            }
-          ].map((option) => (
-            <div key={option.key} style={{ position: "relative", height: '100%' }}>
+        {/* What we'll modernize - Card Design */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            ✨ What we'll modernize
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+            {[
+              {
+                icon: "☕",
+                title: "Java Version Upgrade",
+                desc: `From Java ${selectedSourceVersion} to Java ${selectedTargetVersion || "Select Java Version"}`,
+                color: "#2563eb"
+              },
+              {
+                icon: "🔧",
+                title: "Code Refactoring",
+                desc: apiEndpointCount > 0
+                  ? `Modernize code patterns across ${apiEndpointCount} detected API endpoint${apiEndpointCount === 1 ? "" : "s"}`
+                  : "Modernize code patterns and best practices",
+                color: "#059669",
+                showInfo: true,
+                tooltipContent: plannedCodeRefactoringTooltip,
+                detail: codeRefactoringEndpointLabel
+              },
+              {
+                icon: "📦",
+                title: "Dependencies",
+                desc: "Update and ensure compatibility",
+                color: "#7c3aed",
+                showInfo: true
+              },
+              {
+                icon: "🧠",
+                title: "Business Logic",
+                desc: "Improve performance and reliability",
+                color: "#dc2626",
+                showInfo: true
+              },
+              {
+                icon: "🧪",
+                title: "Testing",
+                desc: "Execute and validate test suites",
+                color: "#ea580c"
+              },
+              {
+                icon: "🔍",
+                title: "Code Quality",
+                desc: "Analysis and improvement",
+                color: "#0891b2"
+              }
+            ].filter((item) => item.title !== "Code Quality").map((item, idx) => (
               <div
-              onClick={() => {
-              if (option.key === "runSonar") {
-                  setRunSonar(!runSonar);
-                  setRunFossa(false);
-                  return;
-                }
-               if (option.key === "runFossa") {
-                  setRunFossa(!runFossa);
-                  setRunSonar(false);
-                  return;
-                }
-
-              option.onChange(!option.checked);
-}}
+                key={idx}
                 style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  border: `2px solid ${option.checked ? option.color : "#e2e8f0"}`,
-                  backgroundColor: option.checked ? `${option.color}08` : "#fff",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: option.checked ? `0 4px 12px ${option.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
                   position: "relative",
-                  height: "100%",
-                  minHeight: 132,       
-                  display: "flex",              
-                  flexDirection: "column"         
-                }}
-                
-                onMouseEnter={(e) => {
-                  if (!option.checked) {
-                    e.currentTarget.style.borderColor = option.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${option.color}15`;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!option.checked) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
-                  }
+                  padding: 20,
+                  backgroundColor: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                  transition: "all 0.2s ease",
+                  cursor: "default"
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-                  <span style={{ fontSize: 24 }}>{option.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 16, fontWeight: 600, color: "#1e293b" }}>{option.title}</span>
-                      {option.recommended && (
-                        <span style={{
-                          fontSize: 10,
-                          padding: "2px 6px",
-                          backgroundColor: "#dcfce7",
-                          color: "#166534",
-                          borderRadius: 8,
-                          fontWeight: 600,
-                          textTransform: "uppercase"
-                        }}>
-                          Recommended
-                        </span>
+                {item.showInfo && (
+                  <div style={{ position: "absolute", top: 12, right: 12 }}>
+                    <button
+                      type="button"
+                      aria-label={`${item.title} information`}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        border: "1px solid #cbd5e1",
+                        backgroundColor: "#fff",
+                        color: "#64748b",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                      onMouseEnter={(e) => {
+                        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                        if (tooltip) tooltip.style.display = "block";
+                      }}
+                      onMouseLeave={(e) => {
+                        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                        if (tooltip) tooltip.style.display = "none";
+                      }}
+                    >
+                      i
+                    </button>
+                    <div
+                      style={{
+                        ...styles.tooltip,
+                        left: "auto",
+                        right: 0,
+                        width: 320,
+                        minHeight: 140,
+                        background: "#fff",
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.display = "block";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    >
+                      {item.tooltipContent && (
+                        <div
+                          style={{
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "flex-start",
+                            width: "100%",
+                          }}
+                        >
+                          {item.tooltipContent}
+                        </div>
                       )}
                     </div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{option.desc}</div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 64, justifyContent: "flex-end" }}>
-                    <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: option.color, fontSize: 18, fontWeight: 700 }}>
-                      {option.checked ? '✓' : null}
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+                  <div style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: `${item.color}10`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20
+                  }}>
+                    {item.icon}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>
+                      {item.title}
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={option.checked}
-                      onChange={(e) => option.onChange(e.target.checked)}
-                      style={{
-                        width: 18,
-                        height: 18,
-                        accentColor: option.color,
-                        cursor: "pointer"
-                      }}
-                    />
+                    <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.4 }}>
+                      {item.desc}
+                    </div>
+                    {item.detail && (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          marginTop: 8,
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          backgroundColor: `${item.color}12`,
+                          color: item.color,
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {item.detail}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{
+                  width: "100%",
+                  height: 4,
+                  backgroundColor: `${item.color}20`,
+                  borderRadius: 2,
+                  position: "relative",
+                  overflow: "hidden"
+                }}>
+                  <div style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: item.color,
+                    borderRadius: 2
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 12 }}>
+            Preview code changes
+          </div>
+          <div style={{ padding: 16, border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#fff" }}>
+            {migrationPreviewLoading && (
+              <div style={{ fontSize: 14, color: "#475569" }}>
+                Analyzing the connected repository and building a real migration preview...
+              </div>
+            )}
+
+            {!migrationPreviewLoading && migrationPreviewError && (
+              <div style={{ fontSize: 14, color: "#b91c1c" }}>
+                {migrationPreviewError}
+              </div>
+            )}
+
+            {!migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
+              <>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+                  <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#eff6ff", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
+                    {migrationPreview.summary.files_to_modify} files to modify
+                  </div>
+                  <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#ecfdf5", color: "#047857", fontSize: 13, fontWeight: 600 }}>
+                    {migrationPreview.summary.total_changes} planned changes
+                  </div>
+                  <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#faf5ff", color: "#7c3aed", fontSize: 13, fontWeight: 600 }}>
+                    {migrationPreview.file_diffs.length} preview diffs
                   </div>
                 </div>
 
-                {/* Info button for tooltip */}
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
+                {codeChanges.length > 0 ? (
+                  <div style={{ border: "1px solid #d0d7de", borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid #d0d7de" }}>
+                      <span style={{ fontWeight: 600, color: "#1e293b" }}>Repo-specific migration diff preview</span>
+                      <span style={{ fontSize: 12, color: "#64748b" }}>Read only</span>
+                    </div>
+                    <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                      {codeChanges.map((change, idx) => (
+                        <div key={idx}>
+                          <div
+                            onClick={() => setSelectedDiffFile(selectedDiffFile === change.filePath ? null : change.filePath)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "10px 16px",
+                              backgroundColor: selectedDiffFile === change.filePath ? "#f0f6fc" : "#fafbfc",
+                              borderBottom: "1px solid #d0d7de",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <span style={{ fontSize: 14 }}>{selectedDiffFile === change.filePath ? "▼" : "▶"}</span>
+                              <span style={{ fontFamily: "'JetBrains Mono', 'Consolas', monospace", fontSize: 13, color: "#0969da" }}>
+                                {change.filePath}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 600 }}>+{change.additions}</span>
+                              <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 600 }}>-{change.deletions}</span>
+                            </div>
+                          </div>
+
+                          {selectedDiffFile === change.filePath && (
+                            <div style={{ backgroundColor: "#0d1117", overflowX: "auto" }}>
+                              <div style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace", fontSize: 12, lineHeight: 1.5 }}>
+                                {change.diffLines.map((line, lineIdx) => (
+                                  <div
+                                    key={lineIdx}
+                                    style={{
+                                      display: "flex",
+                                      backgroundColor: line.type === "add" ? "rgba(63, 185, 80, 0.15)" : line.type === "remove" ? "rgba(248, 81, 73, 0.15)" : "transparent",
+                                      borderLeft: `4px solid ${line.type === "add" ? "#3fb950" : line.type === "remove" ? "#f85149" : "transparent"}`
+                                    }}
+                                  >
+                                    <span style={{ minWidth: 50, padding: "2px 10px", textAlign: "right", color: "#6e7681", backgroundColor: "rgba(110,118,129,0.1)", userSelect: "none" }}>
+                                      {line.lineNumber}
+                                    </span>
+                                    <span style={{ width: 24, padding: "2px 6px", textAlign: "center", color: line.type === "add" ? "#3fb950" : line.type === "remove" ? "#f85149" : "#8b949e", userSelect: "none" }}>
+                                      {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
+                                    </span>
+                                    <span style={{ flex: 1, padding: "2px 12px", color: "#e6edf3", whiteSpace: "pre" }}>
+                                      {line.content}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 14, color: "#475569" }}>
+                    No file-level diff preview is available for this repository yet.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        <div style={styles.field}>
+          <label style={styles.label}>Conversion Types</label>
+          <select style={styles.select} value={selectedConversions[0] || ""} onChange={(e) => {
+            setSelectedConversions(e.target.value ? [e.target.value] : []);
+          }}>
+            <option value="">-- Select Conversion Type --</option>
+            {conversionTypes.map((ct) => (
+              <option key={ct.id} value={ct.id}>{ct.name} - {ct.description}</option>
+            ))}
+          </select>
+          {selectedConversions.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", backgroundColor: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 8, marginTop: 12 }}>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0c4a6e" }}>
+                ✓ {conversionTypes.find((c) => c.id === selectedConversions[0])?.name} selected
+              </span>
+              <button style={{ background: "none", border: "none", color: "#0c4a6e", cursor: "pointer", fontSize: 18, padding: 0 }} onClick={() => setSelectedConversions([])}>×</button>
+            </div>
+          )}
+        </div>
+
+
+        <div style={styles.field}>
+          <label style={styles.label}>Migration Options</label>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px", alignItems: 'stretch' }}>
+            {[
+              {
+                key: "runTests",
+                checked: runTests,
+                onChange: (checked: boolean) => setRunTests(checked),
+                title: "Run Test Suite",
+                desc: "Execute automated tests after migration",
+                tooltip: "Runs the project's test suite to ensure all functionality works correctly after migration. Includes unit tests, integration tests, and any configured test frameworks. Highly recommended to verify migration success.",
+                icon: "🧪",
+                color: "#22c55e",
+                recommended: true
+              },
+              {
+                key: "runSonar",
+                checked: runSonar,
+                onChange: (checked: boolean) => setRunSonar(checked),
+                title: "SonarQube Analysis",
+                desc: "Run code quality and security analysis",
+                tooltip: "Performs comprehensive code quality analysis using SonarQube. Checks for bugs, vulnerabilities, code smells, test coverage, and maintainability metrics. Provides detailed quality gate status.",
+                icon: "🔍",
+                color: "#f59e0b",
+                recommended: false
+              },
+              {
+                key: "runFossa",
+                checked: runFossa,
+                onChange: (checked: boolean) => setRunFossa(checked),
+                title: "FOSSA License & Dependency Scan",
+                desc: "Run open-source dependency and license compliance analysis",
+                tooltip: "Scans project dependencies to detect open-source licenses, security risks, policy violations, and supply chain vulnerabilities. Generates a Software Bill of Materials (SBOM) and compliance reports.",
+                icon: "📜",
+                color: "#f59e0b",
+                recommended: false
+              },
+              {
+                key: "fixBusinessLogic",
+                checked: fixBusinessLogic,
+                onChange: (checked: boolean) => setFixBusinessLogic(checked),
+                title: "Fix Business Logic Issues",
+                desc: "Automatically improve code quality and patterns",
+                tooltip: "Applies automated code improvements including null safety, performance optimizations, modern API usage, and best practice implementations. Enhances code maintainability and reduces technical debt.",
+                icon: "🛠️",
+                color: "#3b82f6",
+                recommended: true
+              }
+            ].map((option) => (
+              <div key={option.key} style={{ position: "relative", height: '100%' }}>
+                <div
+                  onClick={() => {
+                    if (option.key === "runSonar") {
+                      setRunSonar(!runSonar);
+                      setRunFossa(false);
+                      return;
+                    }
+                    if (option.key === "runFossa") {
+                      setRunFossa(!runFossa);
+                      setRunSonar(false);
+                      return;
+                    }
+
+                    option.onChange(!option.checked);
+                  }}
+                  style={{
+                    padding: 20,
+                    borderRadius: 12,
+                    border: `2px solid ${option.checked ? option.color : "#e2e8f0"}`,
+                    backgroundColor: option.checked ? `${option.color}08` : "#fff",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    boxShadow: option.checked ? `0 4px 12px ${option.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
+                    position: "relative",
+                    height: "100%",
+                    minHeight: 132,
+                    display: "flex",
+                    flexDirection: "column"
+                  }}
+
+                  onMouseEnter={(e) => {
+                    if (!option.checked) {
+                      e.currentTarget.style.borderColor = option.color;
+                      e.currentTarget.style.boxShadow = `0 4px 12px ${option.color}15`;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!option.checked) {
+                      e.currentTarget.style.borderColor = "#e2e8f0";
+                      e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+                    }
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+                    <span style={{ fontSize: 24 }}>{option.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 16, fontWeight: 600, color: "#1e293b" }}>{option.title}</span>
+                        {option.recommended && (
+                          <span style={{
+                            fontSize: 10,
+                            padding: "2px 6px",
+                            backgroundColor: "#dcfce7",
+                            color: "#166534",
+                            borderRadius: 8,
+                            fontWeight: 600,
+                            textTransform: "uppercase"
+                          }}>
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#64748b" }}>{option.desc}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 64, justifyContent: "flex-end" }}>
+                      <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: option.color, fontSize: 18, fontWeight: 700 }}>
+                        {option.checked ? '✓' : null}
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={option.checked}
+                        onChange={(e) => option.onChange(e.target.checked)}
+                        style={{
+                          width: 18,
+                          height: 18,
+                          accentColor: option.color,
+                          cursor: "pointer"
+                        }}
+                      />
+                    </div>
                   </div>
 
-                  {/* Tooltip */}
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 28,
-                      right: 0,
-                      width: 320,
-                      backgroundColor: "#1e293b",
-                      color: "#f1f5f9",
-                      padding: "14px 18px",
-                      borderRadius: 10,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      zIndex: 1000,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      whiteSpace: "normal"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 10, color: "#94a3b8", fontSize: 13 }}>
-                      {option.title} Details
+                  {/* Info button for tooltip */}
+                  <div style={{ position: "absolute", top: 12, right: 12 }}>
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        backgroundColor: "#e2e8f0",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#64748b",
+                        cursor: "help"
+                      }}
+                      onMouseEnter={(e) => {
+                        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                        if (tooltip) tooltip.style.display = "block";
+                      }}
+                      onMouseLeave={(e) => {
+                        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                        if (tooltip) tooltip.style.display = "none";
+                      }}
+                    >
+                      i
                     </div>
-                    <div style={{ marginBottom: 8 }}>{option.tooltip}</div>
-                    {option.recommended && (
-                      <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 600, marginTop: 6 }}>
-                        💡 Recommended for most migrations
+
+                    {/* Tooltip */}
+                    <div
+                      style={{
+                        display: "none",
+                        position: "absolute",
+                        top: 28,
+                        right: 0,
+                        width: 320,
+                        backgroundColor: "#1e293b",
+                        color: "#f1f5f9",
+                        padding: "14px 18px",
+                        borderRadius: 10,
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        zIndex: 1000,
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                        whiteSpace: "normal"
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 10, color: "#94a3b8", fontSize: 13 }}>
+                        {option.title} Details
                       </div>
-                    )}
-                    {/* Arrow */}
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      right: 20,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
+                      <div style={{ marginBottom: 8 }}>{option.tooltip}</div>
+                      {option.recommended && (
+                        <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 600, marginTop: 6 }}>
+                          💡 Recommended for most migrations
+                        </div>
+                      )}
+                      {/* Arrow */}
+                      <div style={{
+                        position: "absolute",
+                        top: -6,
+                        right: 20,
+                        width: 0,
+                        height: 0,
+                        borderLeft: "6px solid transparent",
+                        borderRight: "6px solid transparent",
+                        borderBottom: "6px solid #1e293b"
+                      }} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+
+        <div style={styles.btnRow}>
+          <button style={styles.secondaryBtn} onClick={() => setStep(3)}>← Back</button>
+          <button style={{ ...styles.primaryBtn, opacity: loading ? 0.5 : 1 }} onClick={handleStartMigration} disabled={loading}>
+            {loading ? "Starting..." : "🚀 Start Migration"}
+          </button>
         </div>
       </div>
-
-      <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(3)}>← Back</button>
-        <button style={{ ...styles.primaryBtn, opacity: loading ? 0.5 : 1 }} onClick={handleStartMigration} disabled={loading}>
-          {loading ? "Starting..." : "🚀 Start Migration"}
-        </button>
-      </div>
-    </div>
-  );
+    );
 
   };
 
@@ -3638,11 +3920,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               <div style={styles.structureBox}>
                 <div style={styles.structureTitle}>Project Structure</div>
                 <div style={styles.structureGrid}>
-                  <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
-                  <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
-                  <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "✓" : "✗"} src/main</span>
-                  <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "✓" : "✗"} src/test</span>
-                  <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{detectedJavaStructureLabel}</span>
+                  <span style={detectedBuildFile ? styles.structureFound : styles.structureMissing}>{cleanBuildFileStructureLabel}</span>
+                  <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{srcMainStructureLabel}</span>
+                  <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{srcTestStructureLabel}</span>
+                  <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{cleanDetectedJavaStructureLabel}</span>
                 </div>
               </div>
               {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
@@ -3842,11 +4123,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         <div style={styles.field}>
           <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
           <div style={{ display: "flex", gap: 8 }}>
-            <input 
-              type="text" 
-              style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }} 
-              value={targetRepoName} 
-              onChange={(e) => setTargetRepoName(e.target.value)} 
+            <input
+              type="text"
+              style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }}
+              value={targetRepoName}
+              onChange={(e) => setTargetRepoName(e.target.value)}
               placeholder={
                 migrationApproach === "branch"
                   ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
@@ -3962,7 +4243,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         <div style={styles.optionsGrid}>
           <label style={styles.optionItem}>
             <input type="checkbox" checked={runTests} onChange={(e) => setRunTests(e.target.checked)} style={styles.checkbox} />
-              <div>
+            <div>
               <div style={{ fontWeight: 500, fontSize: 16 }}>Run Tests</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>Execute test suite after migration</div>
             </div>
@@ -3975,19 +4256,19 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             </div>
           </label>
           <label style={styles.optionItem}>
-  <input
-    type="checkbox"
-    checked={runFossa}
-    onChange={(e) => setRunFossa(e.target.checked)}
-    style={styles.checkbox}
-  />
-  <div>
-    <div style={{ fontWeight: 500, fontSize: 16 }}>FOSSA License & Dependency Scan</div>
-    <div style={{ fontSize: 12, color: "#6b7280" }}>
-      Scan open-source dependencies and license compliance
-    </div>
-  </div>
-</label>
+            <input
+              type="checkbox"
+              checked={runFossa}
+              onChange={(e) => setRunFossa(e.target.checked)}
+              style={styles.checkbox}
+            />
+            <div>
+              <div style={{ fontWeight: 500, fontSize: 16 }}>FOSSA License & Dependency Scan</div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
+                Scan open-source dependencies and license compliance
+              </div>
+            </div>
+          </label>
           <label style={styles.optionItem}>
             <input type="checkbox" checked={fixBusinessLogic} onChange={(e) => setFixBusinessLogic(e.target.checked)} style={styles.checkbox} />
             <div>
@@ -4148,7 +4429,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         )}
         <div style={styles.btnRow}>
           {(migrationJob.status === "cloning" || migrationJob.status === "analyzing" || migrationJob.status === "migrating") && (
-            <button 
+            <button
               style={{ ...styles.secondaryBtn, marginRight: 10, backgroundColor: '#ef4444', color: 'white' }}
               onClick={() => {
                 setError("");
@@ -4159,7 +4440,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             </button>
           )}
           {migrationJob.status === "failed" && (
-            <button 
+            <button
               style={{ ...styles.primaryBtn, marginRight: 10 }}
               onClick={() => {
                 setError("");
@@ -4352,7 +4633,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 </button>
               </span>
             </h3>
-            
+
             {showCodeChanges && (
               <div style={{
                 border: "1px solid #d0d7de",
@@ -4492,8 +4773,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                 key={lineIdx}
                                 style={{
                                   display: "flex",
-                                  backgroundColor: line.type === 'add' ? 'rgba(63, 185, 80, 0.15)' : 
-                                                   line.type === 'remove' ? 'rgba(248, 81, 73, 0.15)' : 'transparent',
+                                  backgroundColor: line.type === 'add' ? 'rgba(63, 185, 80, 0.15)' :
+                                    line.type === 'remove' ? 'rgba(248, 81, 73, 0.15)' : 'transparent',
                                   borderLeft: `4px solid ${line.type === 'add' ? '#3fb950' : line.type === 'remove' ? '#f85149' : 'transparent'}`
                                 }}
                               >
@@ -4503,8 +4784,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                   padding: "2px 10px",
                                   textAlign: "right",
                                   color: "#6e7681",
-                                  backgroundColor: line.type === 'add' ? 'rgba(63, 185, 80, 0.1)' : 
-                                                   line.type === 'remove' ? 'rgba(248, 81, 73, 0.1)' : '#161b22',
+                                  backgroundColor: line.type === 'add' ? 'rgba(63, 185, 80, 0.1)' :
+                                    line.type === 'remove' ? 'rgba(248, 81, 73, 0.1)' : '#161b22',
                                   borderRight: "1px solid #30363d",
                                   userSelect: "none"
                                 }}>
@@ -4553,7 +4834,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
 
           {/* SonarQube Code Coverage */}
-         {runSonar && ( <div style={styles.reportSection}>
+          {runSonar && (<div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🔍 SonarQube Code Quality & Coverage</h3>
             <div style={styles.sonarqubeGrid}>
               <div style={styles.sonarqubeItem}>
@@ -4594,85 +4875,85 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
           </div>
-         )}
+          )}
 
-    {/* FOSSA License & Dependency Report */}
-    {(runFossa || migrationJob?.fossa_policy_status != null || migrationJob?.fossa_total_dependencies != null || fossaResult) && (migrationJob || fossaResult) && (
-    <div style={styles.reportSection}>
-      <h3 style={styles.reportTitle}>📜 FOSSA License & Dependency Scan</h3>
+          {/* FOSSA License & Dependency Report */}
+          {(runFossa || migrationJob?.fossa_policy_status != null || migrationJob?.fossa_total_dependencies != null || fossaResult) && (migrationJob || fossaResult) && (
+            <div style={styles.reportSection}>
+              <h3 style={styles.reportTitle}>📜 FOSSA License & Dependency Scan</h3>
 
-      <div style={styles.sonarqubeGrid}>
-        
-        {/* Policy Status */}
-        <div style={styles.sonarqubeItem}>
-          <div style={styles.qualityGate}>
-            <span
-              style={{
-                ...styles.gateStatus,
-                backgroundColor: (fossaResult?.compliance_status ?? migrationJob?.fossa_policy_status ?? "") === "PASSED" ? "#22c55e" : "#ef4444",
-              }}
-            >
-              {(fossaResult?.compliance_status ?? migrationJob?.fossa_policy_status ?? "N/A")}
-            </span>
-            <span style={styles.gateLabel}>Policy Status</span>
-          </div>
-        </div>
+              <div style={styles.sonarqubeGrid}>
 
-        {/* Dependency Count */}
-        <div style={styles.sonarqubeItem}>
-          <div style={styles.coverageMeter}>
-            <div style={styles.coverageCircle}>
-              <span style={styles.coveragePercent}>
-                {fossaLoading ? "Loading..." : (fossaResult?.total_dependencies ?? migrationJob?.fossa_total_dependencies ?? "N/A")}
-              </span>
-              <span style={styles.coverageLabel}>Dependencies</span>
+                {/* Policy Status */}
+                <div style={styles.sonarqubeItem}>
+                  <div style={styles.qualityGate}>
+                    <span
+                      style={{
+                        ...styles.gateStatus,
+                        backgroundColor: (fossaResult?.compliance_status ?? migrationJob?.fossa_policy_status ?? "") === "PASSED" ? "#22c55e" : "#ef4444",
+                      }}
+                    >
+                      {(fossaResult?.compliance_status ?? migrationJob?.fossa_policy_status ?? "N/A")}
+                    </span>
+                    <span style={styles.gateLabel}>Policy Status</span>
+                  </div>
+                </div>
+
+                {/* Dependency Count */}
+                <div style={styles.sonarqubeItem}>
+                  <div style={styles.coverageMeter}>
+                    <div style={styles.coverageCircle}>
+                      <span style={styles.coveragePercent}>
+                        {fossaLoading ? "Loading..." : (fossaResult?.total_dependencies ?? migrationJob?.fossa_total_dependencies ?? "N/A")}
+                      </span>
+                      <span style={styles.coverageLabel}>Dependencies</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FOSSA Metrics */}
+              <div style={styles.qualityMetrics}>
+
+                <div style={styles.metricItem}>
+                  <span
+                    style={{
+                      ...styles.metricValue,
+                      color: ((fossaResult ? Object.values(fossaResult.licenses || {}).reduce((s: number, v: unknown) => s + (Number(v) || 0), 0) : (migrationJob?.fossa_license_issues ?? 0)) > 0) ? "#ef4444" : "#22c55e",
+                    }}
+                  >
+                    {fossaLoading ? "Loading..." : (fossaResult ? Object.values(fossaResult.licenses || {}).reduce((s: number, v: unknown) => s + (Number(v) || 0), 0) : (migrationJob?.fossa_license_issues ?? 0))}
+                  </span>
+                  <span style={styles.metricLabel}>License Issues</span>
+                </div>
+
+                <div style={styles.metricItem}>
+                  <span
+                    style={{
+                      ...styles.metricValue,
+                      color: (migrationJob?.fossa_vulnerabilities ?? 0) > 0 ? "#ef4444" : "#22c55e",
+                    }}
+                  >
+                    {fossaLoading ? "Loading..." : fossaResult?.vulnerabilities ?? (migrationJob?.fossa_vulnerabilities ?? 0)}
+                  </span>
+                  <span style={styles.metricLabel}>Vulnerabilities</span>
+                </div>
+
+                <div style={styles.metricItem}>
+                  <span
+                    style={{
+                      ...styles.metricValue,
+                      color: (migrationJob?.fossa_outdated_dependencies ?? 0) > 0 ? "#f59e0b" : "#22c55e",
+                    }}
+                  >
+                    {fossaLoading ? "Loading..." : (fossaResult?.outdated_dependencies ?? migrationJob?.fossa_outdated_dependencies ?? 0)}
+                  </span>
+                  <span style={styles.metricLabel}>Outdated Packages</span>
+                </div>
+
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* FOSSA Metrics */}
-      <div style={styles.qualityMetrics}>
-        
-          <div style={styles.metricItem}>
-            <span
-              style={{
-                ...styles.metricValue,
-                color: ((fossaResult ? Object.values(fossaResult.licenses || {}).reduce((s: number, v: unknown) => s + (Number(v) || 0), 0) : (migrationJob?.fossa_license_issues ?? 0)) > 0) ? "#ef4444" : "#22c55e",
-              }}
-            >
-              {fossaLoading ? "Loading..." : (fossaResult ? Object.values(fossaResult.licenses || {}).reduce((s: number, v: unknown) => s + (Number(v) || 0), 0) : (migrationJob?.fossa_license_issues ?? 0))}
-            </span>
-            <span style={styles.metricLabel}>License Issues</span>
-          </div>
-
-        <div style={styles.metricItem}>
-          <span
-            style={{
-              ...styles.metricValue,
-              color: (migrationJob?.fossa_vulnerabilities ?? 0) > 0 ? "#ef4444" : "#22c55e",
-            }}
-          >
-            {fossaLoading ? "Loading..." : fossaResult?.vulnerabilities ?? (migrationJob?.fossa_vulnerabilities ?? 0)}
-          </span>
-          <span style={styles.metricLabel}>Vulnerabilities</span>
-        </div>
-
-        <div style={styles.metricItem}>
-          <span
-            style={{
-              ...styles.metricValue,
-              color: (migrationJob?.fossa_outdated_dependencies ?? 0) > 0 ? "#f59e0b" : "#22c55e",
-            }}
-          >
-            {fossaLoading ? "Loading..." : (fossaResult?.outdated_dependencies ?? migrationJob?.fossa_outdated_dependencies ?? 0)}
-          </span>
-          <span style={styles.metricLabel}>Outdated Packages</span>
-        </div>
-
-      </div>
-    </div>
-    )}
+          )}
 
           {/* Unit Test Report */}
           <div style={styles.reportSection}>
@@ -4836,9 +5117,9 @@ This project has been automatically migrated from **Java ${migrationJob.source_j
 
 ## 📦 Dependencies Updated
 
-${migrationJob.dependencies && migrationJob.dependencies.length > 0 ? 
-migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** - ${dep.current_version} → ${dep.new_version || 'latest'} (${dep.status})`).join('\n') 
-: 'No dependencies were updated.'}
+${migrationJob.dependencies && migrationJob.dependencies.length > 0 ?
+                  migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** - ${dep.current_version} → ${dep.new_version || 'latest'} (${dep.status})`).join('\n')
+                  : 'No dependencies were updated.'}
 
 ---
 
@@ -4904,9 +5185,9 @@ ${migrationLogs.length > 0 ? migrationLogs.join('\n') : 'No migration logs avail
 
 ## ⚠️ Known Issues
 
-${migrationJob.issues && migrationJob.issues.length > 0 ? 
-migrationJob.issues.slice(0, 10).map(issue => `- [${issue.severity.toUpperCase()}] ${issue.message} (${issue.file_path}:${issue.line_number})`).join('\n') 
-: 'No known issues.'}
+${migrationJob.issues && migrationJob.issues.length > 0 ?
+                  migrationJob.issues.slice(0, 10).map(issue => `- [${issue.severity.toUpperCase()}] ${issue.message} (${issue.file_path}:${issue.line_number})`).join('\n')
+                  : 'No known issues.'}
 
 ---
 
@@ -4977,9 +5258,9 @@ ${isHighRiskProject ? `
 
 ## 🛠️ Detected Frameworks & Libraries
 
-${detectedFrameworks.length > 0 ? 
-detectedFrameworks.map(fw => `| **${fw.name}** | ${fw.type} | \`${fw.path}\` |`).join('\n')
-: '| No frameworks detected | - | - |'}
+${detectedFrameworks.length > 0 ?
+                  detectedFrameworks.map(fw => `| **${fw.name}** | ${fw.type} | \`${fw.path}\` |`).join('\n')
+                  : '| No frameworks detected | - | - |'}
 
 ---
 
@@ -5182,11 +5463,11 @@ Once the application is running, access the API documentation at:
 
 ### Updated Dependencies
 
-${migrationJob.dependencies && migrationJob.dependencies.length > 0 ? 
-migrationJob.dependencies.filter(d => d.status === 'upgraded').slice(0, 10).map(dep => 
-  `| \`${dep.group_id}:${dep.artifact_id}\` | ${dep.current_version} → ${dep.new_version || 'latest'} |`
-).join('\n') 
-: 'No major dependency updates.'}
+${migrationJob.dependencies && migrationJob.dependencies.length > 0 ?
+                  migrationJob.dependencies.filter(d => d.status === 'upgraded').slice(0, 10).map(dep =>
+                    `| \`${dep.group_id}:${dep.artifact_id}\` | ${dep.current_version} → ${dep.new_version || 'latest'} |`
+                  ).join('\n')
+                  : 'No major dependency updates.'}
 
 ### Breaking Changes
 
@@ -5304,6 +5585,18 @@ const styles: { [key: string]: React.CSSProperties } = {
   errorBanner: { background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "12px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", color: "#991b1b", width: "100%", boxSizing: "border-box" },
   errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#dc2626" },
   errorBox: { background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "14px 16px", marginBottom: 20, color: "#991b1b", width: "100%", boxSizing: "border-box" },
+  connectOptionsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, width: "100%" },
+  connectOptionCard: { border: "1px solid #dbeafe", borderRadius: 18, padding: 24, background: "linear-gradient(180deg, #f8fbff 0%, #f1f7ff 100%)", display: "flex", flexDirection: "column", minHeight: 320, boxShadow: "0 12px 30px rgba(37, 99, 235, 0.08)" },
+  connectOptionTitle: { fontSize: 18, fontWeight: 700, color: "#1e3a8a", marginBottom: 6 },
+  connectOptionSubtitle: { fontSize: 13, color: "#64748b", marginBottom: 18, lineHeight: 1.5 },
+  connectOptionActions: { marginTop: "auto", display: "flex", justifyContent: "flex-end", paddingTop: 8 },
+  localUploadBox: { border: "1px dashed #93c5fd", background: "linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%)", borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 14, minHeight: 190 },
+  fileInput: { position: "absolute", opacity: 0, inset: 0, width: "100%", height: "100%", cursor: "pointer" },
+  filePickerLabel: { position: "relative", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "#fff", border: "1px solid #bfdbfe", borderRadius: 12, cursor: "pointer", boxSizing: "border-box", overflow: "hidden" },
+  filePickerButton: { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 14px", background: "#dbeafe", color: "#1d4ed8", borderRadius: 10, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" },
+  filePickerName: { fontSize: 14, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  localUploadHint: { fontSize: 13, color: "#475569", lineHeight: 1.5 },
+  localUploadSelected: { fontSize: 13, fontWeight: 600, color: "#0f766e", background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 10, padding: "10px 12px" },
   btnRow: { display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" },
   primaryBtn: { background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
   secondaryBtn: { background: "#fff", color: "#374151", border: "1px solid #d1d5db", borderRadius: 8, padding: "12px 24px", fontWeight: 500, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
@@ -5328,8 +5621,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   assessmentValue: { fontSize: 20, fontWeight: 700, color: "#1e293b" },
   structureBox: { background: "#f8fafc", padding: 18, borderRadius: 10, marginBottom: 20, border: "1px solid #e2e8f0" },
   structureTitle: { fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#1e293b" },
-  structureGrid: { display: "flex", gap: 14, flexWrap: "wrap" },
-  structureFound: { color: "#059669", fontWeight: 600 },
+  structureGrid: { display: "flex", gap: 12, flexWrap: "wrap" },
+  structureFound: { color: "#047857", fontWeight: 600, background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", lineHeight: 1.2 },
   structureMissing: { color: "#9ca3af", fontWeight: 500 },
   dependenciesBox: { marginBottom: 20 },
   dependenciesList: { background: "#fff", borderRadius: 10, padding: 14, border: "1px solid #e2e8f0" },
@@ -5478,3 +5771,5 @@ const styles: { [key: string]: React.CSSProperties } = {
   jmeterLabel: { fontSize: 14, color: "#64748b" },
   jmeterValue: { fontSize: 16, fontWeight: 700, color: "#1e293b" },
 };
+
+
