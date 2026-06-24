@@ -116,6 +116,35 @@
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
 }
 
+/* Button Glow States */
+.connect-button {
+  transition: all 0.2s ease;
+}
+
+.connect-button:hover,
+.connect-button:focus,
+.connect-button:active {
+  box-shadow: 0 0 28px rgba(59, 130, 246, 0.35);
+  transform: translateY(-1px);
+}
+
+.connect-grid {
+  width: 100%;
+}
+
+@media (max-width: 1120px) {
+  .connect-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .connect-grid {
+    padding: 18px !important;
+    gap: 18px !important;
+  }
+}
+
 /* Step Indicator Active */
 .step-active {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);

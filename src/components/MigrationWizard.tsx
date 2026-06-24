@@ -1356,227 +1356,236 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
   };
 
+  const getStepGroupColor = (stepId: number) => (stepId <= 2 ? "#3b82f6" : "#22c55e");
+
   const renderStepIndicator = () => (
-    <div style={styles.stepIndicator}>
+    <div style={{ ...styles.stepIndicator, background: "#06172b", padding: "22px 32px", borderRadius: 24, boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)", marginBottom: 24 }}>
       {MIGRATION_STEPS.map((s, index) => {
+        const stepColor = getStepGroupColor(s.id);
         const isCompleted = currentIndicatorStep > s.id;
         const isActive = currentIndicatorStep === s.id;
         const isUnlocked = s.id <= maxVisitedIndicatorStep;
+        const connectorColor = s.id <= 2 ? "#3b82f6" : "#22c55e";
 
         return (
-        <React.Fragment key={s.id}>
-          <div 
-            style={{ 
-              display: "flex", 
-              flexDirection: "column", 
-              alignItems: "center", 
-              gap: 8,
-              opacity: 1,
-              cursor: isUnlocked && !isActive ? "pointer" : "default",
-              transition: "all 0.3s ease"
-            }} 
-            onClick={() => isUnlocked && !isActive && setStep(s.id)}
-          >
-            <div style={{ 
-              ...styles.stepCircle, 
-              backgroundColor: isCompleted ? "#22c55e" : isActive ? "#3b82f6" : "#e5e7eb", 
-              color: currentIndicatorStep >= s.id ? "#fff" : "#6b7280",
-              width: 44,
-              height: 44,
-              fontSize: 18,
-              boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none"
-            }}>
-              {step > s.id ? "✓" : s.icon}
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ 
-                fontWeight: isActive ? 700 : 500, 
-                fontSize: 13, 
-                color: isActive ? "#3b82f6" : isCompleted ? "#22c55e" : "#64748b",
-                marginBottom: 2
-              }}>
-                {s.name}
+          <React.Fragment key={s.id}>
+            <div
+              style={{
+                ...styles.stepItem,
+                flexDirection: "column",
+                alignItems: "center",
+                opacity: isUnlocked ? 1 : 0.45,
+                cursor: isUnlocked && !isActive ? "pointer" : "default",
+                background: isActive ? "rgba(15, 23, 42, 0.9)" : "transparent",
+                boxShadow: isActive ? `0 0 30px ${stepColor}22` : "none",
+                color: isActive || isCompleted ? "#fff" : "#cbd5e1",
+                padding: "16px 14px",
+              }}
+              onClick={() => isUnlocked && !isActive && setStep(s.id)}
+            >
+              <div
+                style={{
+                  ...styles.stepCircle,
+                  backgroundColor: isActive || isCompleted ? stepColor : "#1f2937",
+                  color: isActive || isCompleted ? "#fff" : "#94a3b8",
+                  width: 48,
+                  height: 48,
+                  fontSize: 20,
+                  boxShadow: isActive ? `0 0 24px ${stepColor}55` : "none",
+                }}
+              >
+                {step > s.id ? "✓" : s.icon}
               </div>
-              <div style={{ 
-                fontSize: 10, 
-                color: isActive ? "#64748b" : "#94a3b8",
-                maxWidth: 100,
-                lineHeight: 1.3
-              }}>
-                {s.description}
+              <div style={{ textAlign: "center", maxWidth: 120 }}>
+                <div
+                  style={{
+                    fontWeight: isActive ? 700 : 600,
+                    fontSize: 13,
+                    color: isActive || isCompleted ? "#f8fafc" : "#94a3b8",
+                    marginBottom: 4,
+                  }}
+                >
+                  {s.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: isActive ? "#cbd5e1" : "#94a3b8",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {s.description}
+                </div>
               </div>
             </div>
-          </div>
-          {/* Connector Line */}
-          {index < MIGRATION_STEPS.length - 1 && (
-            <div style={{
-              flex: 1,
-              height: 3,
-              backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : "#e5e7eb",
-              marginTop: -50,
-              marginLeft: -10,
-              marginRight: -10,
-              borderRadius: 2,
-              transition: "background-color 0.3s ease"
-            }} />
-          )}
-        </React.Fragment>
+            {index < MIGRATION_STEPS.length - 1 && (
+              <div
+                style={{
+                  flex: 1,
+                  height: 4,
+                  background: currentIndicatorStep > s.id ? connectorColor : "rgba(148, 163, 184, 0.18)",
+                  marginTop: 26,
+                  marginLeft: -10,
+                  marginRight: -10,
+                  borderRadius: 999,
+                  boxShadow: currentIndicatorStep > s.id ? `0 0 18px ${connectorColor}55` : "none",
+                  transition: "background 0.3s ease, box-shadow 0.3s ease",
+                }}
+              />
+            )}
+          </React.Fragment>
         );
       })}
     </div>
   );
 
   const renderStep1 = () => {
+    const repositoryDisplay = selectedRepo?.url || repoUrl || "github.com/owner/project";
+    const connectionState = selectedRepo ? "Connected" : urlValidation.valid ? "Ready to connect" : "Not connected";
+
     return (
-      <div style={styles.card}>
-        <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🔗</span>
-          <div>
-            <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
+      <div className="connect-grid" style={{ background: "linear-gradient(135deg, #081625 0%, #0d2635 25%, #103239 50%, #1b5b59 100%)", borderRadius: 28, padding: 28, display: "grid", gridTemplateColumns: "minmax(320px, 1fr) 440px", gap: 28, alignItems: "stretch" }}>
+        <div style={styles.connectHeroCard}>
+          <div style={styles.heroBadge}>DISCOVERY START</div>
+          <h1 style={styles.connectHeroTitle}>Connect your source repository</h1>
+          <p style={styles.connectHeroSubtitle}>
+            Add a repository URL to begin access checks, Java discovery, and dependency mapping.
+          </p>
+
+          <div style={styles.connectFeatureList} style={{ display: "none" }}>
+            <div style={styles.connectFeatureItem}>
+              <span style={styles.connectFeatureIcon}>🔗</span>
+              <div>
+                <div style={styles.connectFeatureLabel}>Connect to GitHub</div>
+                <div style={styles.connectFeatureText}>Authenticate and authorize the repository scan.</div>
+              </div>
+            </div>
+            <div style={styles.connectFeatureItem}>
+              <span style={styles.connectFeatureIcon}>🔍</span>
+              <div>
+                <div style={styles.connectFeatureLabel}>Discovery start</div>
+                <div style={styles.connectFeatureText}>Scan repository structure, language, and dependencies.</div>
+              </div>
+            </div>
+            <div style={styles.connectFeatureItem}>
+              <span style={styles.connectFeatureIcon}>📦</span>
+              <div>
+                <div style={styles.connectFeatureLabel}>Dependency mapping</div>
+                <div style={styles.connectFeatureText}>Detect build files, Java versions, and framework details.</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.connectCallouts}>
+            <button className="connect-button" style={styles.connectActionBtn}>Connect</button>
+            <button className="connect-button" style={styles.connectSecondaryBtn}>Scan</button>
+            <button className="connect-button" style={styles.connectSecondaryBtn}>Recommend</button>
+          </div>
+
+          <div style={styles.connectStatusCard}>
+            <div style={styles.statusBarControls}>
+              <span style={styles.statusDot} />
+              <span style={styles.statusDot} />
+              <span style={styles.statusDot} />
+            </div>
+            <div style={styles.statusRow}>
+              <span style={styles.statusKey}>repo</span>
+              <span style={styles.statusValue}>{repositoryDisplay}</span>
+            </div>
+            <div style={styles.statusRow}>
+              <span style={styles.statusKey}>state</span>
+              <span style={styles.stateBadge}>{connectionState}</span>
+            </div>
           </div>
         </div>
 
-        <div style={styles.field}>
-          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
-            Repository URL
-            {/* Info Button with Tooltip */}
-            <div style={{ position: "relative", display: "inline-block" }}>
-              <span
+        <div style={styles.connectPanel}>
+          <div style={styles.panelHeader}>
+            <div>
+              <div style={styles.panelLabel}>REPOSITORY INPUT</div>
+              <h2 style={styles.panelTitle}>Source details</h2>
+            </div>
+            <div style={styles.statusBadge}>Not connected</div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={{ ...styles.label, marginBottom: 12 }}>Repository URL</label>
+            <div style={styles.urlInputWrapper}>
+              <input
+                type="text"
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  backgroundColor: "#e2e8f0",
-                  color: "#64748b",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "help",
-                  transition: "all 0.2s ease"
+                  ...styles.input,
+                  borderColor: urlValidation.valid ? "#22c55e" : repoUrl ? "#cbd5e1" : "#d1d5db",
+                  width: "100%",
+                  margin: 0,
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#3b82f6";
-                  e.currentTarget.style.color = "#fff";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "block";
+                value={repoUrl}
+                onChange={(e) => {
+                  setRepoUrl(e.target.value);
+                  setSelectedRepo(null);
+                  setRepoAnalysis(null);
+                  setIsPrivateRepo(false);
+                  setPatToken("");
+                  setError("");
                 }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e2e8f0";
-                  e.currentTarget.style.color = "#64748b";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "none";
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && urlValidation.valid) {
+                    void handleRepositoryContinue();
+                  }
                 }}
-              >
-                i
-              </span>
-              {/* Tooltip */}
-              <div
-                style={{
-                  display: "none",
-                  position: "absolute",
-                  top: 24,
-                  left: 0,
-                  backgroundColor: "#1e293b",
-                  color: "#fff",
-                  padding: "12px 16px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  whiteSpace: "nowrap",
-                  zIndex: 1000,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
-                <div>• https://github.com/owner/repo</div>
-                <div>• github.com/owner/repo</div>
-                <div>• owner/repo</div>
-                {/* Arrow */}
-                <div style={{
-                  position: "absolute",
-                  top: -6,
-                  left: 9,
-                  width: 0,
-                  height: 0,
-                  borderLeft: "6px solid transparent",
-                  borderRight: "6px solid transparent",
-                  borderBottom: "6px solid #1e293b"
-                }} />
-              </div>
+                placeholder="https://github.com/owner/repository"
+              />
+              <span style={styles.urlSuffix}>URL</span>
             </div>
-          </label>
-          <input
-            type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
-            value={repoUrl}
-            onChange={(e) => {
-              setRepoUrl(e.target.value);
-              setSelectedRepo(null);
-              setRepoAnalysis(null);
-              setIsPrivateRepo(false);
-              setPatToken("");
-              setError("");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && urlValidation.valid) {
-                void handleRepositoryContinue();
-              }
-            }}
-            placeholder="https://github.com/owner/repository"
-          />
-          {!shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
-              Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+            <div style={{ fontSize: 12, color: "#64748b", marginTop: 14 }}>
+              Public repositories can be scanned without a token. Private repositories will ask for a PAT.
             </div>
-          )}
-          {repoAccessCheckLoading && !shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
-              Checking repository access...
-            </div>
-          )}
+            {repoUrl && !urlValidation.valid && (
+              <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>⚠️ {urlValidation.message}</div>
+            )}
+            {urlValidation.valid && (
+              <div style={{ fontSize: 12, color: "#22c55e", marginTop: 8 }}>✓ Valid repository URL</div>
+            )}
+          </div>
+
           {shouldShowPatInput && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ ...styles.field, marginTop: 8 }}>
               <label style={{ ...styles.label, fontWeight: 500 }}>
                 GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
               </label>
               <input
                 type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
+                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? "#22c55e" : "#e2e8f0" }}
                 value={showEnterpriseToken ? githubToken : patToken}
-                onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
+                onChange={(e) => (showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value))}
                 placeholder="Paste your GitHub PAT here"
                 autoComplete="off"
               />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                {showEnterpriseToken
-                  ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                  : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                {showEnterpriseToken ? (
+                  <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={styles.link}>How to create a PAT?</a></>
+                ) : (
+                  <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={styles.link}>How to create a PAT?</a></>
+                )}
               </div>
             </div>
           )}
-          {repoUrl && !urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
-              ⚠️ {urlValidation.message}
-            </div>
-          )}
-          {urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
-              ✓ Valid repository URL
-            </div>
-          )}
-        </div>
 
-        <div style={styles.btnRow}>
-          <button
-            style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
-            disabled={!urlValidation.valid}
-            onClick={() => void handleRepositoryContinue()}
-          >
-            Continue →
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 24 }}>
+            <button
+              style={{ ...styles.primaryBtn, width: "100%", opacity: !urlValidation.valid ? 0.6 : 1 }}
+              disabled={!urlValidation.valid}
+              onClick={() => void handleRepositoryContinue()}
+            >
+              Start discovery
+            </button>
+            <button
+              style={{ ...styles.secondaryBtn, width: "100%", background: "#f1f5f9", color: "#1f2937", borderColor: "#d1d5db" }}
+              onClick={() => setRepoUrl("")}
+            >
+              Clear
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -5270,14 +5279,41 @@ For questions or issues:
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "#f8fafc", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
+  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "linear-gradient(135deg, #081625 0%, #0d2635 25%, #103239 50%, #1b5b59 100%)", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
-  stepIndicatorContainer: { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
+  stepIndicatorContainer: { background: "linear-gradient(180deg, #091323 0%, #04101e 100%)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
   stepIndicator: { display: "flex", gap: 0, justifyContent: "center", alignItems: "flex-start", minWidth: "fit-content", flexWrap: "nowrap" },
   stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.2s ease", cursor: "pointer", whiteSpace: "nowrap" },
   stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "all 0.2s ease" },
   stepLabel: { display: "flex", flexDirection: "column" },
+  connectHeroCard: { background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)", color: "#f8fafc", borderRadius: 24, padding: 36, boxShadow: "0 32px 80px rgba(15, 23, 42, 0.35)", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 520 },
+  heroBadge: { alignSelf: "flex-start", textTransform: "uppercase", letterSpacing: "1px", fontSize: 12, fontWeight: 700, color: "#93c5fd", background: "rgba(59, 130, 246, 0.12)", padding: "10px 14px", borderRadius: 999, marginBottom: 30 },
+  connectHeroTitle: { fontSize: 42, fontWeight: 800, lineHeight: 1.05, maxWidth: 560, marginBottom: 20 },
+  connectHeroSubtitle: { fontSize: 16, color: "#cbd5e1", lineHeight: 1.8, maxWidth: 520, marginBottom: 32 },
+  connectFeatureList: { display: "grid", gap: 18, marginBottom: 32 },
+  connectFeatureItem: { display: "flex", gap: 14, alignItems: "flex-start", padding: 18, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: 16 },
+  connectFeatureIcon: { fontSize: 24, marginTop: 4 },
+  connectFeatureLabel: { fontSize: 15, fontWeight: 700, marginBottom: 4, color: "#ffffff" },
+  connectFeatureText: { fontSize: 13, color: "#cbd5e1", lineHeight: 1.6 },
+  connectCallouts: { display: "flex", gap: 12, flexWrap: "wrap" },
+  connectActionBtn: { background: "#3b82f6", color: "#fff", border: "none", borderRadius: 12, padding: "14px 26px", fontWeight: 700, cursor: "pointer", boxShadow: "0 16px 40px rgba(59, 130, 246, 0.22)" },
+  connectSecondaryBtn: { background: "rgba(255,255,255,0.08)", color: "#cbd5e1", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: 12, padding: "14px 26px", fontWeight: 600, cursor: "pointer" },
+  connectPanel: { background: "#0b1525", borderRadius: 24, padding: 32, boxShadow: "0 20px 60px rgba(0, 0, 0, 0.25)", border: "1px solid rgba(255,255,255,0.08)", minHeight: 520, display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  panelHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 24 },
+  panelLabel: { fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" },
+  panelTitle: { fontSize: 24, fontWeight: 700, margin: 0, color: "#f8fafc" },
+  statusBadge: { alignSelf: "flex-start", color: "#f8fafc", background: "rgba(255,255,255,0.08)", padding: "10px 16px", borderRadius: 999, fontWeight: 700, fontSize: 12, letterSpacing: "0.5px", border: "1px solid rgba(255,255,255,0.12)" },
+  urlInputWrapper: { display: "flex", alignItems: "center", gap: 10, border: "1px solid #d1d5db", borderRadius: 12, padding: 4, background: "#f8fafc" },
+  urlSuffix: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 44, background: "#e2e8f0", borderRadius: 10, padding: "10px 12px", color: "#334155", fontSize: 12, fontWeight: 700 },
+  connectStatusCard: { background: "#0f172a", border: "1px solid rgba(148, 163, 184, 0.18)", borderRadius: 20, padding: 22, marginTop: 28, minWidth: 0, boxShadow: "0 20px 40px rgba(0,0,0,0.18)" },
+  statusBarControls: { display: "flex", gap: 8, marginBottom: 20 },
+  statusDot: { width: 10, height: 10, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 0 4px rgba(239,68,68,0.08)" },
+  statusRow: { display: "grid", gridTemplateColumns: "80px 1fr", gap: 8, alignItems: "center", marginBottom: 12 },
+  statusKey: { fontSize: 12, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" },
+  statusValue: { fontSize: 14, color: "#f8fafc", fontWeight: 600, wordBreak: "break-all" },
+  stateBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "8px 14px", borderRadius: 999, background: "rgba(255,255,255,0.08)", color: "#f8fafc", fontSize: 12, fontWeight: 700, border: "1px solid rgba(255,255,255,0.14)" },
+  responsiveGrid: { gridTemplateColumns: "1fr", padding: 20 },
   main: { width: "100%", maxWidth: "100vw", padding: "24px 40px", minHeight: "calc(100vh - 160px)", boxSizing: "border-box" },
   card: { background: "#fff", borderRadius: 12, padding: "28px 32px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0" },
   stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" },
@@ -5289,10 +5325,10 @@ const styles: { [key: string]: React.CSSProperties } = {
   subtitle: { fontSize: 14, color: "#64748b", margin: 0, lineHeight: 1.5 },
   sectionTitle: { fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 14, marginTop: 20, display: "flex", alignItems: "center", gap: 8 },
   field: { marginBottom: 20, width: "100%", boxSizing: "border-box" },
-  label: { fontWeight: 600, fontSize: 14, marginBottom: 8, display: "block", color: "#374151" },
-  input: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #d1d5db", boxSizing: "border-box", transition: "all 0.2s ease", backgroundColor: "#fff" },
-  select: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #d1d5db", backgroundColor: "#fff", transition: "all 0.2s ease", cursor: "pointer" },
-  helpText: { fontSize: 13, color: "#64748b", marginTop: 6, lineHeight: 1.4 },
+  label: { fontWeight: 600, fontSize: 14, marginBottom: 8, display: "block", color: "#e2e8f0" },
+  input: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #334155", boxSizing: "border-box", transition: "all 0.2s ease", backgroundColor: "#0f172a", color: "#f8fafc" },
+  select: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #334155", backgroundColor: "#0f172a", color: "#f8fafc", transition: "all 0.2s ease", cursor: "pointer" },
+  helpText: { fontSize: 13, color: "#9ca3af", marginTop: 6, lineHeight: 1.4 },
   infoButtonContainer: { position: "relative", display: "inline-block", zIndex: 100 },
   infoButton: { width: 22, height: 22, borderRadius: "50%", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease", padding: 0, fontWeight: 600 },
   tooltip: { display: "none", position: "absolute", bottom: "calc(100% + 10px)", left: 0, width: 280, background: "#1e293b", color: "#f1f5f9", padding: "14px", borderRadius: 8, fontSize: 13, zIndex: 1001, boxShadow: "0 10px 25px rgba(0,0,0,0.2)" },
