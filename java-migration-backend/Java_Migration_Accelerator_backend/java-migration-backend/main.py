@@ -160,7 +160,8 @@ class GitPlatform(str, Enum):
 
 class MigrationRequest(BaseModel):
     source_repo_url: str = Field(description="Repository URL (GitHub or GitLab)")
-    target_repo_name: str = Field(description="Name for the new migrated repository")
+    target_repo_name: str = Field(description="Name for the new migrated repository or target branch")
+    target_repo_url: Optional[str] = Field(default=None, description="Existing repository URL to push branch migrations into")
     migration_approach: Optional[str] = Field(default="fork", description="Migration destination strategy: fork or branch")
     platform: GitPlatform = Field(default=GitPlatform.GITHUB, description="Git platform (GitHub or GitLab)")
     source_java_version: str = Field(default="7", description="Current Java version")
@@ -465,6 +466,24 @@ async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)} (see backend logs for details)")
 
 
+
+@app.get("/api/github/branches")
+async def list_repo_branches(repo_url: str, token: str = ""):
+    """List branches in a GitHub repository."""
+    try:
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        owner, repo = await github_service.parse_repo_url(repo_url)
+        branch_info = await github_service.list_repo_branches(effective_token, owner, repo, repo_url)
+        return {
+            "repo_url": repo_url,
+            "owner": owner,
+            "repo": repo,
+            "default_branch": branch_info.get("default_branch", "main"),
+            "branches": branch_info.get("branches", []),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/api/github/file-content")
 async def get_file_content(repo_url: str, file_path: str, token: str = ""):
     """Get the content of a file from a repository (uses default token for rate limits)"""
@@ -569,6 +588,29 @@ async def update_java_version(repo_url: str, java_version: str, file_path: str, 
 
 
 # GitLab Endpoints
+@app.get("/api/gitlab/repo-visibility", response_model=RepoVisibilityInfo)
+async def get_gitlab_repo_visibility(repo_url: str, token: str = ""):
+    """Check GitLab repository visibility/access."""
+    try:
+        owner, repo = await gitlab_service.parse_repo_url(repo_url)
+        repo_info = await gitlab_service.get_repo_info(token.strip(), owner, repo)
+        return {
+            "owner": owner,
+            "repo": repo,
+            "visibility": "private" if repo_info.get("is_private") else "public",
+            "requires_token": bool(repo_info.get("is_private")),
+            "message": "Repository is accessible."
+        }
+    except Exception as e:
+        message = str(e)
+        owner, repo = await gitlab_service.parse_repo_url(repo_url)
+        return {
+            "owner": owner,
+            "repo": repo,
+            "visibility": "private_or_inaccessible",
+            "requires_token": True,
+            "message": message or "Repository may be private. Provide a GitLab access token to continue."
+        }
 @app.get("/api/gitlab/repos", response_model=List[RepoInfo])
 async def list_gitlab_repos(token: str):
     """List all repositories accessible with the provided GitLab token"""
@@ -622,6 +664,23 @@ async def list_gitlab_repo_files(repo_url: str, token: str = "", path: str = "")
         raise HTTPException(status_code=400, detail=str(e))
 
 
+
+@app.get("/api/gitlab/branches")
+async def list_gitlab_repo_branches(repo_url: str, token: str = ""):
+    """List branches in a GitLab repository."""
+    try:
+        owner, repo = await gitlab_service.parse_repo_url(repo_url)
+        branch_info = await gitlab_service.list_repo_branches(token.strip(), owner, repo)
+        return {
+            "repo_url": repo_url,
+            "owner": owner,
+            "repo": repo,
+            "default_branch": branch_info.get("default_branch", "main"),
+            "branches": branch_info.get("branches", []),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/api/gitlab/file-content")
 async def get_gitlab_file_content(repo_url: str, file_path: str, token: str = ""):
     """Get the content of a file from a GitLab repository"""
@@ -638,6 +697,44 @@ async def get_gitlab_file_content(repo_url: str, file_path: str, token: str = ""
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+
+@app.post("/api/gitlab/update-java-version")
+async def update_gitlab_java_version(repo_url: str, java_version: str, file_path: str, token: str = ""):
+    """Update Java version in a GitLab pom.xml or build.gradle file in a local clone."""
+    try:
+        clone_path = await gitlab_service.clone_repository(token.strip(), repo_url)
+        file_full_path = os.path.join(clone_path, file_path)
+        if not os.path.exists(file_full_path):
+            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+        with open(file_full_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        import re
+        if file_path.endswith("pom.xml"):
+            new_content = re.sub(r"<java\.version>([^<]+)</java\.version>", f"<java.version>{java_version}</java.version>", content)
+            new_content = re.sub(r"<maven\.compiler\.source>([^<]+)</maven.compiler.source>", f"<maven.compiler.source>{java_version}</maven.compiler.source>", new_content)
+            new_content = re.sub(r"<maven\.compiler\.target>([^<]+)</maven.compiler.target>", f"<maven.compiler.target>{java_version}</maven.compiler.target>", new_content)
+        elif file_path.endswith("build.gradle") or file_path.endswith("build.gradle.kts"):
+            new_content = re.sub(r"sourceCompatibility\s*=\s*['\"](\d+)['\"]", f"sourceCompatibility = '{java_version}'", content)
+            new_content = re.sub(r"targetCompatibility\s*=\s*['\"](\d+)['\"]", f"targetCompatibility = '{java_version}'", new_content)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type. Only pom.xml and build.gradle are supported")
+
+        with open(file_full_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+
+        return {
+            "success": True,
+            "file_path": file_path,
+            "java_version": java_version,
+            "message": f"Java version updated to {java_version} in {file_path}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/fossa/analyze-url")
 async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
@@ -1819,24 +1916,31 @@ async def run_migration(job_id: str, request: MigrationRequest):
         _, source_repo_name = await repo_service.parse_repo_url(request.source_repo_url)
         now = datetime.now().strftime("%Y%m%d-%H%M%S")
 
-        # Use user token or fall back to default token
-        github_token = request.token.strip() if request.token and request.token.strip() else DEFAULT_GITHUB_TOKEN
-        add_log(job_id, f"Using GitHub token: {'user-provided' if request.token and request.token.strip() else 'default'}")
-
+        # Use user token. Only GitHub may fall back to the configured default token.
+        user_token = request.token.strip() if request.token and request.token.strip() else ""
         migration_approach = (request.migration_approach or "fork").strip().lower()
+        push_token = user_token
+        if request.platform != GitPlatform.GITLAB and not push_token:
+            push_token = DEFAULT_GITHUB_TOKEN
+        add_log(job_id, f"Using repository token: {'user-provided' if user_token else 'default GitHub token' if push_token else 'not provided'}")
 
         if migration_approach == "branch":
+            target_repo_url = (request.target_repo_url or request.source_repo_url).strip()
+            target_repo_service = gitlab_service if "gitlab.com" in target_repo_url.lower() else github_service
+            branch_push_token = user_token or ("" if "gitlab.com" in target_repo_url.lower() else DEFAULT_GITHUB_TOKEN)
+            _, target_repo_source_name = await target_repo_service.parse_repo_url(target_repo_url)
             target_branch_name = normalize_target_branch_name(
                 request.target_repo_name,
-                source_repo_name,
+                target_repo_source_name,
                 now,
             )
+            add_log(job_id, f"Target repository URL: {target_repo_url}")
             add_log(job_id, f"Target branch name: {target_branch_name}")
             update_job(job_id, MigrationStatus.PUSHING, 90, "Pushing migrated code to a new branch...")
             try:
-                branch_url = await repo_service.push_to_branch(
-                    github_token,
-                    request.source_repo_url,
+                branch_url = await target_repo_service.push_to_branch(
+                    branch_push_token,
+                    target_repo_url,
                     clone_path,
                     target_branch_name,
                 )
@@ -1856,7 +1960,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
             update_job(job_id, MigrationStatus.PUSHING, 90, "Creating new repository and pushing migrated code...")
             try:
                 new_repo_url = await repo_service.create_and_push_repo(
-                    github_token,
+                    push_token,
                     target_repo_name,
                     clone_path,
                     f"Migrated from {request.source_repo_url} (Java {request.source_java_version} ? Java {request.target_java_version.value})"
@@ -2117,4 +2221,9 @@ def add_log(job_id: str, message: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
+
+
+
+
+
 

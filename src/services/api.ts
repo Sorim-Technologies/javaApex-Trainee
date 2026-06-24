@@ -17,6 +17,10 @@ export const APP_BASE_URL = (configuredApiUrl || runtimeOrigin).replace(/\/+$/, 
 export const API_BASE_URL = `${APP_BASE_URL}/api`;
 export const GITHUB_AUTH_LOGIN_URL = `${API_BASE_URL}/auth/github/login`;
 
+
+function getRepoPlatform(repoUrl: string): "github" | "gitlab" {
+  return repoUrl.toLowerCase().includes("gitlab.com") ? "gitlab" : "github";
+}
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
   const bodyText = await response.text();
@@ -89,6 +93,14 @@ export interface RepoFilesResponse {
   repo: string;
   path: string;
   files: RepoFile[];
+}
+
+export interface RepoBranchesResponse {
+  repo_url: string;
+  owner: string;
+  repo: string;
+  default_branch: string;
+  branches: string[];
 }
 
 export interface FileContentResponse {
@@ -181,6 +193,7 @@ export interface MigrationPreview {
 export interface MigrationRequest {
   source_repo_url: string;
   target_repo_name: string;
+  target_repo_url?: string;
   migration_approach?: string;
   platform?: string;
   source_java_version: string;
@@ -298,14 +311,14 @@ export async function analyzeRepository(token: string, owner: string, repo: stri
 // NEW: Analyze repository directly by URL (works for public repos without token)
 export async function analyzeRepoUrl(repoUrl: string, token: string = ""): Promise<RepoUrlAnalysis> {
   const response = await fetch(
-    `${API_BASE_URL}/github/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
   );
   return parseJsonResponse<RepoUrlAnalysis>(response, 'Failed to analyze repository');
 }
 
 export async function getRepoVisibility(repoUrl: string, token: string = ""): Promise<RepoVisibilityInfo> {
   const response = await fetch(
-    `${API_BASE_URL}/github/repo-visibility?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/repo-visibility?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
   );
   return parseJsonResponse<RepoVisibilityInfo>(response, 'Failed to check repository visibility');
 }
@@ -313,7 +326,7 @@ export async function getRepoVisibility(repoUrl: string, token: string = ""): Pr
 // NEW: List files in a repository (works for public repos without token)
 export async function listRepoFiles(repoUrl: string, token: string = "", path: string = ""): Promise<RepoFilesResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/github/list-files?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}`
+    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/list-files?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}`
   );
   if (!response.ok) {
     const error = await response.json();
@@ -322,10 +335,17 @@ export async function listRepoFiles(repoUrl: string, token: string = "", path: s
   return response.json();
 }
 
+export async function listRepoBranches(repoUrl: string, token: string = ""): Promise<RepoBranchesResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/branches?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
+  );
+  return parseJsonResponse<RepoBranchesResponse>(response, 'Failed to list branches');
+}
+
 // NEW: Get file content (works for public repos without token)
 export async function getFileContent(repoUrl: string, filePath: string, token: string = ""): Promise<FileContentResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/github/file-content?repo_url=${encodeURIComponent(repoUrl)}&file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/file-content?repo_url=${encodeURIComponent(repoUrl)}&file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`
   );
   if (!response.ok) {
     const error = await response.json();
@@ -544,7 +564,7 @@ export async function updateJavaVersion(
   token: string = ""
 ): Promise<UpdateJavaVersionResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/github/update-java-version?repo_url=${encodeURIComponent(repoUrl)}&java_version=${encodeURIComponent(javaVersion)}&file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`,
+    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/update-java-version?repo_url=${encodeURIComponent(repoUrl)}&java_version=${encodeURIComponent(javaVersion)}&file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`,
     { method: 'POST' }
   );
   if (!response.ok) {
@@ -553,3 +573,4 @@ export async function updateJavaVersion(
   }
   return response.json();
 }
+

@@ -376,6 +376,32 @@ class GitHubService:
         except Exception as e:
             raise Exception(f"Failed to get repository info: {str(e)}")
     
+    async def list_repo_branches(self, token: str, owner: str, repo: str, repo_url: str = None) -> Dict[str, Any]:
+        """List branch names for a repository."""
+        try:
+            g = get_github_client(token.strip() if token else None, repo_url)
+            repository = g.get_repo(f"{owner}/{repo}")
+            branches = [branch.name for branch in repository.get_branches()]
+            return {
+                "default_branch": repository.default_branch,
+                "branches": branches,
+            }
+        except GithubException as e:
+            status_code = getattr(e, 'status', None)
+            error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+
+            if status_code == 404:
+                raise Exception(f"Repository not found: {owner}/{repo}")
+            elif status_code == 403:
+                raise Exception("Access denied. The repository may be private or your token may not have permission to read branches.")
+            elif status_code == 401:
+                raise Exception("Authentication failed. Please check your GitHub token.")
+            elif 'rate limit' in error_msg.lower():
+                raise Exception("GitHub API rate limit exceeded. Please wait a few minutes or provide a different GitHub token.")
+            else:
+                raise Exception(f"GitHub API error ({status_code}): {error_msg}")
+        except Exception as e:
+            raise Exception(f"Failed to list branches: {str(e)}")
     async def list_repo_files(self, token: str, owner: str, repo: str, path: str = "", repo_url: str = None) -> List[Dict[str, Any]]:
         """List all files and directories in a repository"""
         cache_key = f"files:{owner}/{repo}:{path}"

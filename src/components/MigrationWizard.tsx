@@ -7,6 +7,7 @@ import {
   analyzeRepoUrl,
   getRepoVisibility,
   listRepoFiles,
+  listRepoBranches,
   getFileContent,
   getJavaVersions,
   getJavaVersionRecommendation,
@@ -41,6 +42,9 @@ interface PersistedWizardFormState {
   patToken: string;
   currentPath: string;
   targetRepoName: string;
+  targetRepoUrl: string;
+  existingRepoBranches: string[];
+  targetRepoToken: string;
   targetRepoTimestamp: string;
   selectedSourceVersion: string;
   selectedTargetVersion: string;
@@ -250,29 +254,36 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     return { 
       valid: false, 
       normalizedUrl: "", 
-      message: "Invalid URL format. Use: https://github.com/owner/repo, https://github.<enterprise>.com/owner/repo, or owner/repo" 
+      message: "Invalid URL format. Use: https://github.com/owner/repo, https://gitlab.com/owner/repo, https://github.<enterprise>.com/owner/repo, or owner/repo" 
     };
   };
 
   const urlValidation = repoUrl ? normalizeGithubUrl(repoUrl) : { valid: false, normalizedUrl: "", message: "" };
+  const isGitlabRepo = (urlValidation.normalizedUrl || repoUrl).toLowerCase().includes("gitlab.com");
   const showEnterpriseToken = repoUrl && isEnterpriseGithub(urlValidation.normalizedUrl || repoUrl);
 
   const getCurrentToken = () => {
-    if (showEnterpriseToken) return githubToken.trim();
+    if (showEnterpriseToken || isGitlabRepo) return patToken.trim() || githubToken.trim();
     if (isPrivateRepo) return patToken.trim() || githubToken.trim();
     if (githubToken.trim()) return githubToken.trim();
     if (patToken.trim()) return patToken.trim();
     return "";
   };
 
-  const currentToken = useMemo(getCurrentToken, [githubToken, patToken, showEnterpriseToken, isPrivateRepo]);
-  const shouldShowPatInput = showEnterpriseToken || isPrivateRepo;
+  const currentToken = useMemo(getCurrentToken, [githubToken, patToken, showEnterpriseToken, isGitlabRepo, isPrivateRepo]);
+  const shouldShowPatInput = showEnterpriseToken || isGitlabRepo || isPrivateRepo;
   const [repoAnalysis, setRepoAnalysis] = useState<RepoAnalysis | null>(() =>
     readSessionJson<RepoAnalysis>(WIZARD_REPO_ANALYSIS_KEY)
   );
   const [repoFiles, setRepoFiles] = useState<RepoFile[]>([]);
   const [currentPath, setCurrentPath] = useState(persistedFormState?.currentPath ?? "");
   const [targetRepoName, setTargetRepoName] = useState(persistedFormState?.targetRepoName ?? "");
+  const [targetRepoUrl, setTargetRepoUrl] = useState(persistedFormState?.targetRepoUrl ?? "");
+  const targetRepoUrlValidation = targetRepoUrl ? normalizeGithubUrl(targetRepoUrl) : { valid: false, normalizedUrl: "", message: "Repository URL is required" };
+  const [existingRepoBranches, setExistingRepoBranches] = useState<string[]>(persistedFormState?.existingRepoBranches ?? []);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState("");
+  const [targetRepoToken, setTargetRepoToken] = useState(persistedFormState?.targetRepoToken ?? "");
   const [targetRepoTimestamp, setTargetRepoTimestamp] = useState(
     () => persistedFormState?.targetRepoTimestamp ?? generateRepoTimestamp()
   );
@@ -369,8 +380,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     {
       value: "branch",
       label: "Existing Repository (New Branch)",
-      desc: "Push migrated code to a new branch in the source repository",
-      tooltip: "Keeps the existing repository and publishes the migrated code on a separate branch for review and merge.",
+      desc: "Push migrated code to a new branch in an existing repository",
+      tooltip: "Paste an existing repository URL, review its current branches, then publish migrated code to a new branch there.",
       icon: "🌿",
       color: "#22c55e",
     },
@@ -1051,7 +1062,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [step, repoAnalysis, selectedSourceVersion, riskLevel]);
 
   useEffect(() => {
-    if (step !== 1 || !urlValidation.valid || showEnterpriseToken || patToken.trim()) {
+    if (step !== 1 || !urlValidation.valid || showEnterpriseToken || isGitlabRepo || patToken.trim()) {
       setRepoAccessCheckLoading(false);
       return;
     }
@@ -1093,7 +1104,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [step, urlValidation.valid, urlValidation.normalizedUrl, showEnterpriseToken, patToken]);
+  }, [step, urlValidation.valid, urlValidation.normalizedUrl, showEnterpriseToken, isGitlabRepo, patToken]);
 
   useEffect(() => {
     if (step === 2 && selectedRepo) {
@@ -1118,6 +1129,45 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       );
     }
   }, [selectedRepo, selectedTargetVersion, targetRepoTimestamp, migrationApproach]);
+  useEffect(() => {
+    if (migrationApproach !== "branch") return;
+
+    const sourceUrl = selectedRepo?.url || urlValidation.normalizedUrl || repoUrl;
+    if (sourceUrl && !targetRepoUrl.trim()) {
+      setTargetRepoUrl(sourceUrl);
+    }
+  }, [migrationApproach, selectedRepo?.url, urlValidation.normalizedUrl, repoUrl, targetRepoUrl]);
+
+  useEffect(() => {
+    if (step !== 3 || migrationApproach !== "branch" || !targetRepoUrlValidation.valid) {
+      setExistingRepoBranches([]);
+      setBranchesError("");
+      setBranchesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setBranchesLoading(true);
+    setBranchesError("");
+
+    listRepoBranches(targetRepoUrlValidation.normalizedUrl, targetRepoToken.trim() || currentToken)
+      .then((response) => {
+        if (cancelled) return;
+        setExistingRepoBranches(response.branches);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setExistingRepoBranches([]);
+        setBranchesError(err?.message || "Failed to load repository branches.");
+      })
+      .finally(() => {
+        if (!cancelled) setBranchesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, migrationApproach, targetRepoUrlValidation.valid, targetRepoUrlValidation.normalizedUrl, targetRepoToken, currentToken]);
 
   useEffect(() => {
     if (!selectedTargetVersion || targetVersions.length === 0) {
@@ -1199,10 +1249,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     return {
       source_repo_url: selectedRepo?.url || repoUrl,
       target_repo_name: finalTargetRepoName,
+      target_repo_url: migrationApproach === "branch" ? targetRepoUrlValidation.normalizedUrl : undefined,
       platform: detectPlatform(selectedRepo?.url || repoUrl),
       source_java_version: userSelectedVersion || selectedSourceVersion,
       target_java_version: selectedTargetVersion,
-      token: currentToken,
+      token: migrationApproach === "branch" ? (targetRepoToken.trim() || currentToken) : currentToken,
       migration_approach: migrationApproach,
       conversion_types: selectedConversions,
       run_tests: runTests,
@@ -1427,6 +1478,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   const renderStep1 = () => {
+    const repoInputStatus = urlValidation.valid ? "valid" : "missing";
+
     return (
       <div style={styles.card}>
         <div style={styles.stepHeader}>
@@ -1510,7 +1563,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </label>
           <input
             type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
+            className={`repo-url-input repo-url-input--${repoInputStatus}`}
+            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : '#ef4444' }}
             value={repoUrl}
             onChange={(e) => {
               setRepoUrl(e.target.value);
@@ -1540,20 +1594,22 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           {shouldShowPatInput && (
             <div style={{ marginTop: 16 }}>
               <label style={{ ...styles.label, fontWeight: 500 }}>
-                GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                Git Provider Access Token ({showEnterpriseToken || isGitlabRepo || isPrivateRepo ? "required" : "optional"})
               </label>
               <input
                 type="password"
                 style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
                 value={showEnterpriseToken ? githubToken : patToken}
                 onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
-                placeholder="Paste your GitHub PAT here"
+                placeholder={isGitlabRepo ? "Paste your GitLab access token here" : "Paste your GitHub PAT here"}
                 autoComplete="off"
               />
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
                 {showEnterpriseToken
                   ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                  : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+                  : isGitlabRepo
+                    ? <>Required for GitLab repository analysis and pushing migrated code. <a href="https://docs.gitlab.com/user/profile/personal_access_tokens/" target="_blank" rel="noopener noreferrer">How to create a token?</a></>
+                    : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
               </div>
             </div>
           )}
@@ -1571,6 +1627,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
         <div style={styles.btnRow}>
           <button
+            className="continue-button"
             style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
             disabled={!urlValidation.valid}
             onClick={() => void handleRepositoryContinue()}
@@ -2712,7 +2769,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   // Consolidated Step 3: Strategy (Assessment + Migration Strategy + Planning)
-  const renderStrategyStep = () => (
+  const renderStrategyStep = () => {
+    const canContinueFromStrategy = migrationApproach !== "branch" || (targetRepoUrlValidation.valid && targetRepoName.trim().length > 0);
+
+    return (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
         <span style={styles.stepIcon}>📋</span>
@@ -2989,36 +3049,110 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
         </div>
 
-      <div style={styles.field}>
-        <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input 
-            type="text" 
-            style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }} 
-            value={targetRepoName} 
-            onChange={(e) => setTargetRepoName(e.target.value)} 
-            placeholder={
-              migrationApproach === "branch"
-                ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
-                : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
-            }
-          />
+      {migrationApproach === "branch" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={styles.field}>
+            <label style={styles.label}>Existing Repository URL</label>
+            <input
+              type="text"
+              style={{
+                ...styles.input,
+                backgroundColor: "#f8fafc",
+                borderColor: targetRepoUrlValidation.valid ? "#22c55e" : "#ef4444",
+              }}
+              value={targetRepoUrl}
+              onChange={(e) => setTargetRepoUrl(e.target.value)}
+              placeholder={selectedRepo?.url || "https://github.com/owner/repository"}
+            />
+            <p style={styles.helpText}>Migrated code will be pushed to a new branch in this repository.</p>
+            {targetRepoUrl && !targetRepoUrlValidation.valid && (
+              <div style={{ fontSize: 12, color: "#ef4444", marginTop: 6 }}>{targetRepoUrlValidation.message}</div>
+            )}
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Target Repository Access Token</label>
+            <input
+              type="password"
+              style={{ ...styles.input, borderColor: (targetRepoToken.trim() || currentToken) ? "#22c55e" : "#e2e8f0" }}
+              value={targetRepoToken}
+              onChange={(e) => setTargetRepoToken(e.target.value)}
+              placeholder={targetRepoUrl.toLowerCase().includes("gitlab.com") ? "Paste your GitLab access token" : "Paste your GitHub PAT"}
+              autoComplete="off"
+            />
+            <p style={styles.helpText}>Required for private or inaccessible target repositories. If left empty, the token from the Connect step is used.</p>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Branches in Existing Repository</label>
+            <div style={styles.branchListBox}>
+              {branchesLoading ? (
+                <span style={styles.branchMetaText}>Loading branches...</span>
+              ) : branchesError ? (
+                <span style={{ ...styles.branchMetaText, color: "#ef4444" }}>{branchesError}</span>
+              ) : existingRepoBranches.length > 0 ? (
+                existingRepoBranches.map((branch) => (
+                  <button
+                    key={branch}
+                    type="button"
+                    style={styles.branchChip}
+                    onClick={() => setTargetRepoName(`migration/${branch}-${targetRepoTimestamp}`)}
+                    title="Use this branch name as the base for a new migration branch"
+                  >
+                    {branch}
+                  </button>
+                ))
+              ) : (
+                <span style={styles.branchMetaText}>No branches found for this repository.</span>
+              )}
+            </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>New Branch Name</label>
+            <input
+              type="text"
+              style={{ ...styles.input, backgroundColor: "#f0fdf4", borderColor: targetRepoName.trim() ? "#22c55e" : "#ef4444" }}
+              value={targetRepoName}
+              onChange={(e) => setTargetRepoName(e.target.value)}
+              placeholder={buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)}
+            />
+            <p style={styles.helpText}>
+              Create a branch name that does not already exist, for example <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</code>.
+            </p>
+          </div>
         </div>
-        <p style={styles.helpText}>
-          Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
-            {migrationApproach === "branch"
-              ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-              : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
-          </code> (auto-generated, editable)
-        </p>
-      </div>
+      ) : (
+        <div style={styles.field}>
+          <label style={styles.label}>Target Repository Name</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="text"
+              style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }}
+              value={targetRepoName}
+              onChange={(e) => setTargetRepoName(e.target.value)}
+              placeholder={buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)}
+            />
+          </div>
+          <p style={styles.helpText}>
+            Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</code> (auto-generated, editable)
+          </p>
+        </div>
+      )}
 
       <div style={styles.btnRow}>
         <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Migration →</button>
+        <button
+          style={{ ...styles.primaryBtn, opacity: canContinueFromStrategy ? 1 : 0.5 }}
+          disabled={!canContinueFromStrategy}
+          onClick={() => setStep(4)}
+        >
+          Continue to Migration &gt;
+        </button>
       </div>
     </div>
   );
+  };
 
   // Consolidated Step 4: Migration (Build Modernization & Refactor + Code Migration + Testing)
   const renderMigrationStep = () => {
@@ -5305,6 +5439,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#dc2626" },
   errorBox: { background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "14px 16px", marginBottom: 20, color: "#991b1b", width: "100%", boxSizing: "border-box" },
   btnRow: { display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" },
+  branchListBox: { display: "flex", flexWrap: "wrap", gap: 8, minHeight: 48, padding: 12, border: "1px solid #e2e8f0", borderRadius: 8, backgroundColor: "#f8fafc", alignItems: "center" },
+  branchChip: { border: "1px solid #bfdbfe", borderRadius: 999, background: "#eff6ff", color: "#1d4ed8", padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" },
+  branchMetaText: { fontSize: 12, color: "#64748b" },
   primaryBtn: { background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
   secondaryBtn: { background: "#fff", color: "#374151", border: "1px solid #d1d5db", borderRadius: 8, padding: "12px 24px", fontWeight: 500, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
   row: { display: "flex", gap: 20 },
@@ -5478,3 +5615,5 @@ const styles: { [key: string]: React.CSSProperties } = {
   jmeterLabel: { fontSize: 14, color: "#64748b" },
   jmeterValue: { fontSize: 16, fontWeight: 700, color: "#1e293b" },
 };
+
+

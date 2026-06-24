@@ -22,7 +22,7 @@ class GitLabService:
             if not token or len(token) < 10:
                 raise Exception("Invalid GitLab token format")
 
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
 
             # Get user's projects
             async with httpx.AsyncClient() as client:
@@ -59,7 +59,7 @@ class GitLabService:
             if not token or len(token.strip()) == 0:
                 raise Exception("GitLab token is required for repository analysis.")
 
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
 
             # Get project info
             project_path = f"{owner}/{repo}"
@@ -162,7 +162,7 @@ class GitLabService:
     async def get_repo_info(self, token: str, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository information"""
         try:
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
             project_path = f"{owner}/{repo}"
 
             async with httpx.AsyncClient() as client:
@@ -192,7 +192,7 @@ class GitLabService:
     async def list_repo_files(self, token: str, owner: str, repo: str, path: str = "") -> List[Dict[str, Any]]:
         """List all files and directories in a repository"""
         try:
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
             project_path = f"{owner}/{repo}"
 
             # First get project ID
@@ -238,10 +238,44 @@ class GitLabService:
         except Exception as e:
             raise Exception(f"Failed to list files: {str(e)}")
 
+
+    async def list_repo_branches(self, token: str, owner: str, repo: str) -> Dict[str, Any]:
+        """List branch names for a GitLab repository."""
+        try:
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
+            project_path = f"{owner}/{repo}"
+
+            async with httpx.AsyncClient() as client:
+                project_response = await client.get(
+                    f"{self.api_base_url}/projects/{project_path.replace('/', '%2F')}",
+                    headers=headers
+                )
+
+                if project_response.status_code != 200:
+                    raise Exception(f"Failed to get project: {project_response.status_code} - {project_response.text}")
+
+                project = project_response.json()
+                branches_response = await client.get(
+                    f"{self.api_base_url}/projects/{project['id']}/repository/branches",
+                    headers=headers,
+                    params={"per_page": "100"}
+                )
+
+                if branches_response.status_code != 200:
+                    raise Exception(f"GitLab API error: {branches_response.status_code} - {branches_response.text}")
+
+                branches = [branch["name"] for branch in branches_response.json()]
+                return {
+                    "default_branch": project.get("default_branch", "main"),
+                    "branches": branches,
+                }
+        except Exception as e:
+            raise Exception(f"Failed to list branches: {str(e)}")
+
     async def get_file_content(self, token: str, owner: str, repo: str, path: str) -> str:
         """Get the content of a file from the repository"""
         try:
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
             project_path = f"{owner}/{repo}"
 
             # First get project ID
@@ -306,7 +340,7 @@ class GitLabService:
         """Create a new repository and push the migrated code"""
         try:
             print(f"DEBUG: Starting GitLab repository creation process")
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
 
             # Create new repository
             async with httpx.AsyncClient() as client:
@@ -602,3 +636,5 @@ class GitLabService:
             })
 
         return dependencies
+
+
