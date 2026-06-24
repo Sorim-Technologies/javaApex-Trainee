@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./MigrationWizard.css";
+import apexLogo from "../assets/apexlogo.png";
 import {
   fetchRepositories,
   analyzeRepository,
@@ -329,6 +330,50 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     persistedFormState?.pathHistory?.length ? persistedFormState.pathHistory : [""]
   );
   const [showFileExplorer, setShowFileExplorer] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatQuery, setChatQuery] = useState("");
+  const [chatMessages, setChatMessages] = useState<{ from: "bot" | "user"; text: string }[]>([
+    {
+      from: "bot",
+      text: "Hi! I'm javaAPEX Assistant. Ask me about the migration workflow, repository connection, discovery, strategy, or results.",
+    },
+  ]);
+
+  const getRuleBasedChatResponse = (message: string): string => {
+    const normalized = message.toLowerCase();
+
+    if (/connect|github|repo|repository|url|token/.test(normalized)) {
+      return "This app connects a GitHub repository, validates access, and begins migration discovery.";
+    }
+    if (/discovery|analysis|dependency|scan|java version/.test(normalized)) {
+      return "Discovery scans your repo, detects Java versions, and maps dependencies before you create a migration strategy.";
+    }
+    if (/strategy|assessment|risk|plan|roadmap/.test(normalized)) {
+      return "The strategy stage summarizes risks, recommended versions, and migration approach for your selected repository.";
+    }
+    if (/migration|execute|build|modernize/.test(normalized)) {
+      return "Migration executes the modernization steps and updates the target repository or branch with migrated code.";
+    }
+    if (/result|report|download|changes/.test(normalized)) {
+      return "Result shows migration status, code changes, logs, and lets you download the migrated project report.";
+    }
+    if (/workflow|stage|step/.test(normalized)) {
+      return "The workflow includes five stages: Connect, Discovery, Strategy, Migration, and Result.";
+    }
+    return "I can answer questions about the app workflow, repository connection, discovery, strategy, migration, and results.";
+  };
+
+  const handleSendChatMessage = () => {
+    const trimmed = chatQuery.trim();
+    if (!trimmed) return;
+
+    setChatMessages((prev) => [
+      ...prev,
+      { from: "user", text: trimmed },
+      { from: "bot", text: getRuleBasedChatResponse(trimmed) },
+    ]);
+    setChatQuery("");
+  };
   
   // High-risk project states (no pom.xml/build.gradle or unknown Java version)
   const [isHighRiskProject, setIsHighRiskProject] = useState(
@@ -1367,7 +1412,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const getStepGroupColor = (stepId: number) => (stepId <= 2 ? "#3b82f6" : "#22c55e");
 
   const renderStepIndicator = () => (
-    <div style={{ ...styles.stepIndicator, background: "#06172b", padding: "22px 32px", borderRadius: 24, boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)", marginBottom: 24 }}>
+    <div style={{ ...styles.stepIndicator, background: "#06172b", padding: "22px 32px", borderRadius: 24, boxShadow: "0 0 34px rgba(56, 189, 248, 0.22), inset 0 0 0 1px rgba(125, 211, 252, 0.16)", marginBottom: 24 }}>
       {MIGRATION_STEPS.map((s, index) => {
         const stepColor = getStepGroupColor(s.id);
         const isCompleted = currentIndicatorStep > s.id;
@@ -1384,8 +1429,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 alignItems: "center",
                 opacity: isUnlocked ? 1 : 0.45,
                 cursor: isUnlocked && !isActive ? "pointer" : "default",
-                background: isActive ? "rgba(15, 23, 42, 0.9)" : "transparent",
-                boxShadow: isActive ? `0 0 30px ${stepColor}22` : "none",
+                background: "transparent",
+                boxShadow: "none",
                 color: isActive || isCompleted ? "#fff" : "#cbd5e1",
                 padding: "16px 14px",
               }}
@@ -1394,12 +1439,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               <div
                 style={{
                   ...styles.stepCircle,
-                  backgroundColor: isActive || isCompleted ? stepColor : "#1f2937",
+                  backgroundColor: "transparent",
                   color: isActive || isCompleted ? "#fff" : "#94a3b8",
                   width: 48,
                   height: 48,
                   fontSize: 20,
-                  boxShadow: isActive ? `0 0 24px ${stepColor}55` : "none",
+                  boxShadow: "none",
+                  transform: isActive ? "scale(1.12)" : "scale(1)",
+                  filter: isActive ? `drop-shadow(0 0 16px ${stepColor}) drop-shadow(0 0 28px ${stepColor}99)` : isCompleted ? `drop-shadow(0 0 10px ${stepColor}88)` : "none",
+                  textShadow: isActive ? `0 0 18px ${stepColor}, 0 0 34px ${stepColor}aa` : "none",
                 }}
               >
                 {step > s.id ? "✓" : s.icon}
@@ -1464,7 +1512,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             Add a repository URL to begin access checks, Java discovery, and dependency mapping.
           </p>
 
-          <div style={styles.connectFeatureList} style={{ display: "none" }}>
+          <div style={{ ...styles.connectFeatureList, display: "none" }}>
             <div style={styles.connectFeatureItem}>
               <span style={styles.connectFeatureIcon}>🔗</span>
               <div>
@@ -5235,6 +5283,56 @@ For questions or issues:
         {step === 6 && renderMigrationProgress()}
         {step === 7 && renderStep11()}
       </div>
+
+      <div style={styles.chatbotContainer}>
+        <button
+          type="button"
+          style={styles.chatbotToggle}
+          onClick={() => setIsChatOpen((prev) => !prev)}
+          aria-label={isChatOpen ? "Close chat assistant" : "Open chat assistant"}
+        >
+          <span style={{ ...styles.chatbotIcon, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 22, width: 32, height: 32 }}>☕</span>
+          <span style={styles.chatbotBadge}>javaAPEX</span>
+        </button>
+
+        {isChatOpen && (
+          <div style={styles.chatbotWindow}>
+            <div style={styles.chatbotHeader}>
+              <div style={styles.chatbotTitle}>javaAPEX Assistant</div>
+              <button type="button" style={styles.chatbotClose} onClick={() => setIsChatOpen(false)}>
+                ×
+              </button>
+            </div>
+            <div style={styles.chatbotMessages}>
+              {chatMessages.map((message, index) => (
+                <div
+                  key={index}
+                  style={message.from === "bot" ? styles.chatbotBotMessage : styles.chatbotUserMessage}
+                >
+                  {message.text}
+                </div>
+              ))}
+            </div>
+            <div style={styles.chatbotInputRow}>
+              <input
+                value={chatQuery}
+                onChange={(event) => setChatQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleSendChatMessage();
+                  }
+                }}
+                placeholder="Ask about the app or workflow..."
+                style={styles.chatbotInput}
+              />
+              <button type="button" style={styles.chatbotSendButton} onClick={handleSendChatMessage}>
+                Send
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -5243,12 +5341,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "linear-gradient(135deg, #081625 0%, #0d2635 25%, #103239 50%, #1b5b59 100%)", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
-  stepIndicatorContainer: { background: "linear-gradient(180deg, #091323 0%, #04101e 100%)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
+  stepIndicatorContainer: { background: "linear-gradient(180deg, #091323 0%, #04101e 100%)", borderBottom: "1px solid rgba(125, 211, 252, 0.16)", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto", boxShadow: "0 12px 42px rgba(56, 189, 248, 0.14)" },
   stepIndicator: { display: "flex", gap: 0, justifyContent: "center", alignItems: "flex-start", minWidth: "fit-content", flexWrap: "nowrap" },
-  stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.2s ease", cursor: "pointer", whiteSpace: "nowrap" },
-  stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "all 0.2s ease" },
+  stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "opacity 0.25s ease, transform 0.25s ease", cursor: "pointer", whiteSpace: "nowrap" },
+  stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "transform 0.25s ease, filter 0.25s ease, text-shadow 0.25s ease" },
   stepLabel: { display: "flex", flexDirection: "column" },
-  connectHeroCard: { background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)", color: "#f8fafc", borderRadius: 24, padding: 36, boxShadow: "0 32px 80px rgba(15, 23, 42, 0.35)", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 520 },
+  connectHeroCard: { background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)", color: "#f8fafc", borderRadius: 24, padding: 36, boxShadow: "0 0 0 1px rgba(125, 211, 252, 0.16), 0 28px 80px rgba(15, 23, 42, 0.38), 0 0 42px rgba(56, 189, 248, 0.16)", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 520 },
   heroBadge: { alignSelf: "flex-start", textTransform: "uppercase", letterSpacing: "1px", fontSize: 12, fontWeight: 700, color: "#93c5fd", background: "rgba(59, 130, 246, 0.12)", padding: "10px 14px", borderRadius: 999, marginBottom: 30 },
   connectHeroTitle: { fontSize: 42, fontWeight: 800, lineHeight: 1.05, maxWidth: 560, marginBottom: 20 },
   connectHeroSubtitle: { fontSize: 16, color: "#cbd5e1", lineHeight: 1.8, maxWidth: 520, marginBottom: 32 },
@@ -5260,7 +5358,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   connectCallouts: { display: "flex", gap: 12, flexWrap: "wrap" },
   connectActionBtn: { background: "#3b82f6", color: "#fff", border: "none", borderRadius: 12, padding: "14px 26px", fontWeight: 700, cursor: "pointer", boxShadow: "0 16px 40px rgba(59, 130, 246, 0.22)" },
   connectSecondaryBtn: { background: "rgba(255,255,255,0.08)", color: "#cbd5e1", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: 12, padding: "14px 26px", fontWeight: 600, cursor: "pointer" },
-  connectPanel: { background: "#0b1525", borderRadius: 24, padding: 32, boxShadow: "0 20px 60px rgba(0, 0, 0, 0.25)", border: "1px solid rgba(255,255,255,0.08)", minHeight: 520, display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  connectPanel: { background: "#0b1525", borderRadius: 24, padding: 32, boxShadow: "0 0 0 1px rgba(125, 211, 252, 0.14), 0 24px 70px rgba(0, 0, 0, 0.28), 0 0 38px rgba(34, 211, 238, 0.15)", border: "1px solid rgba(125, 211, 252, 0.12)", minHeight: 520, display: "flex", flexDirection: "column", justifyContent: "space-between" },
   panelHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 24 },
   panelLabel: { fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" },
   panelTitle: { fontSize: 24, fontWeight: 700, margin: 0, color: "#f8fafc" },
@@ -5268,7 +5366,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   statusBadgeConnected: { alignSelf: "flex-start", color: "#dcfce7", background: "rgba(34, 197, 94, 0.16)", padding: "10px 16px", borderRadius: 999, fontWeight: 700, fontSize: 12, letterSpacing: "0.5px", border: "1px solid rgba(34, 197, 94, 0.45)" },
   urlInputWrapper: { display: "flex", alignItems: "center", gap: 10, border: "1px solid #d1d5db", borderRadius: 12, padding: 4, background: "#f8fafc" },
   urlSuffix: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 44, background: "#e2e8f0", borderRadius: 10, padding: "10px 12px", color: "#334155", fontSize: 12, fontWeight: 700 },
-  connectStatusCard: { background: "#0f172a", border: "1px solid rgba(148, 163, 184, 0.18)", borderRadius: 20, padding: 22, marginTop: 28, minWidth: 0, boxShadow: "0 20px 40px rgba(0,0,0,0.18)" },
+  connectStatusCard: { background: "#0f172a", border: "1px solid rgba(125, 211, 252, 0.14)", borderRadius: 20, padding: 22, marginTop: 28, minWidth: 0, boxShadow: "0 18px 44px rgba(0,0,0,0.2), 0 0 26px rgba(56, 189, 248, 0.12)" },
   statusBarControls: { display: "flex", gap: 8, marginBottom: 20 },
   statusDot: { width: 10, height: 10, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 0 4px rgba(239,68,68,0.08)" },
   statusRow: { display: "grid", gridTemplateColumns: "80px 1fr", gap: 8, alignItems: "center", marginBottom: 12 },
@@ -5277,7 +5375,21 @@ const styles: { [key: string]: React.CSSProperties } = {
   stateBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "8px 14px", borderRadius: 999, background: "rgba(255,255,255,0.08)", color: "#f8fafc", fontSize: 12, fontWeight: 700, border: "1px solid rgba(255,255,255,0.14)" },
   responsiveGrid: { gridTemplateColumns: "1fr", padding: 20 },
   main: { width: "100%", maxWidth: "100vw", padding: "24px 40px", minHeight: "calc(100vh - 160px)", boxSizing: "border-box" },
-  card: { background: "#fff", borderRadius: 12, padding: "28px 32px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0" },
+  chatbotContainer: { position: "fixed", right: 24, bottom: 24, zIndex: 1200, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 },
+  chatbotToggle: { display: "inline-flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 999, border: "1px solid rgba(96, 165, 250, 0.35)", background: "rgba(15, 23, 42, 0.95)", color: "#f8fafc", cursor: "pointer", boxShadow: "0 18px 40px rgba(37, 99, 235, 0.16)", transition: "transform 0.2s ease, box-shadow 0.2s ease" },
+  chatbotIcon: { width: 24, height: 24, borderRadius: "50%", objectFit: "cover" },
+  chatbotBadge: { fontSize: 13, fontWeight: 700, color: "#bfdbfe" },
+  chatbotWindow: { width: 320, maxWidth: "100vw", background: "rgba(15, 23, 42, 0.96)", border: "1px solid rgba(96, 165, 250, 0.22)", borderRadius: 22, boxShadow: "0 28px 80px rgba(15, 23, 42, 0.42), 0 0 30px rgba(96, 165, 250, 0.18)", padding: 16, backdropFilter: "blur(12px)", color: "#f8fafc" },
+  chatbotHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  chatbotTitle: { fontSize: 14, fontWeight: 700, color: "#bfdbfe" },
+  chatbotClose: { background: "transparent", border: "none", color: "#f8fafc", fontSize: 18, cursor: "pointer" },
+  chatbotMessages: { display: "flex", flexDirection: "column", gap: 10, maxHeight: 240, overflowY: "auto", paddingRight: 2, marginBottom: 12 },
+  chatbotUserMessage: { alignSelf: "flex-end", maxWidth: "100%", background: "rgba(59, 130, 246, 0.18)", color: "#e2e8f0", padding: "10px 14px", borderRadius: "18px 18px 12px 18px", fontSize: 13, lineHeight: 1.5 },
+  chatbotBotMessage: { alignSelf: "flex-start", maxWidth: "100%", background: "rgba(148, 163, 184, 0.14)", color: "#f8fafc", padding: "10px 14px", borderRadius: "18px 18px 18px 12px", fontSize: 13, lineHeight: 1.5 },
+  chatbotInputRow: { display: "flex", gap: 10, alignItems: "center" },
+  chatbotInput: { flex: 1, padding: "10px 14px", background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: 14, color: "#f8fafc", fontSize: 13, outline: "none" },
+  chatbotSendButton: { background: "#3b82f6", color: "#fff", border: "none", borderRadius: 14, padding: "10px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13 },
+  card: { background: "#fff", borderRadius: 12, padding: "28px 32px", boxShadow: "0 0 0 1px rgba(37, 99, 235, 0.08), 0 18px 46px rgba(15, 23, 42, 0.12), 0 0 34px rgba(37, 99, 235, 0.12)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid rgba(147, 197, 253, 0.36)" },
   stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" },
   stepIcon: { fontSize: 36 },
   timerBadge: { marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "10px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", minWidth: 110 },
@@ -5390,7 +5502,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   detectedConfigActionBtnActive: { background: "#1d4ed8", borderColor: "#1d4ed8", boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.15)" },
   detectedConfigNote: { fontSize: 12, color: "#475569", lineHeight: 1.5 },
   reportContainer: { display: "flex", flexDirection: "column", gap: 20 },
-  reportSection: { background: "#fff", borderRadius: 12, padding: 22, border: "1px solid #e2e8f0" },
+  reportSection: { background: "#fff", borderRadius: 12, padding: 22, border: "1px solid rgba(147, 197, 253, 0.36)", boxShadow: "0 0 0 1px rgba(37, 99, 235, 0.06), 0 14px 36px rgba(15, 23, 42, 0.1), 0 0 26px rgba(37, 99, 235, 0.1)" },
   reportTitle: { fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 18, paddingBottom: 12, borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 10 },
   reportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
   reportItem: { display: "flex", flexDirection: "column", gap: 6 },
