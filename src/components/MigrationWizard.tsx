@@ -2754,6 +2754,218 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
           )}
+          <div
+  style={{
+    marginTop: 24,
+    background: "#ffffff",
+    border: "1px solid #dbe3ef",
+    borderRadius: 16,
+    padding: "24px 36px 32px 36px",
+    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+  }}
+>
+  <h2
+    style={{
+      fontSize: 24,
+      fontWeight: 800,
+      color: "#020617",
+      margin: "0 0 22px 0",
+      letterSpacing: "-0.02em",
+    }}
+  >
+    Setup Conversion Type
+  </h2>
+
+  <div
+    style={{
+      height: 1,
+      background: "#cbd5e1",
+      marginBottom: 24,
+    }}
+  />
+
+  <p
+    style={{
+      fontSize: 18,
+      color: "#334155",
+      margin: "0 0 26px 0",
+      lineHeight: 1.4,
+    }}
+  >
+    Available modernization pathways for your project:
+  </p>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      gap: "14px 14px",
+    }}
+  >
+    {[
+      {
+        id: "java_version",
+        title: "Java Version Upgrade",
+        description: "Upgrade Java version with Dependencies update",
+        icon: "☕",
+        active: true,
+        color: "#2563eb",
+        bg: "#dbeafe",
+      },
+      {
+        id: "maven_to_gradle",
+        title: "Maven → Gradle | Gradle → Maven",
+        description: "Convert pom.xml to build.gradle with dependency mapping",
+        icon: "⚙️",
+        active: false,
+        color: "#7c3aed",
+        bg: "#f3e8ff",
+      },
+      {
+        id: "monolith_to_microservices",
+        title: "Monolithic → Microservices",
+        description: "Decompose monolith into microservices architecture",
+        icon: "🔀",
+        active: false,
+        color: "#0891b2",
+        bg: "#cffafe",
+      },
+      {
+        id: "javax_jakarta",
+        title: "javax → Jakarta EE | Jakarta EE → javax",
+        description: "Migrate javax.* packages to jakarta.*",
+        icon: "</>",
+        active: false,
+        color: "#f59e0b",
+        bg: "#fef3c7",
+      },
+      {
+        id: "spring_boot_upgrade",
+        title: "Spring → Spring Boot",
+        description: "Upgrade Spring Boot 2.x to 3.x with Jakarta EE",
+        icon: "🌿",
+        active: false,
+        color: "#22c55e",
+        bg: "#dcfce7",
+      },
+      {
+        id: "jsp_to_spa",
+        title: "JSP/JSF → Angular/React",
+        description: "Modernize legacy JSP/JSF views to Angular or React SPA",
+        icon: "💻",
+        active: false,
+        color: "#06b6d4",
+        bg: "#cffafe",
+      },
+    ].map((conversion) => {
+      const isSelected = selectedConversions.includes(conversion.id);
+
+      return (
+        <button
+          key={conversion.id}
+          type="button"
+          disabled={!conversion.active}
+          onClick={() => {
+            if (conversion.active) {
+              setSelectedConversions([conversion.id]);
+            }
+          }}
+          style={{
+            position: "relative",
+            minHeight: 135,
+            padding: 20,
+            borderRadius: 14,
+            border: isSelected
+              ? `2px solid ${conversion.color}`
+              : "1px solid #dbe3ef",
+            background: isSelected ? "#eaf1ff" : "#ffffff",
+            cursor: conversion.active ? "pointer" : "not-allowed",
+            opacity: conversion.active ? 1 : 0.95,
+            textAlign: "left",
+            overflow: "hidden",
+            boxShadow: isSelected
+              ? "0 6px 16px rgba(37, 99, 235, 0.14)"
+              : "0 3px 10px rgba(15, 23, 42, 0.04)",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 14,
+              right: 14,
+              padding: "6px 14px",
+              borderRadius: 999,
+              background: conversion.active ? conversion.color : "#e2e8f0",
+              color: conversion.active ? "#ffffff" : "#334155",
+              fontSize: 13,
+              fontWeight: 800,
+              whiteSpace: "nowrap",
+              zIndex: 2,
+            }}
+          >
+            {conversion.active ? "Active" : "Coming Soon"}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 14,
+              alignItems: "flex-start",
+            }}
+          >
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                background: conversion.bg,
+                color: conversion.color,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                fontWeight: 800,
+                flexShrink: 0,
+              }}
+            >
+              {conversion.icon}
+            </div>
+
+            <div
+              style={{
+                paddingRight: 95,
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: isSelected ? conversion.color : "#020617",
+                  marginBottom: 10,
+                  lineHeight: 1.25,
+                }}
+              >
+                {conversion.title}
+              </div>
+
+              <div
+                style={{
+                  fontSize: 14,
+                  color: "#334155",
+                  lineHeight: 1.4,
+                }}
+              >
+                {conversion.description}
+              </div>
+            </div>
+          </div>
+        </button>
+      );
+    })}
+  </div>
+</div>
         </>
       )}
 
@@ -3025,15 +3237,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderMigrationStep = () => {
     const apiEndpointCount = repoAnalysis?.api_endpoints?.length ?? 0;
     const codeRefactoringEndpointLabel = `API endpoints: ${apiEndpointCount}`;
-    const apiEndpointsByMethod =
-  repoAnalysis?.api_endpoints_by_method || {
-    GET: [],
-    POST: [],
-    PUT: [],
-    DELETE: [],
-    PATCH: [],
-    OTHER: [],
-  };
+    
 
     return (
     <div style={styles.card}>
@@ -3197,134 +3401,23 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.4 }}>
                     {item.desc}
                   </div>
-                 {item.detail && (
-  <div style={{ position: "relative", display: "inline-block", marginTop: 8 }}>
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "4px 10px",
-        borderRadius: 999,
-        backgroundColor: `${item.color}12`,
-        color: item.color,
-        fontSize: 12,
-        fontWeight: 700,
-        cursor: item.title === "Code Refactoring" ? "pointer" : "default",
-      }}
-      onMouseEnter={(e) => {
-        if (item.title !== "Code Refactoring") return;
-        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-        if (tooltip) tooltip.style.display = "block";
-      }}
-      onMouseLeave={(e) => {
-        if (item.title !== "Code Refactoring") return;
-        const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-        if (tooltip) tooltip.style.display = "none";
-      }}
-    >
-      {item.detail}
-    </div>
-
-    {item.title === "Code Refactoring" && apiEndpointCount > 0 && (
-      <div
-        style={{
-          display: "none",
-          position: "absolute",
-          top: 34,
-          left: 0,
-          width: 560,
-          maxHeight: 340,
-          overflowY: "auto",
-          background: "#ffffff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 12,
-          boxShadow: "0 12px 30px rgba(15, 23, 42, 0.18)",
-          padding: 16,
-          zIndex: 3000,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.display = "block";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.display = "none";
-        }}
-      >
-        <div
-          style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: "#0f172a",
-            marginBottom: 12,
-          }}
-        >
-          🔗 Detected API Endpoints
-        </div>
-
-        {Object.entries(apiEndpointsByMethod).map(([method, endpoints]) =>
-          endpoints.length > 0 ? (
-            <div key={method} style={{ marginBottom: 14 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 800,
-                  color:
-                    method === "GET"
-                      ? "#2563eb"
-                      : method === "POST"
-                      ? "#16a34a"
-                      : method === "PUT"
-                      ? "#ca8a04"
-                      : method === "DELETE"
-                      ? "#dc2626"
-                      : "#64748b",
-                  marginBottom: 8,
-                }}
-              >
-                {method} APIs ({endpoints.length})
-              </div>
-
-              {endpoints.map((api, index) => (
-                <div
-                  key={`${method}-${index}`}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "150px 1fr",
-                    gap: 10,
-                    padding: "7px 0",
-                    borderBottom: "1px solid #f1f5f9",
-                    fontSize: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      color: "#1e293b",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {api.name || "Unnamed API"}
-                  </div>
-
-                  <code
-                    style={{
-                      background: "#f1f5f9",
-                      color: "#1d4ed8",
-                      padding: "4px 7px",
-                      borderRadius: 6,
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {api.path}
-                  </code>
-                </div>
-              ))}
-            </div>
-          ) : null
-        )}
-      </div>
-    )}
-  </div>
-)}
+                  {item.detail && (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        marginTop: 8,
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        backgroundColor: `${item.color}12`,
+                        color: item.color,
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {item.detail}
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{
