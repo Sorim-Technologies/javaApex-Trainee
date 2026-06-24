@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import apexLogo from "../assets/apexlogo.png";
 
 interface HeaderProps {
@@ -13,8 +13,8 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       justifyContent: "space-between",
       alignItems: "center",
       padding: "12px 40px",
-      borderBottom: "1px solid #1e293b",
-      backgroundColor: "rgba(15, 20, 25, 0.95)",
+      borderBottom: "1px solid var(--nav-border)",
+      backgroundColor: "var(--nav-bg)",
       backdropFilter: "blur(10px)",
       position: "relative",
     },
@@ -27,7 +27,7 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
     logoText: {
       fontSize: 16,
       fontWeight: 700,
-      color: "#3b82f6",
+      color: "var(--primary)",
       margin: 0,
     },
     navLinks: {
@@ -36,7 +36,7 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       alignItems: "center",
     },
     navLink: {
-      color: "#e2e8f0",
+      color: "var(--muted)",
       textDecoration: "none",
       fontSize: 13,
       fontWeight: 500,
@@ -51,8 +51,8 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       height: 34,
       borderRadius: "50%",
       backgroundColor: "transparent",
-      color: "#e2e8f0",
-      border: "1px solid #374151",
+      color: "var(--text)",
+      border: "1px solid var(--icon-border)",
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
@@ -61,9 +61,9 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       transition: "all 0.3s ease",
     },
     backButton: {
-      backgroundColor: "#f1f5f9",
-      color: "#1e293b",
-      border: "1.5px solid #cbd5e1",
+      backgroundColor: "var(--surface)",
+      color: "var(--text)",
+      border: "1.5px solid var(--border)",
       borderRadius: 8,
       padding: "8px 16px",
       fontWeight: 600,
@@ -72,6 +72,25 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       transition: "all 0.3s ease",
     },
   };
+
+  const [theme, setTheme] = useState<string>(() => {
+    try {
+      return localStorage.getItem("theme") || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch (e) {
+      return 'light';
+    }
+  });
+
+  useEffect(() => {
+    const cls = theme === 'dark' ? 'theme-dark' : '';
+    if (cls) document.documentElement.classList.add(cls);
+    else document.documentElement.classList.remove('theme-dark');
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (e) {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
 
   return (
     <nav style={styles.navbar}>
@@ -83,63 +102,34 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
 
       {/* Navigation Links */}
       <div style={styles.navLinks}>
-        <a
-          style={styles.navLink}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#e2e8f0")}
-          href="#"
-        >
-          Documentation
-        </a>
-        <a
-          style={styles.navLink}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#e2e8f0")}
-          href="https://github.com/sorimdevs-tech/java-migration-accelerator"
-          target="_blank"
-          rel="noreferrer"
-        >
-          GitHub
-        </a>
-        <a
-          style={styles.navLink}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#e2e8f0")}
-          href="#"
-        >
-          Support Us
-        </a>
+        <a style={styles.navLink} className="header-nav-link" href="#">Documentation</a>
+        <a style={styles.navLink} className="header-nav-link" href="https://github.com/sorimdevs-tech/java-migration-accelerator" target="_blank" rel="noreferrer">GitHub</a>
+        <a style={styles.navLink} className="header-nav-link" href="#">Support Us</a>
         
         {showBackButton && onBackToHome ? (
           <button
             style={styles.backButton}
+            className="header-back-button"
             onClick={onBackToHome}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#e2e8f0";
-              e.currentTarget.style.borderColor = "#64748b";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#f1f5f9";
-              e.currentTarget.style.borderColor = "#cbd5e1";
-            }}
           >
             ← Home
           </button>
         ) : null}
         
         {/* Profile Icon */}
+        {/* Theme Toggle */}
+        <button
+          style={{ ...styles.iconButton, marginRight: 8 }}
+          className="header-theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {theme === 'dark' ? '🌙' : '☀️'}
+        </button>
+
         <button
           style={styles.iconButton}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#3b82f6";
-            e.currentTarget.style.borderColor = "#3b82f6";
-            e.currentTarget.style.color = "#fff";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-            e.currentTarget.style.borderColor = "#374151";
-            e.currentTarget.style.color = "#e2e8f0";
-          }}
+          className="header-profile-button"
           title="Profile"
         >
           👤

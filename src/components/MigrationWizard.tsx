@@ -19,6 +19,7 @@ import {
   // Import API_BASE_URL for dynamic URL construction
 } from "../services/api";
 import { API_BASE_URL } from "../services/api";
+import { isFrontendAuthBypassEnabled } from "../services/frontendAuth";
 import type {
   RepoInfo,
   RepoAnalysis,
@@ -133,6 +134,62 @@ const WIZARD_SELECTED_REPO_KEY = "migration_wizard_selected_repo";
 const WIZARD_REPO_ANALYSIS_KEY = "migration_wizard_repo_analysis";
 const WIZARD_FORM_STATE_KEY = "migration_wizard_form_state";
 
+const frontendAuthBypassEnabled = isFrontendAuthBypassEnabled();
+const DEV_SAMPLE_REPO_URL = "https://github.com/frontend-bypass/sample-java-app";
+const DEV_SAMPLE_REPO: RepoInfo = {
+  name: "sample-java-app",
+  full_name: "frontend-bypass/sample-java-app",
+  url: DEV_SAMPLE_REPO_URL,
+  default_branch: "main",
+  language: "Java",
+  description: "Frontend-only bypass sample project",
+};
+const DEV_SAMPLE_REPO_ANALYSIS: RepoAnalysis = {
+  name: "sample-java-app",
+  full_name: "frontend-bypass/sample-java-app",
+  default_branch: "main",
+  language: "Java",
+  build_tool: "maven",
+  java_version: "17",
+  has_tests: true,
+  dependencies: [
+    {
+      group_id: "org.springframework.boot",
+      artifact_id: "spring-boot-starter-web",
+      current_version: "3.3.0",
+      new_version: "3.3.5",
+      status: "upgraded",
+    },
+    {
+      group_id: "org.junit.jupiter",
+      artifact_id: "junit-jupiter",
+      current_version: "5.10.2",
+      new_version: "5.11.0",
+      status: "analyzed",
+    },
+  ],
+  api_endpoints: [
+    { path: "/api/health", method: "GET", file: "src/main/java/com/example/AppController.java" },
+  ],
+  structure: {
+    has_pom_xml: true,
+    has_build_gradle: false,
+    has_src_main: true,
+    has_src_test: true,
+  },
+};
+const DEV_SAMPLE_REPO_FILES: RepoFile[] = [
+  { name: "pom.xml", path: "pom.xml", type: "file", size: 1840, url: DEV_SAMPLE_REPO_URL + "/blob/main/pom.xml" },
+  { name: "src", path: "src", type: "dir", size: 0, url: DEV_SAMPLE_REPO_URL + "/tree/main/src" },
+  {
+    name: "AppController.java",
+    path: "src/main/java/com/example/AppController.java",
+    type: "file",
+    size: 1260,
+    url: DEV_SAMPLE_REPO_URL + "/blob/main/src/main/java/com/example/AppController.java",
+  },
+];
+
 const readPersistedValue = (key: string) => {
   if (typeof window === "undefined") return null;
 
@@ -195,11 +252,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
   const [repoUrl, setRepoUrl] = useState(() => {
     if (typeof window === "undefined") return "";
+    if (frontendAuthBypassEnabled) return DEV_SAMPLE_REPO_URL;
     return readPersistedValue(WIZARD_REPO_URL_KEY) || "";
   });
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<RepoInfo | null>(() =>
-    readSessionJson<RepoInfo>(WIZARD_SELECTED_REPO_KEY)
+    frontendAuthBypassEnabled ? DEV_SAMPLE_REPO : readSessionJson<RepoInfo>(WIZARD_SELECTED_REPO_KEY)
   );
   const [githubToken, setGithubToken] = useState("");
   const [isPrivateRepo, setIsPrivateRepo] = useState(
@@ -268,9 +326,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const currentToken = useMemo(getCurrentToken, [githubToken, patToken, showEnterpriseToken, isPrivateRepo]);
   const shouldShowPatInput = showEnterpriseToken || isPrivateRepo;
   const [repoAnalysis, setRepoAnalysis] = useState<RepoAnalysis | null>(() =>
-    readSessionJson<RepoAnalysis>(WIZARD_REPO_ANALYSIS_KEY)
+    frontendAuthBypassEnabled ? DEV_SAMPLE_REPO_ANALYSIS : readSessionJson<RepoAnalysis>(WIZARD_REPO_ANALYSIS_KEY)
   );
-  const [repoFiles, setRepoFiles] = useState<RepoFile[]>([]);
+  const [repoFiles, setRepoFiles] = useState<RepoFile[]>(frontendAuthBypassEnabled ? DEV_SAMPLE_REPO_FILES : []);
   const [currentPath, setCurrentPath] = useState(persistedFormState?.currentPath ?? "");
   const [targetRepoName, setTargetRepoName] = useState(persistedFormState?.targetRepoName ?? "");
   const [targetRepoTimestamp, setTargetRepoTimestamp] = useState(
@@ -279,7 +337,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [sourceVersions, setSourceVersions] = useState<JavaVersionOption[]>([]);
   const [targetVersions, setTargetVersions] = useState<JavaVersionOption[]>([]);
   const [selectedSourceVersion, setSelectedSourceVersion] = useState(
-    persistedFormState?.selectedSourceVersion ?? "8"
+    persistedFormState?.selectedSourceVersion ?? (frontendAuthBypassEnabled ? "17" : "8")
   );
   const [selectedTargetVersion, setSelectedTargetVersion] = useState(
     persistedFormState?.selectedTargetVersion ?? ""
@@ -288,11 +346,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [selectedConversions, setSelectedConversions] = useState<string[]>(
     persistedFormState?.selectedConversions ?? ["java_version"]
   );
-  const [runTests, setRunTests] = useState(persistedFormState?.runTests ?? true);
-  const [runSonar, setRunSonar] = useState(persistedFormState?.runSonar ?? false);
-  const [runFossa, setRunFossa] = useState(persistedFormState?.runFossa ?? false);
+  const [runTests, setRunTests] = useState(frontendAuthBypassEnabled ? true : (persistedFormState?.runTests ?? true));
+  const [runSonar, setRunSonar] = useState(frontendAuthBypassEnabled ? false : (persistedFormState?.runSonar ?? false));
+  const [runFossa, setRunFossa] = useState(frontendAuthBypassEnabled ? false : (persistedFormState?.runFossa ?? false));
   const [fixBusinessLogic, setFixBusinessLogic] = useState(
-    persistedFormState?.fixBusinessLogic ?? true
+    frontendAuthBypassEnabled ? true : (persistedFormState?.fixBusinessLogic ?? true)
   );
 
   const [loading, setLoading] = useState(false);
@@ -306,12 +364,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [migrationApproach, setMigrationApproach] = useState(
     persistedFormState?.migrationApproach ?? "fork"
   );
-  const [riskLevel, setRiskLevel] = useState(persistedFormState?.riskLevel ?? "");
+  const [riskLevel, setRiskLevel] = useState(frontendAuthBypassEnabled ? "low" : (persistedFormState?.riskLevel ?? ""));
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>(
     persistedFormState?.selectedFrameworks ?? []
   );
   const [isJavaProject, setIsJavaProject] = useState<boolean | null>(
-    persistedFormState?.isJavaProject ?? null
+    frontendAuthBypassEnabled ? true : (persistedFormState?.isJavaProject ?? null)
   );
   const [selectedFile, setSelectedFile] = useState<RepoFile | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
@@ -319,22 +377,27 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [isEditing, setIsEditing] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [pathHistory, setPathHistory] = useState<string[]>(
-    persistedFormState?.pathHistory?.length ? persistedFormState.pathHistory : [""]
+    frontendAuthBypassEnabled ? [""] : (persistedFormState?.pathHistory?.length ? persistedFormState.pathHistory : [""])
   );
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   
   // High-risk project states (no pom.xml/build.gradle or unknown Java version)
   const [isHighRiskProject, setIsHighRiskProject] = useState(
-    persistedFormState?.isHighRiskProject ?? false
+    frontendAuthBypassEnabled ? false : (persistedFormState?.isHighRiskProject ?? false)
   );
   const [highRiskConfirmed, setHighRiskConfirmed] = useState(
-    persistedFormState?.highRiskConfirmed ?? false
+    frontendAuthBypassEnabled ? true : (persistedFormState?.highRiskConfirmed ?? false)
   );
   const [suggestedJavaVersion, setSuggestedJavaVersion] = useState(
-    persistedFormState?.suggestedJavaVersion ?? "auto"
+    frontendAuthBypassEnabled ? "17" : (persistedFormState?.suggestedJavaVersion ?? "auto")
   );
   const [detectedFrameworks, setDetectedFrameworks] = useState<{name: string; path: string; type: string}[]>(
-    persistedFormState?.detectedFrameworks ?? []
+    frontendAuthBypassEnabled
+      ? [
+          { name: "Spring Boot", path: "pom.xml", type: "Application Framework" },
+          { name: "JUnit", path: "pom.xml", type: "Testing Framework" },
+        ]
+      : (persistedFormState?.detectedFrameworks ?? [])
   );
   const [viewingFrameworkFile, setViewingFrameworkFile] = useState<{name: string; path: string; content: string} | null>(null);
   const [frameworkFileLoading, setFrameworkFileLoading] = useState(false);
@@ -346,7 +409,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
   // Track if no version was detected/selected
   const [sourceVersionStatus, setSourceVersionStatus] = useState<"detected" | "not_selected" | "unknown">(
-    persistedFormState?.sourceVersionStatus ?? "unknown"
+    frontendAuthBypassEnabled ? "detected" : (persistedFormState?.sourceVersionStatus ?? "unknown")
   );
   // Track if user confirmed and wants to update pom.xml
   const [updateSourceVersion, setUpdateSourceVersion] = useState(
@@ -663,27 +726,28 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
 
     setError("");
-    setRepoAnalysis(null);
-    setRepoFiles([]);
-    setCurrentPath("");
-    setPathHistory([""]);
-    setSelectedFile(null);
-    setFileContent("");
-    setEditedContent("");
-    setIsEditing(false);
-    setIsJavaProject(null);
-    setDetectedFrameworks([]);
-    setSelectedRepo({
-      name: normalizedUrl.split('/').pop() || "",
-      full_name: normalizedUrl
-        .replace(/^https?:\/\/(www\.)?github\.com\//, '')
-        .replace(/^https?:\/\/(www\.)?gitlab\.com\//, ''),
-      url: normalizedUrl,
-      default_branch: "main",
-      language: "Java",
-      description: ""
-    });
-    setStep(2);
+    if (frontendAuthBypassEnabled) {
+      setRepoAnalysis(DEV_SAMPLE_REPO_ANALYSIS);
+      setRepoFiles(DEV_SAMPLE_REPO_FILES);
+      setCurrentPath("");
+      setPathHistory([""]);
+      setSelectedFile(null);
+      setFileContent("");
+      setEditedContent("");
+      setIsEditing(false);
+      setIsJavaProject(true);
+      setDetectedFrameworks([
+        { name: "Spring Boot", path: "pom.xml", type: "Application Framework" },
+        { name: "JUnit", path: "pom.xml", type: "Testing Framework" },
+      ]);
+      setSelectedSourceVersion("17");
+      setRiskLevel("low");
+      setIsHighRiskProject(false);
+      setHighRiskConfirmed(true);
+      setSuggestedJavaVersion("17");
+      setSourceVersionStatus("detected");
+      setSelectedRepo(DEV_SAMPLE_REPO);
+      setStep(2);
   };
 
   useEffect(() => {
@@ -984,6 +1048,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [step, migrationJob?.progress_percent, migrationJob?.status]);
 
   useEffect(() => {
+    if (frontendAuthBypassEnabled) {
+      return;
+    }
+
     if (step === 2 && selectedRepo && !repoAnalysis) {
       setAnalysisLoading(true);
       setError("");
@@ -1008,6 +1076,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [step, selectedRepo, repoAnalysis, currentToken]);
 
   useEffect(() => {
+    if (frontendAuthBypassEnabled) {
+      if (step === 3) {
+        setVersionRecommendation(null);
+        setVersionRecommendationLoading(false);
+        setVersionRecommendationError("");
+      }
+      return;
+    }
+
     if (step !== 3 || !repoAnalysis || !selectedSourceVersion) {
       if (step !== 3) {
         setVersionRecommendation(null);
@@ -1051,6 +1128,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [step, repoAnalysis, selectedSourceVersion, riskLevel]);
 
   useEffect(() => {
+    if (frontendAuthBypassEnabled) {
+      setRepoAccessCheckLoading(false);
+      return;
+    }
+
     if (step !== 1 || !urlValidation.valid || showEnterpriseToken || patToken.trim()) {
       setRepoAccessCheckLoading(false);
       return;
@@ -1096,6 +1178,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [step, urlValidation.valid, urlValidation.normalizedUrl, showEnterpriseToken, patToken]);
 
   useEffect(() => {
+    if (frontendAuthBypassEnabled) {
+      return;
+    }
+
     if (step === 2 && selectedRepo) {
       setRepoFilesLoading(true);
       listRepoFiles(selectedRepo.url, currentToken, currentPath)
@@ -1368,40 +1454,42 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div 
             style={{ 
               display: "flex", 
+              flex: 1,
               flexDirection: "column", 
               alignItems: "center", 
               gap: 8,
               opacity: 1,
               cursor: isUnlocked && !isActive ? "pointer" : "default",
-              transition: "all 0.3s ease"
+              transition: "all 0.3s ease",
+              justifyContent: "center"
             }} 
             onClick={() => isUnlocked && !isActive && setStep(s.id)}
           >
             <div style={{ 
               ...styles.stepCircle, 
-              backgroundColor: isCompleted ? "#22c55e" : isActive ? "#3b82f6" : "#e5e7eb", 
-              color: currentIndicatorStep >= s.id ? "#fff" : "#6b7280",
-              width: 44,
-              height: 44,
-              fontSize: 18,
-              boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none"
+              background: isCompleted ? "var(--success-gradient)" : isActive ? "var(--primary-gradient)" : "var(--surface-alt)", 
+              color: currentIndicatorStep >= s.id ? "var(--on-primary)" : "var(--muted)",
+              width: 48,
+              height: 48,
+              fontSize: 20,
+              boxShadow: isActive ? "0 0 0 6px rgba(37, 99, 235, 0.18)" : "none"
             }}>
               {step > s.id ? "✓" : s.icon}
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ 
-                fontWeight: isActive ? 700 : 500, 
+                fontWeight: isActive ? 700 : 600, 
                 fontSize: 13, 
-                color: isActive ? "#3b82f6" : isCompleted ? "#22c55e" : "#64748b",
+                color: isActive ? "var(--text)" : isCompleted ? "var(--success-text)" : "var(--muted)",
                 marginBottom: 2
               }}>
                 {s.name}
               </div>
               <div style={{ 
                 fontSize: 10, 
-                color: isActive ? "#64748b" : "#94a3b8",
+                color: "var(--muted)",
                 maxWidth: 100,
-                lineHeight: 1.3
+                lineHeight: 1.4
               }}>
                 {s.description}
               </div>
@@ -1409,16 +1497,25 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
           {/* Connector Line */}
           {index < MIGRATION_STEPS.length - 1 && (
-            <div style={{
-              flex: 1,
-              height: 3,
-              backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : "#e5e7eb",
-              marginTop: -50,
-              marginLeft: -10,
-              marginRight: -10,
-              borderRadius: 2,
-              transition: "background-color 0.3s ease"
-            }} />
+            <div style={styles.stepConnector}>
+              <div style={{
+                width: "100%",
+                height: 4,
+                borderRadius: 999,
+                background: isCompleted ? "var(--success-gradient)" : "var(--border)",
+                transition: "background 0.3s ease"
+              }} />
+              <span style={{
+                position: "absolute",
+                right: 0,
+                fontSize: 18,
+                color: isCompleted ? "var(--success-text)" : "var(--muted)",
+                fontWeight: 700,
+                transform: "translateX(8px)"
+              }}>
+                →
+              </span>
+            </div>
           )}
         </React.Fragment>
         );
@@ -1450,22 +1547,22 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   width: 18,
                   height: 18,
                   borderRadius: "50%",
-                  backgroundColor: "#e2e8f0",
-                  color: "#64748b",
+                  backgroundColor: "var(--surface-alt)",
+                  color: "var(--muted)",
                   fontSize: 11,
                   fontWeight: 700,
                   cursor: "help",
                   transition: "all 0.2s ease"
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#3b82f6";
-                  e.currentTarget.style.color = "#fff";
+                  e.currentTarget.style.backgroundColor = "var(--primary)";
+                  e.currentTarget.style.color = "var(--on-primary)";
                   const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                   if (tooltip) tooltip.style.display = "block";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e2e8f0";
-                  e.currentTarget.style.color = "#64748b";
+                  e.currentTarget.style.backgroundColor = "var(--surface-alt)";
+                  e.currentTarget.style.color = "var(--muted)";
                   const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
                   if (tooltip) tooltip.style.display = "none";
                 }}
@@ -1479,8 +1576,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   position: "absolute",
                   top: 24,
                   left: 0,
-                  backgroundColor: "#1e293b",
-                  color: "#fff",
+                  backgroundColor: "var(--tooltip-bg)",
+                  color: "var(--text)",
                   padding: "12px 16px",
                   borderRadius: 8,
                   fontSize: 12,
@@ -1490,7 +1587,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
                 }}
               >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
+                <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--muted)" }}>Supported formats:</div>
                 <div>• https://github.com/owner/repo</div>
                 <div>• github.com/owner/repo</div>
                 <div>• owner/repo</div>
@@ -1510,7 +1607,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </label>
           <input
             type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
+            style={{ ...styles.input, borderColor: urlValidation.valid ? 'var(--success-border)' : repoUrl ? 'var(--danger-border)' : 'var(--input-border)' }}
             value={repoUrl}
             onChange={(e) => {
               setRepoUrl(e.target.value);
@@ -1528,12 +1625,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             placeholder="https://github.com/owner/repository"
           />
           {!shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>
               Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
             </div>
           )}
           {repoAccessCheckLoading && !shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 8 }}>
               Checking repository access...
             </div>
           )}
@@ -1544,13 +1641,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </label>
               <input
                 type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
+                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? 'var(--success-border)' : 'var(--input-border)' }}
                 value={showEnterpriseToken ? githubToken : patToken}
                 onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
                 placeholder="Paste your GitHub PAT here"
                 autoComplete="off"
               />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                 {showEnterpriseToken
                   ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
                   : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
@@ -1558,12 +1655,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             </div>
           )}
           {repoUrl && !urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--danger-text)', marginTop: 6 }}>
               ⚠️ {urlValidation.message}
             </div>
           )}
           {urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--success-text)', marginTop: 6 }}>
               ✓ Valid repository URL
             </div>
           )}
@@ -5270,78 +5367,79 @@ For questions or issues:
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "#f8fafc", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
+  container: { minHeight: "100vh", width: "100vw", maxWidth: "100vw", margin: 0, padding: 0, background: "var(--bg)", color: "var(--text)", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflowX: "hidden" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", width: "100%", boxSizing: "border-box", background: "var(--surface)", borderBottom: "1px solid var(--border)" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
-  stepIndicatorContainer: { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
-  stepIndicator: { display: "flex", gap: 0, justifyContent: "center", alignItems: "flex-start", minWidth: "fit-content", flexWrap: "nowrap" },
-  stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.2s ease", cursor: "pointer", whiteSpace: "nowrap" },
+  stepIndicatorContainer: { background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "20px 0", width: "100vw", position: "relative", left: "50%", right: "50%", marginLeft: "-50vw", marginRight: "-50vw", boxSizing: "border-box", overflowX: "auto" },
+  stepIndicator: { display: "flex", gap: 0, justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "nowrap" },
+  stepItem: { display: "flex", flex: "1 1 0", flexDirection: "column", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 8, transition: "all 0.2s ease", cursor: "pointer", whiteSpace: "normal", minWidth: 0, maxWidth: 180, boxSizing: "border-box", color: "var(--text)" },
+  stepConnector: { position: "relative", width: 60, minWidth: 60, height: 32, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 4px", flexShrink: 0 },
   stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "all 0.2s ease" },
   stepLabel: { display: "flex", flexDirection: "column" },
-  main: { width: "100%", maxWidth: "100vw", padding: "24px 40px", minHeight: "calc(100vh - 160px)", boxSizing: "border-box" },
-  card: { background: "#fff", borderRadius: 12, padding: "28px 32px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0" },
-  stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" },
+  main: { width: "100%", maxWidth: "100vw", padding: "24px 12px", minHeight: "calc(100vh - 160px)", boxSizing: "border-box", background: "var(--bg)", color: "var(--text)" },
+  card: { background: "var(--surface)", borderRadius: 12, padding: "24px 20px", boxShadow: "var(--shadow)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid var(--border)" },
+  stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid var(--border)", flexWrap: "wrap" },
   stepIcon: { fontSize: 36 },
-  timerBadge: { marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "10px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", minWidth: 110 },
-  timerLabel: { fontSize: 11, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.5px" },
-  timerValue: { fontSize: 20, fontWeight: 700, color: "#1e3a8a", fontVariantNumeric: "tabular-nums" },
-  title: { fontSize: 22, fontWeight: 700, marginBottom: 6, color: "#1e293b" },
-  subtitle: { fontSize: 14, color: "#64748b", margin: 0, lineHeight: 1.5 },
-  sectionTitle: { fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 14, marginTop: 20, display: "flex", alignItems: "center", gap: 8 },
+  timerBadge: { marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "10px 14px", borderRadius: 10, background: "var(--info-bg)", border: "1px solid var(--info-border)", minWidth: 110 },
+  timerLabel: { fontSize: 11, fontWeight: 700, color: "var(--info-text)", textTransform: "uppercase", letterSpacing: "0.5px" },
+  timerValue: { fontSize: 20, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums" },
+  title: { fontSize: 22, fontWeight: 700, marginBottom: 6, color: "var(--text)" },
+  subtitle: { fontSize: 14, color: "var(--muted)", margin: 0, lineHeight: 1.5 },
+  sectionTitle: { fontSize: 16, fontWeight: 600, color: "var(--text)", marginBottom: 14, marginTop: 20, display: "flex", alignItems: "center", gap: 8 },
   field: { marginBottom: 20, width: "100%", boxSizing: "border-box" },
-  label: { fontWeight: 600, fontSize: 14, marginBottom: 8, display: "block", color: "#374151" },
-  input: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #d1d5db", boxSizing: "border-box", transition: "all 0.2s ease", backgroundColor: "#fff" },
-  select: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #d1d5db", backgroundColor: "#fff", transition: "all 0.2s ease", cursor: "pointer" },
-  helpText: { fontSize: 13, color: "#64748b", marginTop: 6, lineHeight: 1.4 },
+  label: { fontWeight: 600, fontSize: 14, marginBottom: 8, display: "block", color: "var(--text)" },
+  input: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid var(--input-border)", boxSizing: "border-box", transition: "all 0.2s ease", backgroundColor: "var(--input-bg)", color: "var(--text)" },
+  select: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid var(--input-border)", backgroundColor: "var(--input-bg)", transition: "all 0.2s ease", cursor: "pointer", color: "var(--text)" },
+  helpText: { fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.4 },
   infoButtonContainer: { position: "relative", display: "inline-block", zIndex: 100 },
-  infoButton: { width: 22, height: 22, borderRadius: "50%", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease", padding: 0, fontWeight: 600 },
-  tooltip: { display: "none", position: "absolute", bottom: "calc(100% + 10px)", left: 0, width: 280, background: "#1e293b", color: "#f1f5f9", padding: "14px", borderRadius: 8, fontSize: 13, zIndex: 1001, boxShadow: "0 10px 25px rgba(0,0,0,0.2)" },
+  infoButton: { width: 22, height: 22, borderRadius: "50%", background: "var(--surface-alt)", border: "none", cursor: "pointer", fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease", padding: 0, fontWeight: 600 },
+  tooltip: { display: "none", position: "absolute", bottom: "calc(100% + 10px)", left: 0, width: 280, background: "var(--surface-alt)", color: "var(--text)", padding: "14px", borderRadius: 8, fontSize: 13, zIndex: 1001, boxShadow: "0 10px 25px rgba(0,0,0,0.2)" },
   link: { color: "#2563eb", textDecoration: "none", fontWeight: 500 },
-  infoBox: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: 16, marginBottom: 20, fontSize: 14, color: "#1e40af", width: "100%", boxSizing: "border-box", lineHeight: 1.5 },
-  warningBox: { background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: 16, marginBottom: 20, width: "100%", boxSizing: "border-box" },
-  warningTitle: { fontWeight: 600, marginBottom: 10, color: "#78350f", fontSize: 14 },
-  warningList: { margin: 0, paddingLeft: 18, fontSize: 14, color: "#92400e", lineHeight: 1.6 },
-  errorBanner: { background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "12px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", color: "#991b1b", width: "100%", boxSizing: "border-box" },
-  errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#dc2626" },
-  errorBox: { background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "14px 16px", marginBottom: 20, color: "#991b1b", width: "100%", boxSizing: "border-box" },
+  infoBox: { background: "var(--info-bg)", border: "1px solid var(--info-border)", borderRadius: 8, padding: 16, marginBottom: 20, fontSize: 14, color: "var(--info-text)", width: "100%", boxSizing: "border-box", lineHeight: 1.5 },
+  warningBox: { background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 8, padding: 16, marginBottom: 20, width: "100%", boxSizing: "border-box", color: "var(--warning-text)" },
+  warningTitle: { fontWeight: 600, marginBottom: 10, color: "var(--warning-text)", fontSize: 14 },
+  warningList: { margin: 0, paddingLeft: 18, fontSize: 14, color: "var(--warning-text)", lineHeight: 1.6 },
+  errorBanner: { background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--danger-text)", width: "100%", boxSizing: "border-box" },
+  errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "var(--danger-text)" },
+  errorBox: { background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, padding: "14px 16px", marginBottom: 20, color: "var(--danger-text)", width: "100%", boxSizing: "border-box" },
   btnRow: { display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" },
   primaryBtn: { background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
-  secondaryBtn: { background: "#fff", color: "#374151", border: "1px solid #d1d5db", borderRadius: 8, padding: "12px 24px", fontWeight: 500, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
+  secondaryBtn: { background: "var(--surface)", color: "var(--text)", border: "1px solid var(--input-border)", borderRadius: 8, padding: "12px 24px", fontWeight: 500, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
   row: { display: "flex", gap: 20 },
-  loadingBox: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 40, color: "#2563eb", fontWeight: 500, fontSize: 15 },
-  spinner: { width: 24, height: 24, border: "3px solid #e5e7eb", borderTop: "3px solid #2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite" },
+  loadingBox: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 40, color: "var(--primary)", fontWeight: 500, fontSize: 15 },
+  spinner: { width: 24, height: 24, border: "3px solid var(--border)", borderTop: "3px solid var(--primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite" },
   repoList: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto", paddingRight: 6 },
-  repoItem: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", transition: "all 0.2s ease", backgroundColor: "#fff" },
+  repoItem: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer", transition: "all 0.2s ease", backgroundColor: "var(--surface)" },
   repoIcon: { fontSize: 20 },
   repoInfo: { flex: 1 },
-  repoName: { fontWeight: 600, fontSize: 14, color: "#1e293b" },
-  repoPath: { fontSize: 12, color: "#64748b", marginTop: 2 },
-  repoLanguage: { fontSize: 11, padding: "4px 10px", background: "#eff6ff", borderRadius: 12, color: "#2563eb", fontWeight: 500 },
-  arrow: { fontSize: 16, color: "#2563eb" },
-  emptyText: { textAlign: "center", color: "#64748b", padding: 40, fontSize: 14 },
-  selectedRepoBox: { display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "#eff6ff", borderRadius: 8, marginBottom: 20, border: "1px solid #bfdbfe" },
-  changeBtn: { marginLeft: "auto", background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: 13, fontWeight: 600 },
+  repoName: { fontWeight: 600, fontSize: 14, color: "var(--text)" },
+  repoPath: { fontSize: 12, color: "var(--muted)", marginTop: 2 },
+  repoLanguage: { fontSize: 11, padding: "4px 10px", background: "var(--info-bg)", borderRadius: 12, color: "var(--info-text)", fontWeight: 500 },
+  arrow: { fontSize: 16, color: "var(--primary)" },
+  emptyText: { textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 14 },
+  selectedRepoBox: { display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--info-bg)", borderRadius: 8, marginBottom: 20, border: "1px solid var(--info-border)" },
+  changeBtn: { marginLeft: "auto", background: "none", border: "none", color: "var(--primary)", cursor: "pointer", fontSize: 13, fontWeight: 600 },
   riskBadge: { display: "inline-block", padding: "8px 16px", borderRadius: 16, fontSize: 13, fontWeight: 600, marginBottom: 14 },
   assessmentGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 20 },
-  assessmentItem: { background: "#fff", padding: 18, borderRadius: 10, textAlign: "center", border: "1px solid #e2e8f0" },
-  assessmentLabel: { fontSize: 11, color: "#64748b", marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  assessmentValue: { fontSize: 20, fontWeight: 700, color: "#1e293b" },
-  structureBox: { background: "#f8fafc", padding: 18, borderRadius: 10, marginBottom: 20, border: "1px solid #e2e8f0" },
+  assessmentItem: { background: "var(--surface)", padding: 18, borderRadius: 10, textAlign: "center", border: "1px solid var(--border)" },
+  assessmentLabel: { fontSize: 11, color: "var(--muted)", marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
+  assessmentValue: { fontSize: 20, fontWeight: 700, color: "var(--text)" },
+  structureBox: { background: "var(--surface-alt)", padding: 18, borderRadius: 10, marginBottom: 20, border: "1px solid var(--border)" },
   structureTitle: { fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#1e293b" },
   structureGrid: { display: "flex", gap: 14, flexWrap: "wrap" },
   structureFound: { color: "#059669", fontWeight: 600 },
   structureMissing: { color: "#9ca3af", fontWeight: 500 },
   dependenciesBox: { marginBottom: 20 },
-  dependenciesList: { background: "#fff", borderRadius: 10, padding: 14, border: "1px solid #e2e8f0" },
+  dependenciesList: { background: "var(--surface)", borderRadius: 10, padding: 14, border: "1px solid var(--border)" },
   dependencyItem: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f1f5f9", fontSize: 13 },
   dependencyVersion: { color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
   moreItems: { textAlign: "center", color: "#2563eb", fontSize: 12, paddingTop: 10, fontWeight: 500 },
   radioGroup: { display: "flex", flexDirection: "column", gap: 10 },
-  radioLabel: { display: "flex", alignItems: "flex-start", gap: 12, padding: 16, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", transition: "all 0.2s ease", backgroundColor: "#fff" },
+  radioLabel: { display: "flex", alignItems: "flex-start", gap: 12, padding: 16, border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", transition: "all 0.2s ease", backgroundColor: "var(--surface)" },
   radio: { marginTop: 4, accentColor: "#2563eb" },
   checkbox: { width: 18, height: 18, accentColor: "#2563eb", cursor: "pointer" },
   frameworkGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 },
-  frameworkItem: { display: "flex", alignItems: "center", gap: 12, padding: 16, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", background: "#fff", transition: "all 0.2s ease" },
+  frameworkItem: { display: "flex", alignItems: "center", gap: 12, padding: 16, border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", background: "var(--surface)", transition: "all 0.2s ease" },
   detectedBadge: { marginLeft: "auto", fontSize: 11, padding: "4px 10px", background: "#059669", color: "#fff", borderRadius: 12, fontWeight: 600 },
   conversionGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 },
   conversionItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", position: "relative", transition: "all 0.2s ease", background: "#fff" },
@@ -5376,71 +5474,71 @@ const styles: { [key: string]: React.CSSProperties } = {
   filePath: { fontSize: 12, color: "#64748b", marginTop: 2 },
   fileSize: { fontSize: 11, color: "#94a3b8", fontWeight: 500, padding: "3px 8px", backgroundColor: "#f1f5f9", borderRadius: 6 },
   discoveryContent: { display: "flex", flexDirection: "column", gap: 14 },
-  discoveryItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  discoveryItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
   discoveryIcon: { fontSize: 26 },
-  discoveryTitle: { fontSize: 15, fontWeight: 600, color: "#1e293b", marginBottom: 2 },
-  discoveryDesc: { fontSize: 13, color: "#64748b" },
-  detectedConfigCard: { background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)", border: "1px solid #bfdbfe", borderRadius: 12, padding: 20, marginTop: 18, marginBottom: 20 },
+  discoveryTitle: { fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 2 },
+  discoveryDesc: { fontSize: 13, color: "var(--muted)" },
+  detectedConfigCard: { background: "var(--info-bg)", border: "1px solid var(--info-border)", borderRadius: 12, padding: 20, marginTop: 18, marginBottom: 20 },
   detectedConfigHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 14 },
-  detectedConfigTitle: { fontSize: 16, fontWeight: 700, color: "#1e3a8a", marginBottom: 4 },
-  detectedConfigSubtitle: { fontSize: 13, color: "#475569", lineHeight: 1.5 },
+  detectedConfigTitle: { fontSize: 16, fontWeight: 700, color: "var(--info-text)", marginBottom: 4 },
+  detectedConfigSubtitle: { fontSize: 13, color: "var(--muted)", lineHeight: 1.5 },
   detectedConfigActions: { display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 },
-  detectedConfigChip: { padding: "10px 14px", borderRadius: 999, border: "1px solid #93c5fd", background: "#fff", color: "#1e3a8a", fontSize: 13, fontWeight: 600, cursor: "default" },
-  detectedConfigActionBtn: { padding: "10px 16px", borderRadius: 999, border: "1px solid #2563eb", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s ease" },
-  detectedConfigActionBtnActive: { background: "#1d4ed8", borderColor: "#1d4ed8", boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.15)" },
-  detectedConfigNote: { fontSize: 12, color: "#475569", lineHeight: 1.5 },
+  detectedConfigChip: { padding: "10px 14px", borderRadius: 999, border: "1px solid var(--info-border)", background: "var(--surface)", color: "var(--text)", fontSize: 13, fontWeight: 600, cursor: "default" },
+  detectedConfigActionBtn: { padding: "10px 16px", borderRadius: 999, border: "1px solid var(--primary)", background: "var(--primary)", color: "var(--on-primary)", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s ease" },
+  detectedConfigActionBtnActive: { background: "var(--primary)", borderColor: "var(--primary)", boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.15)" },
+  detectedConfigNote: { fontSize: 12, color: "var(--muted)", lineHeight: 1.5 },
   reportContainer: { display: "flex", flexDirection: "column", gap: 20 },
-  reportSection: { background: "#fff", borderRadius: 12, padding: 22, border: "1px solid #e2e8f0" },
-  reportTitle: { fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 18, paddingBottom: 12, borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 10 },
+  reportSection: { background: "var(--surface)", borderRadius: 12, padding: 22, border: "1px solid var(--border)" },
+  reportTitle: { fontSize: 17, fontWeight: 700, color: "var(--text)", marginBottom: 18, paddingBottom: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 },
   reportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
   reportItem: { display: "flex", flexDirection: "column", gap: 6 },
-  reportLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600 },
+  reportLabel: { fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
+  reportValue: { fontSize: 14, color: "var(--text)", fontWeight: 600 },
   testResults: { display: "flex", flexDirection: "column", gap: 10 },
-  testItem: { display: "flex", justifyContent: "space-between", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  testItem: { display: "flex", justifyContent: "space-between", padding: "14px 18px", background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
   sonarqubeResults: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
-  qualityItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
-  logsContainer: { background: "#1e293b", color: "#10b981", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: 18, borderRadius: 10, maxHeight: 300, overflowY: "auto", fontSize: 12, lineHeight: 1.6, border: "1px solid #334155" },
+  qualityItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 18px", background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
+  logsContainer: { background: "var(--code-bg)", color: "var(--code-text)", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: 18, borderRadius: 10, maxHeight: 300, overflowY: "auto", fontSize: 12, lineHeight: 1.6, border: "1px solid rgba(255,255,255,0.08)" },
   logEntry: { marginBottom: 6, padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" },
   issuesContainer: { display: "flex", flexDirection: "column", gap: 12 },
-  issueItem: { padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  issueItem: { padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
   issueHeader: { display: "flex", alignItems: "center", gap: 12, marginBottom: 10 },
-  issueSeverity: { padding: "6px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600, color: "#fff", textTransform: "uppercase" },
-  issueCategory: { fontSize: 12, color: "#64748b", fontWeight: 600, textTransform: "uppercase" },
-  issueStatus: { fontSize: 12, color: "#059669", fontWeight: 600, marginLeft: "auto" },
-  issueMessage: { fontSize: 14, color: "#1e293b", marginBottom: 8, fontWeight: 500, lineHeight: 1.4 },
-  issueFile: { fontSize: 12, color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", backgroundColor: "#eff6ff", padding: "6px 12px", borderRadius: 6, display: "inline-block" },
-  noIssues: { textAlign: "center", color: "#64748b", padding: 28, fontStyle: "italic", fontSize: 14 },
-  noFilesMsg: { textAlign: "center", color: "#64748b", padding: 28, fontStyle: "italic", background: "#f8fafc", borderRadius: 10, border: "1px dashed #e2e8f0" },
-  noLogs: { textAlign: "center", color: "#64748b", padding: 28, fontStyle: "italic" },
+  issueSeverity: { padding: "6px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600, color: "var(--on-primary)", background: "var(--danger-bg)", textTransform: "uppercase" },
+  issueCategory: { fontSize: 12, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" },
+  issueStatus: { fontSize: 12, color: "var(--success-text)", fontWeight: 600, marginLeft: "auto" },
+  issueMessage: { fontSize: 14, color: "var(--text)", marginBottom: 8, fontWeight: 500, lineHeight: 1.4 },
+  issueFile: { fontSize: 12, color: "var(--primary)", fontFamily: "'JetBrains Mono', monospace", backgroundColor: "var(--info-bg)", padding: "6px 12px", borderRadius: 6, display: "inline-block" },
+  noIssues: { textAlign: "center", color: "var(--muted)", padding: 28, fontStyle: "italic", fontSize: 14 },
+  noFilesMsg: { textAlign: "center", color: "var(--muted)", padding: 28, fontStyle: "italic", background: "var(--surface-alt)", borderRadius: 10, border: "1px dashed var(--border)" },
+  noLogs: { textAlign: "center", color: "var(--muted)", padding: 28, fontStyle: "italic" },
 
   // Animation styles
-  animationContainer: { padding: 24, background: "#f8fafc", borderRadius: 12, marginTop: 20, border: "1px solid #e2e8f0" },
+  animationContainer: { padding: 24, background: "var(--surface-alt)", borderRadius: 12, marginTop: 20, border: "1px solid var(--border)" },
   migrationAnimation: { maxWidth: 600, margin: "0 auto" },
   animationHeader: { textAlign: "center", marginBottom: 32 },
-  migratingText: { fontSize: 24, fontWeight: 700, color: "#1e293b", marginBottom: 10 },
-  versionTransition: { fontSize: 14, color: "#fff", padding: "10px 20px", background: "#2563eb", borderRadius: 20, display: "inline-block", fontWeight: 600 },
+  migratingText: { fontSize: 24, fontWeight: 700, color: "var(--text)", marginBottom: 10 },
+  versionTransition: { fontSize: 14, color: "var(--on-primary)", padding: "10px 20px", background: "var(--primary)", borderRadius: 20, display: "inline-block", fontWeight: 600 },
   animationSteps: { display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 },
-  animationStep: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  animationStep: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
   stepIconAnimated: { fontSize: 22, minWidth: 22 },
-  stepText: { flex: 1, fontSize: 14, fontWeight: 500, color: "#1e293b" },
-  checkMarkAnimated: { fontSize: 18, color: "#059669" },
+  stepText: { flex: 1, fontSize: 14, fontWeight: 500, color: "var(--text)" },
+  checkMarkAnimated: { fontSize: 18, color: "var(--success-text)" },
   animatedProgressSection: { marginBottom: 24 },
   animatedProgressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 14, fontWeight: 600, color: "#1e293b" },
   animatedProgressBar: { width: "100%", height: 12, background: "#e5e7eb", borderRadius: 8, overflow: "hidden" },
   animatedProgressFill: { height: "100%", borderRadius: 8, transition: "width 0.4s ease", background: "#2563eb" },
   statusMessages: { textAlign: "center" },
   currentStatus: { fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 10 },
-  recentLog: { fontSize: 13, color: "#64748b", fontFamily: "'JetBrains Mono', monospace", background: "#f8fafc", padding: "12px 16px", borderRadius: 8, border: "1px solid #e2e8f0" },
+  recentLog: { fontSize: 13, color: "var(--muted)", fontFamily: "'JetBrains Mono', monospace", background: "var(--surface-alt)", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--border)" },
 
   // Report styles
   changesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
-  changeItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  changeItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
   changeIcon: { fontSize: 26 },
   changeTitle: { fontSize: 14, fontWeight: 600, color: "#1e293b", marginBottom: 4 },
   changeValue: { fontSize: 13, color: "#64748b" },
   dependenciesReport: { display: "flex", flexDirection: "column", gap: 10 },
-  dependencyReportItem: { display: "grid", gridTemplateColumns: "1fr 200px 140px", gap: 14, alignItems: "center", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  dependencyReportItem: { display: "grid", gridTemplateColumns: "1fr 200px 140px", gap: 14, alignItems: "center", padding: "14px 18px", background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
   dependencyName: { fontSize: 14, fontWeight: 600, color: "#1e293b", fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-word" },
   dependencyChange: { fontSize: 13, color: "#64748b", textAlign: "center" },
   dependencyStatus: { padding: "6px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600, textTransform: "uppercase", textAlign: "center" },
@@ -5464,7 +5562,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   coveragePercent: { fontSize: 26, fontWeight: 700, color: "#2563eb" },
   coverageLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, marginTop: 2 },
   qualityMetrics: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 },
-  metricItem: { textAlign: "center", padding: 14, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  metricItem: { textAlign: "center", padding: 14, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" },
   metricValue: { display: "block", fontSize: 22, fontWeight: 700, marginBottom: 6, color: "#1e293b" },
   metricLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase" },
   testReportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginBottom: 18 },

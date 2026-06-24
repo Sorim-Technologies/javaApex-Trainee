@@ -3,23 +3,30 @@ import React from "react";
 export default function Footer() {
   const styles: { [key: string]: React.CSSProperties } = {
     footer: {
-      borderTop: "1px solid #1e293b",
-      padding: "32px 40px",
+      position: "fixed",
+      left: 0,
+      bottom: 0,
+      width: "100%",
+      zIndex: 9999,
+      borderTop: "1px solid var(--footer-border)",
+      padding: "18px 24px",
       textAlign: "center",
-      backgroundColor: "rgba(15, 20, 25, 0.5)",
+      backgroundColor: "var(--footer-bg)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
       fontSize: 14,
-      color: "#94a3b8",
+      color: "var(--muted)",
     },
     copyright: {
       marginBottom: 12,
     },
     poweredBy: {
       fontSize: 13,
-      color: "#64748b",
+      color: "var(--muted)",
       marginTop: 12,
     },
     sorimai: {
-      color: "#3b82f6",
+      color: "var(--primary)",
       fontWeight: 700,
     },
   };

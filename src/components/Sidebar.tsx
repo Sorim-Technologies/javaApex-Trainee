@@ -4,8 +4,8 @@ import "../App.css";
 const sidebarStyles: { [key: string]: React.CSSProperties } = {
   aside: {
     width: 220,
-    background: '#fff',
-    borderRight: '1px solid #e0e0e0',
+    background: 'var(--surface)',
+    borderRight: '1px solid var(--border)',
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
@@ -16,7 +16,7 @@ const sidebarStyles: { [key: string]: React.CSSProperties } = {
   header: {
     fontWeight: 700,
     fontSize: 18,
-    color: '#2563eb',
+    color: 'var(--primary)',
     marginBottom: 24,
     paddingLeft: 32,
     letterSpacing: '-0.01em',
@@ -33,15 +33,15 @@ const sidebarStyles: { [key: string]: React.CSSProperties } = {
   li: {
     padding: '12px 32px',
     fontSize: 15,
-    color: '#334155',
+    color: 'var(--text)',
     cursor: 'pointer',
     borderLeft: '3px solid transparent',
     transition: 'background 0.2s, border-color 0.2s',
   },
   active: {
-    background: '#e3f2fd',
-    color: '#2563eb',
-    borderLeft: '3px solid #2563eb',
+    background: 'var(--info-bg)',
+    color: 'var(--info-text)',
+    borderLeft: '3px solid var(--primary)',
     fontWeight: 600,
   },
 };

@@ -12,6 +12,11 @@ body {
   line-height: 1.5;
 }
 
+/* Ensure content is not hidden behind the fixed footer */
+body {
+  padding-bottom: 80px;
+}
+
 #root {
   width: 100%;
 }
@@ -60,4 +65,36 @@ button:disabled {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Theming variables */
+:root {
+  --bg: #f9fafb;
+  --text: #1f2937;
+  --muted: #64748b;
+  --primary: #3b82f6;
+  --nav-bg: rgba(15, 20, 25, 0.95);
+  --nav-border: #1e293b;
+  --icon-border: #374151;
+  --footer-bg: rgba(15, 20, 25, 0.55);
+  --footer-border: rgba(255,255,255,0.06);
+}
+
+.theme-dark {
+  --bg: #0b1220;
+  --text: #e6eef8;
+  --muted: #94a3b8;
+  --primary: #60a5fa;
+  --nav-bg: rgba(6, 10, 16, 0.85);
+  --nav-border: rgba(255,255,255,0.06);
+  --icon-border: rgba(255,255,255,0.06);
+  --footer-bg: rgba(6,8,12,0.6);
+  --footer-border: rgba(255,255,255,0.06);
+}
+
+/* Smooth theme transitions */
+body {
+  background: var(--bg);
+  color: var(--text);
+  transition: background 0.2s ease, color 0.2s ease;
 }
