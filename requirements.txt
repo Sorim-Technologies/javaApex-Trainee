@@ -11,3 +11,12 @@ python-multipart==0.0.6
 aiofiles==23.2.1
 requests==2.31.0
 gunicorn==21.2.0
+fastapi
+uvicorn
+sqlalchemy
+python-dotenv
+authlib
+python-jose[cryptography]
+passlib[bcrypt]
+httpx
+python-multipart

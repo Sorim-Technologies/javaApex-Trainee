@@ -49,6 +49,10 @@ from services.auth_service import router as auth_router
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
 
+from auth.database import Base
+from auth.database import engine
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Java Migration Accelerator API",

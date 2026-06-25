@@ -187,7 +187,7 @@
   left: 20px;
   border-width: 8px;
   border-style: solid;
-  border-color: #0f172a transparent transparent transparent;
+  border-color: #ffffff transparent transparent transparent;
 }
 
 /* Scrollbar Styling */
@@ -378,7 +378,7 @@
 .stat-value {
   font-size: 36px;
   font-weight: 800;
-  background: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -424,7 +424,7 @@
 /* Code Block */
 .code-block {
   font-family: 'JetBrains Mono', monospace;
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   color: #e2e8f0;
   padding: 20px;
   border-radius: 16px;
@@ -445,7 +445,7 @@
 .section-title {
   font-size: 20px;
   font-weight: 800;
-  background: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -479,3 +479,247 @@
     transform: none;
   }
 }
+
+
+.github-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 20px 0;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #d8dee4;
+}
+
+.github-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.github-header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #57606a;
+}
+
+.github-header-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #24292f;
+}
+
+.github-header-subtitle {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #57606a;
+}
+
+.github-badge {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #ddf4ff;
+  border: 1px solid #54aeff;
+  color: #0969da;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* SaaS Responsive Layout & Dark Mode Styles */
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .step-indicator-container {
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    width: 100% !important;
+    padding: 16px !important;
+  }
+  .step-indicator {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    gap: 24px !important;
+    padding-bottom: 8px !important;
+    justify-content: flex-start !important;
+  }
+  .step-flow-connector {
+    display: none !important;
+  }
+}
+
+/* Theme-specific Overrides for Wizard Elements */
+[data-theme="dark"] .glass-card,
+[data-theme="dark"] .card-hover,
+[data-theme="dark"] .step-indicator-container,
+[data-theme="dark"] .connectFormPanel {
+  background: var(--glass-bg) !important;
+  border-color: var(--glass-border) !important;
+  color: var(--foreground) !important;
+}
+
+[data-theme="dark"] .github-header-title {
+  color: var(--foreground) !important;
+}
+
+[data-theme="dark"] .github-header-subtitle {
+  color: var(--muted-foreground) !important;
+}
+
+[data-theme="dark"] .github-header-icon {
+  background: var(--background) !important;
+  border-color: var(--border) !important;
+  color: var(--foreground) !important;
+}
+
+[data-theme="dark"] .github-badge {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: var(--primary) !important;
+}
+
+/* Premium Log Terminal Style */
+.console-log-panel {
+  background: #090d16 !important;
+  color: #10b981 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8) !important;
+}
+
+.console-log-line {
+  border-bottom: 1px solid rgba(16, 185, 129, 0.05) !important;
+  padding: 4px 0 !important;
+}
+
+.console-log-line-error {
+  color: #ef4444 !important;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.05) !important;
+}
+
+.console-log-line-warn {
+  color: #fb923c !important;
+  border-bottom: 1px solid rgba(251, 146, 60, 0.05) !important;
+}
+
+/* Searchable Repository Cards Grid */
+.repo-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.repo-selection-card {
+  padding: 16px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.repo-selection-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+}
+
+.repo-selection-card-selected {
+  border-color: var(--primary) !important;
+  background: rgba(59, 130, 246, 0.04) !important;
+  box-shadow: 0 0 0 1px var(--primary), var(--shadow-md) !important;
+}
+
+.repo-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.repo-card-title-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.repo-card-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-card-owner {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.repo-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+
+.repo-card-pill {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--muted-foreground);
+}
+
+.repo-card-pill-public {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.repo-card-pill-private {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+/* Stepper Steppers Indicator Connectors */
+.vertical-stepper-connector {
+  position: absolute;
+  left: 23px;
+  top: 48px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+  z-index: 1;
+}
+
+.vertical-stepper-connector-active {
+  background: linear-gradient(180deg, var(--primary) 0%, var(--border) 100%);
+}
+
+.vertical-stepper-connector-complete {
+  background: #10b981;
+}

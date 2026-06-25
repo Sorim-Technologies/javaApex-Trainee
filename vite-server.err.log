@@ -1,0 +1,143 @@
+[2m10:15:58 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: C:\JavaApex\javaApex-Trainee\src\components\MigrationWizard.tsx: Missing initializer in const declaration. (6008:1)
+
+[0m [90m 6006 |[39m   flex[33m:[39m [35m1[39m[33m,[39m
+ [90m 6007 |[39m   minWidth[33m:[39m [35m0[39m
+[31m[1m>[22m[39m[90m 6008 |[39m }[33m,[39m
+ [90m      |[39m  [31m[1m^[22m[39m
+ [90m 6009 |[39m
+ [90m 6010 |[39m cardTitle[33m:[39m {
+ [90m 6011 |[39m   margin[33m:[39m [35m0[39m[33m,[39m[0m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/JavaApex/javaApex-Trainee/src/components/MigrationWizard.tsx[39m:6008:1
+[2m10:15:58 am[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\JavaApex\javaApex-Trainee\src\components\MigrationWizard.tsx: Missing initializer in const declaration. (6008:1)
+
+[0m [90m 6006 |[31m   flex[33m:[31m [35m1[31m[33m,[31m
+ [90m 6007 |[31m   minWidth[33m:[31m [35m0[31m
+[31m[1m>[22m[31m[90m 6008 |[31m }[33m,[31m
+ [90m      |[31m  [31m[1m^[22m[31m
+ [90m 6009 |[31m
+ [90m 6010 |[31m cardTitle[33m:[31m {
+ [90m 6011 |[31m   margin[33m:[31m [35m0[31m[33m,[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/JavaApex/javaApex-Trainee/src/components/MigrationWizard.tsx[39m:6008:1
+      at constructor (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:365:19)
+      at TypeScriptParserMixin.raise (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:6616:19)
+      at TypeScriptParserMixin.parseVar (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13408:16)
+      at TypeScriptParserMixin.parseVarStatement (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12784:17)
+      at TypeScriptParserMixin.parseModuleItem (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12761:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13333:36)
+      at TypeScriptParserMixin.parseBlockBody (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13326:10)
+      at TypeScriptParserMixin.parseProgram (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12639:10)
+      at TypeScriptParserMixin.parseTopLevel (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12629:25)
+      at TypeScriptParserMixin.parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:14505:25)
+      at TypeScriptParserMixin.parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:10143:18)
+      at parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:14539:38)
+      at parser (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\parser\index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transformation\normalize-file.js:51:37)
+      at normalizeFile.next (<anonymous>)
+      at run (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transformation\index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:261:32)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:223:11)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:189:28
+      at C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\gensync-utils\async.js:67:7
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:113:33
+      at step (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:287:14)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:223:11)
+[2m10:16:03 am[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\JavaApex\javaApex-Trainee\src\components\MigrationWizard.tsx: Missing initializer in const declaration. (6008:1)
+
+[0m [90m 6006 |[31m   flex[33m:[31m [35m1[31m[33m,[31m
+ [90m 6007 |[31m   minWidth[33m:[31m [35m0[31m
+[31m[1m>[22m[31m[90m 6008 |[31m }[33m,[31m
+ [90m      |[31m  [31m[1m^[22m[31m
+ [90m 6009 |[31m
+ [90m 6010 |[31m cardTitle[33m:[31m {
+ [90m 6011 |[31m   margin[33m:[31m [35m0[31m[33m,[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/JavaApex/javaApex-Trainee/src/components/MigrationWizard.tsx[39m:6008:1
+      at constructor (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:365:19)
+      at TypeScriptParserMixin.raise (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:6616:19)
+      at TypeScriptParserMixin.parseVar (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13408:16)
+      at TypeScriptParserMixin.parseVarStatement (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12784:17)
+      at TypeScriptParserMixin.parseModuleItem (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12761:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13333:36)
+      at TypeScriptParserMixin.parseBlockBody (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13326:10)
+      at TypeScriptParserMixin.parseProgram (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12639:10)
+      at TypeScriptParserMixin.parseTopLevel (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12629:25)
+      at TypeScriptParserMixin.parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:14505:25)
+      at TypeScriptParserMixin.parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:10143:18)
+      at parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:14539:38)
+      at parser (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\parser\index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transformation\normalize-file.js:51:37)
+      at normalizeFile.next (<anonymous>)
+      at run (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transformation\index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:261:32)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:223:11)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:189:28
+      at C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\gensync-utils\async.js:67:7
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:113:33
+      at step (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:287:14)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:223:11)
+[2m10:16:05 am[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\JavaApex\javaApex-Trainee\src\components\MigrationWizard.tsx: Missing initializer in const declaration. (6008:1)
+
+[0m [90m 6006 |[31m   flex[33m:[31m [35m1[31m[33m,[31m
+ [90m 6007 |[31m   minWidth[33m:[31m [35m0[31m
+[31m[1m>[22m[31m[90m 6008 |[31m }[33m,[31m
+ [90m      |[31m  [31m[1m^[22m[31m
+ [90m 6009 |[31m
+ [90m 6010 |[31m cardTitle[33m:[31m {
+ [90m 6011 |[31m   margin[33m:[31m [35m0[31m[33m,[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/JavaApex/javaApex-Trainee/src/components/MigrationWizard.tsx[39m:6008:1
+      at constructor (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:365:19)
+      at TypeScriptParserMixin.raise (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:6616:19)
+      at TypeScriptParserMixin.parseVar (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13408:16)
+      at TypeScriptParserMixin.parseVarStatement (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12784:17)
+      at TypeScriptParserMixin.parseModuleItem (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12761:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13333:36)
+      at TypeScriptParserMixin.parseBlockBody (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:13326:10)
+      at TypeScriptParserMixin.parseProgram (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12639:10)
+      at TypeScriptParserMixin.parseTopLevel (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:12629:25)
+      at TypeScriptParserMixin.parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:14505:25)
+      at TypeScriptParserMixin.parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:10143:18)
+      at parse (C:\JavaApex\javaApex-Trainee\node_modules\@babel\parser\lib\index.js:14539:38)
+      at parser (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\parser\index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transformation\normalize-file.js:51:37)
+      at normalizeFile.next (<anonymous>)
+      at run (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transformation\index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:261:32)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:223:11)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:189:28
+      at C:\JavaApex\javaApex-Trainee\node_modules\@babel\core\lib\gensync-utils\async.js:67:7
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:113:33
+      at step (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:287:14)
+      at C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:273:13
+      at async.call.result.err.err (C:\JavaApex\javaApex-Trainee\node_modules\gensync\index.js:223:11)

@@ -220,7 +220,7 @@ export interface MigrationResult {
   // FOSSA scan results (optional)
   fossa_policy_status?: string | null;
   fossa_total_dependencies?: number;
-  fossa_license_issues?: number;
+  fossa_license_issues?: number;   
   fossa_vulnerabilities?: number;
   fossa_outdated_dependencies?: number;
   error_message: string | null;
@@ -298,6 +298,16 @@ export async function fetchRepositories(token: string): Promise<RepoInfo[]> {
   return response.json();
 }
 
+// Fetch GitLab repositories
+export async function fetchGitLabRepositories(token: string): Promise<RepoInfo[]> {
+  const response = await fetch(`${API_BASE_URL}/gitlab/repos?token=${encodeURIComponent(token)}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to fetch GitLab repositories');
+  }
+  return response.json();
+}
+
 // Analyze a repository
 export async function analyzeRepository(token: string, owner: string, repo: string): Promise<RepoAnalysis> {
   const response = await fetch(
@@ -312,13 +322,25 @@ export async function analyzeRepository(token: string, owner: string, repo: stri
 
 // NEW: Analyze repository directly by URL (works for public repos without token)
 export async function analyzeRepoUrl(repoUrl: string, token: string = ""): Promise<RepoUrlAnalysis> {
+  const isGitLab = repoUrl.toLowerCase().includes("gitlab.com");
+  const endpoint = isGitLab ? 'gitlab/analyze-url' : 'github/analyze-url';
   const response = await fetch(
-    `${API_BASE_URL}/github/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/${endpoint}?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
   );
   return parseJsonResponse<RepoUrlAnalysis>(response, 'Failed to analyze repository');
 }
 
 export async function getRepoVisibility(repoUrl: string, token: string = ""): Promise<RepoVisibilityInfo> {
+  const isGitLab = repoUrl.toLowerCase().includes("gitlab.com");
+  if (isGitLab) {
+    return {
+      owner: repoUrl.split('/').slice(-2)[0] || "",
+      repo: repoUrl.split('/').pop()?.replace('.git', '') || "",
+      visibility: token ? "private" : "public",
+      requires_token: false,
+      message: "GitLab visibility validated"
+    };
+  }
   const response = await fetch(
     `${API_BASE_URL}/github/repo-visibility?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
   );
@@ -327,8 +349,10 @@ export async function getRepoVisibility(repoUrl: string, token: string = ""): Pr
 
 // NEW: List files in a repository (works for public repos without token)
 export async function listRepoFiles(repoUrl: string, token: string = "", path: string = ""): Promise<RepoFilesResponse> {
+  const isGitLab = repoUrl.toLowerCase().includes("gitlab.com");
+  const endpoint = isGitLab ? 'gitlab/list-files' : 'github/list-files';
   const response = await fetch(
-    `${API_BASE_URL}/github/list-files?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}`
+    `${API_BASE_URL}/${endpoint}?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}`
   );
   if (!response.ok) {
     const error = await response.json();
@@ -339,8 +363,10 @@ export async function listRepoFiles(repoUrl: string, token: string = "", path: s
 
 // NEW: Get file content (works for public repos without token)
 export async function getFileContent(repoUrl: string, filePath: string, token: string = ""): Promise<FileContentResponse> {
+  const isGitLab = repoUrl.toLowerCase().includes("gitlab.com");
+  const endpoint = isGitLab ? 'gitlab/file-content' : 'github/file-content';
   const response = await fetch(
-    `${API_BASE_URL}/github/file-content?repo_url=${encodeURIComponent(repoUrl)}&file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/${endpoint}?repo_url=${encodeURIComponent(repoUrl)}&file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`
   );
   if (!response.ok) {
     const error = await response.json();

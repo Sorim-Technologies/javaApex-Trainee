@@ -18,15 +18,50 @@ import {
   getMigrationFossa,
   // Import API_BASE_URL for dynamic URL construction
 } from "../services/api";
+import { HiOutlineExclamationTriangle } from "react-icons/hi2";
 
 //Import react-icons
 import {
+  MdCheckCircle,
+  MdLockOutline,
   MdOutlineLink,
   MdTravelExplore,
   MdOutlineAnalytics,
   MdOutlineBuild,
   MdOutlineAssessment,
 } from "react-icons/md";
+import { MdManageSearch } from "react-icons/md";
+import { MdErrorOutline } from "react-icons/md";
+import { HiOutlineXCircle } from "react-icons/hi2";
+import { MdCancel } from "react-icons/md";
+import { FiInfo } from "react-icons/fi";
+import { FiFolder } from "react-icons/fi";
+import { FiHome } from "react-icons/fi";
+import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiArrowUp } from "react-icons/fi";
+import { FiBarChart2 } from "react-icons/fi";
+import { FiTool } from "react-icons/fi";
+import { FaJava } from "react-icons/fa";
+import { TbPackages } from "react-icons/tb";
+import { FiX } from "react-icons/fi";
+import { MdAnalytics } from "react-icons/md";
+import { TbReportAnalytics } from "react-icons/tb";
+import { FiZap } from "react-icons/fi";
+
+
+import {
+  Folder,
+  Coffee,
+  FileCode,
+  FileJson,
+  Settings,
+  FileText,
+  Database,
+  Globe,
+  Palette,
+  Terminal
+} from "lucide-react";
+import { FiAlertCircle } from "react-icons/fi";
 
 
 import { API_BASE_URL } from "../services/api";
@@ -138,6 +173,7 @@ const getStepFromPath = (pathname: string) => {
   const entry = Object.entries(STEP_ROUTES).find(([, route]) => route === normalizedPath);
   return entry ? Number(entry[0]) : 1;
 };
+
 
 const WIZARD_REPO_URL_KEY = "migration_wizard_repo_url";
 const WIZARD_SELECTED_REPO_KEY = "migration_wizard_selected_repo";
@@ -922,7 +958,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
 
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, color: "#e2e8f0" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, color: "#334155" }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>Planned refactoring</div>
         <div style={{ fontSize: 12, lineHeight: 1.45 }}>
           {refactoringSteps.map((stepItem, index) => (
@@ -1373,44 +1409,72 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         const isCompleted = currentIndicatorStep > s.id;
         const isActive = currentIndicatorStep === s.id;
         const isUnlocked = s.id <= maxVisitedIndicatorStep;
+        const statusText = isCompleted ? "Completed" : isActive ? "In progress" : "Next";
+        const connectorComplete = currentIndicatorStep > s.id;
+        const connectorActive = currentIndicatorStep === s.id;
 
         return (
         <React.Fragment key={s.id}>
-          <div 
-            style={{ 
-              display: "flex", 
-              flexDirection: "column", 
-              alignItems: "center", 
-              gap: 8,
-              opacity: 1,
+          <div
+            style={{
+              ...styles.stepFlowItem,
               cursor: isUnlocked && !isActive ? "pointer" : "default",
-              transition: "all 0.3s ease"
-            }} 
+              opacity: isUnlocked ? 1 : 0.58,
+            }}
             onClick={() => isUnlocked && !isActive && setStep(s.id)}
+            role="button"
+            aria-current={isActive ? "step" : undefined}
+            aria-label={`${s.name}: ${statusText}`}
           >
-            <div style={{ 
-              ...styles.stepCircle, 
-              backgroundColor: isCompleted ? "#22c55e" : isActive ? "#3b82f6" : "#e5e7eb", 
-              color: currentIndicatorStep >= s.id ? "#fff" : "#6b7280",
-              width: 44,
-              height: 44,
-              fontSize: 18,
-              boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none"
+            <div style={{
+              ...styles.stepCircle,
+              background: isCompleted
+                ? "linear-gradient(135deg, #16a34a 0%, #22c55e 100%)"
+                : isActive
+                  ? "linear-gradient(135deg, #2563eb 0%, #60a5fa 100%)"
+                  : "#ffffff",
+              color: isUnlocked ? "#0f172a" : "#64748b",
+              border: isActive
+                ? "1px solid rgba(147, 197, 253, 0.9)"
+                : isCompleted
+                  ? "1px solid rgba(74, 222, 128, 0.75)"
+                  : "1px solid rgba(148, 163, 184, 0.28)",
+              boxShadow: isActive
+                ? "0 0 0 5px rgba(59, 130, 246, 0.16), 0 12px 28px rgba(37, 99, 235, 0.35)"
+                : isCompleted
+                  ? "0 10px 22px rgba(34, 197, 94, 0.22)"
+                  : "inset 0 0 0 1px rgba(226, 232, 240, 0.08)",
             }}>
-              {step > s.id ? "✓" : s.icon}
+              {isCompleted ? <MdCheckCircle /> : isUnlocked ? s.icon : <MdLockOutline />}
             </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ 
-                fontWeight: isActive ? 700 : 500, 
-                fontSize: 13, 
-                color: isActive ? "#3b82f6" : isCompleted ? "#22c55e" : "#64748b",
+            <div style={styles.stepFlowLabel}>
+              <div style={{
+                fontWeight: isActive ? 700 : 500,
+                fontSize: 13,
+                color: isActive ? "#93c5fd" : isCompleted ? "#86efac" : "#94a3b8",
                 marginBottom: 2
               }}>
                 {s.name}
               </div>
-              <div style={{ 
-                fontSize: 10, 
-                color: isActive ? "#64748b" : "#94a3b8",
+              <div style={{
+                ...styles.stepStatusPill,
+                color: isCompleted ? "#86efac" : isActive ? "#bfdbfe" : "#94a3b8",
+                borderColor: isCompleted
+                  ? "rgba(134, 239, 172, 0.28)"
+                  : isActive
+                    ? "rgba(147, 197, 253, 0.3)"
+                    : "rgba(148, 163, 184, 0.18)",
+                background: isCompleted
+                  ? "rgba(34, 197, 94, 0.1)"
+                  : isActive
+                    ? "rgba(59, 130, 246, 0.12)"
+                    : "rgba(148, 163, 184, 0.06)"
+              }}>
+                {statusText}
+              </div>
+              <div style={{
+                fontSize: 10,
+                color: isActive ? "#cbd5e1" : "#94a3b8",
                 maxWidth: 100,
                 lineHeight: 1.3
               }}>
@@ -1418,18 +1482,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
           </div>
-          {/* Connector Line */}
           {index < MIGRATION_STEPS.length - 1 && (
             <div style={{
-              flex: 1,
-              height: 3,
-              backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : "#e5e7eb",
-              marginTop: -50,
-              marginLeft: -10,
-              marginRight: -10,
-              borderRadius: 2,
-              transition: "background-color 0.3s ease"
-            }} />
+              ...styles.stepFlowConnector,
+              background: connectorComplete
+                ? "linear-gradient(180deg, #22c55e 0%, #16a34a 100%)"
+                : "rgba(71, 85, 105, 0.55)",
+            }}>
+              <span style={{
+                ...styles.stepFlowConnectorFill,
+                height: connectorComplete ? "100%" : connectorActive ? "52%" : "0%",
+                background: connectorComplete
+                  ? "linear-gradient(180deg, #86efac 0%, #22c55e 100%)"
+                  : "linear-gradient(180deg, #60a5fa 0%, rgba(96, 165, 250, 0.1) 100%)",
+              }} />
+            </div>
           )}
         </React.Fragment>
         );
@@ -1438,161 +1505,112 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   const renderStep1 = () => {
+    const inputBorderColor = urlValidation.valid ? "#22c55e" : repoUrl ? "#ef4444" : "#dbe3ef";
+
     return (
-      <div style={styles.card}>
-        <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🔗</span>
-          <div>
-            <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
-          </div>
-        </div>
-
-        <div style={styles.field}>
-          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
-            Repository URL
-            {/* Info Button with Tooltip */}
-            <div style={{ position: "relative", display: "inline-block" }}>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  backgroundColor: "#e2e8f0",
-                  color: "#64748b",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "help",
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#3b82f6";
-                  e.currentTarget.style.color = "#fff";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "block";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e2e8f0";
-                  e.currentTarget.style.color = "#64748b";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "none";
-                }}
-              >
-                i
-              </span>
-              {/* Tooltip */}
-              <div
-                style={{
-                  display: "none",
-                  position: "absolute",
-                  top: 24,
-                  left: 0,
-                  backgroundColor: "#1e293b",
-                  color: "#fff",
-                  padding: "12px 16px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  whiteSpace: "nowrap",
-                  zIndex: 1000,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
-                <div>• https://github.com/owner/repo</div>
-                <div>• github.com/owner/repo</div>
-                <div>• owner/repo</div>
-                {/* Arrow */}
-                <div style={{
-                  position: "absolute",
-                  top: -6,
-                  left: 9,
-                  width: 0,
-                  height: 0,
-                  borderLeft: "6px solid transparent",
-                  borderRight: "6px solid transparent",
-                  borderBottom: "6px solid #1e293b"
-                }} />
+      <div style={{ ...styles.card, padding: 0, overflow: "hidden" }}>
+        <div style={styles.connectLayout}>
+          <section style={styles.connectFormPanel}>
+            <div style={styles.connectEyebrow}>Step 1</div>
+            <div style={styles.connectHeaderRow}>
+              <span style={styles.stepIcon}><MdOutlineLink /></span>
+              <div>
+                <h2 style={styles.title}>Connect Repository</h2>
+                <p style={styles.subtitle}>Add the source repository and let the migration flow prepare discovery, strategy, and modernization.</p>
               </div>
             </div>
-          </label>
-          <input
-            type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
-            value={repoUrl}
-            onChange={(e) => {
-              setRepoUrl(e.target.value);
-              setSelectedRepo(null);
-              setRepoAnalysis(null);
-              setIsPrivateRepo(false);
-              setPatToken("");
-              setError("");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && urlValidation.valid) {
-                void handleRepositoryContinue();
-              }
-            }}
-            placeholder="https://github.com/owner/repository"
-          />
-          {!shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
-              Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
-            </div>
-          )}
-          {repoAccessCheckLoading && !shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
-              Checking repository access...
-            </div>
-          )}
-          {shouldShowPatInput && (
-            <div style={{ marginTop: 16 }}>
-              <label style={{ ...styles.label, fontWeight: 500 }}>
-                GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
-              </label>
-              <input
-                type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
-                value={showEnterpriseToken ? githubToken : patToken}
-                onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
-                placeholder="Paste your GitHub PAT here"
-                autoComplete="off"
-              />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                {showEnterpriseToken
-                  ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                  : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
-              </div>
-            </div>
-          )}
-          {repoUrl && !urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
-              ⚠️ {urlValidation.message}
-            </div>
-          )}
-          {urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
-              ✓ Valid repository URL
-            </div>
-          )}
-        </div>
 
-        <div style={styles.btnRow}>
-          <button
-            style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
-            disabled={!urlValidation.valid}
-            onClick={() => void handleRepositoryContinue()}
-          >
-            Continue →
-          </button>
-        </div>
+            <div style={styles.connectInputCard}>
+              <label style={styles.label}>Repository URL</label>
+              <div style={styles.connectInputWrap}>
+                <input
+                  type="text"
+                  style={{ ...styles.input, ...styles.connectInput, borderColor: inputBorderColor }}
+                  value={repoUrl}
+                  onChange={(e) => {
+                    setRepoUrl(e.target.value);
+                    setSelectedRepo(null);
+                    setRepoAnalysis(null);
+                    setIsPrivateRepo(false);
+                    setPatToken("");
+                    setError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && urlValidation.valid) {
+                      void handleRepositoryContinue();
+                    }
+                  }}
+                  placeholder="https://github.com/owner/repository"
+                />
+                <button
+                  style={{ ...styles.primaryBtn, ...styles.connectInlineBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
+                  disabled={!urlValidation.valid}
+                  onClick={() => void handleRepositoryContinue()}
+                >
+                  Continue
+                </button>
+              </div>
+
+              <div style={styles.connectHelpGrid}>
+                <div style={styles.connectFormatBox}>
+                  <div style={styles.connectFormatTitle}>Supported formats</div>
+                  <div>https://github.com/owner/repo</div>
+                  <div>github.com/owner/repo</div>
+                  <div>owner/repo</div>
+                </div>
+                <div style={styles.connectFormatBox}>
+                  <div style={styles.connectFormatTitle}>Access</div>
+                  <div>Public repositories do not need a token.</div>
+                  <div>Private and enterprise repositories need a PAT.</div>
+                </div>
+              </div>
+
+              {!shouldShowPatInput && (
+                <div style={styles.connectNote}>
+                  Public GitHub repositories can be analyzed without a token. If the repository is private, we will ask for a PAT after detection.
+                </div>
+              )}
+              {repoAccessCheckLoading && !shouldShowPatInput && (
+                <div style={{ ...styles.connectNote, color: "#2563eb" }}>
+                  Checking repository access...
+                </div>
+              )}
+              {repoUrl && !urlValidation.valid && (
+                <div style={{ ...styles.connectValidation, color: "#dc2626", background: "#fef2f2", borderColor: "#fecaca" }}>
+                  {urlValidation.message}
+                </div>
+              )}
+              {urlValidation.valid && (
+                <div style={{ ...styles.connectValidation, color: "#15803d", background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+                  Valid repository URL
+                </div>
+              )}
+            </div>
+
+            {shouldShowPatInput && (
+              <div style={styles.connectInputCard}>
+                <label style={styles.label}>
+                  GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                </label>
+                <input
+                  type="password"
+                  style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? "#22c55e" : "#dbe3ef" }}
+                  value={showEnterpriseToken ? githubToken : patToken}
+                  onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
+                  placeholder="Paste your GitHub PAT here"
+                  autoComplete="off"
+                />
+                <div style={styles.connectNote}>
+                  {showEnterpriseToken
+                    ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
+                    : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+                </div>
+              </div>
+            )}
+          </section>        </div>
       </div>
     );
   };
-
   // Consolidated Step 2: Discovery (Repository discovery + Dependencies)
   const renderDiscoveryStep = () => {
     // Helper function to handle file click
@@ -1672,24 +1690,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const getFileIcon = (file: RepoFile) => {
       if (file.type === "dir") return "📁";
       const ext = file.name.split('.').pop()?.toLowerCase();
-      const iconMap: { [key: string]: string } = {
-        'java': '☕',
-        'xml': '📋',
-        'json': '📦',
-        'yml': '⚙️',
-        'yaml': '⚙️',
-        'properties': '🔧',
-        'md': '📝',
-        'gradle': '🐘',
-        'kt': '🎯',
-        'js': '🟨',
-        'ts': '🔷',
-        'html': '🌐',
-        'css': '🎨',
-        'sql': '🗄️',
-        'sh': '💻',
-        'txt': '📄'
-      };
+      const iconMap: { [key: string]: JSX.Element } = {
+  java: <Coffee size={16} />,
+  xml: <FileCode size={16} />,
+  json: <FileJson size={16} />,
+  yml: <Settings size={16} />,
+  yaml: <Settings size={16} />,
+  properties: <Settings size={16} />,
+  md: <FileText size={16} />,
+  gradle: <FileCode size={16} />,
+  kt: <FileCode size={16} />,
+  js: <FileCode size={16} />,
+  ts: <FileCode size={16} />,
+  html: <Globe size={16} />,
+  css: <Palette size={16} />,
+  sql: <Database size={16} />,
+  sh: <Terminal size={16} />,
+  txt: <FileText size={16} />
+};
       return iconMap[ext || ''] || '📄';
     };
 
@@ -1735,8 +1753,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
     return (
     <div style={styles.card}>
+       <div style={styles.connectEyebrow}>Step 2</div>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔍</span>
+       
+        <span style={styles.stepIcon}>
+  <MdManageSearch size={28} />
+</span>
         <div>
           <h2 style={styles.title}>Repository Discovery & Dependencies</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[1].summary}</p>
@@ -1765,7 +1787,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   alignItems: "flex-start",
                   gap: 16
                 }}>
-                  <span style={{ fontSize: 32 }}>⚠️</span>
+                  <div
+  style={{
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    background: "#fee2e2",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#dc2626",
+    flexShrink: 0
+  }}
+>
+  <MdErrorOutline size={32} />
+</div>
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>
                       This is not a Java Project
@@ -1814,7 +1850,20 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   alignItems: "flex-start",
                   gap: 16
                 }}>
-                  <span style={{ fontSize: 32 }}>ℹ️</span>
+                  <span
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 40,
+    height: 40,
+    borderRadius: "50%",
+    background: "#dbeafe",
+    color: "#2563eb"
+  }}
+>
+  <FiInfo size={22} />
+</span>
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
                       Java Project Detected (No Framework)
@@ -1840,7 +1889,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       boxShadow: "0 4px 12px rgba(245, 158, 11, 0.15)"
                     }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
-                        <span style={{ fontSize: 40 }}>⚠️</span>
+                       <div
+  style={{
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    background: "#fee2e2",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#dc2626",
+    flexShrink: 0
+  }}
+>
+  <MdErrorOutline size={32} />
+</div>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
                             High Risk Migration Detected
@@ -1861,49 +1924,76 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                         <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>🔍 Missing Components:</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                           {!repoAnalysis?.structure?.has_pom_xml && !repoAnalysis?.structure?.has_build_gradle && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> No pom.xml or build.gradle
-                            </div>
+                            <div
+  style={{
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: 6,
+    padding: "8px 12px",
+    fontSize: 13,
+    color: "#991b1b",
+    display: "flex",
+    alignItems: "center",
+    gap: 6
+  }}
+>
+  <HiOutlineXCircle
+    size={16}
+    style={{
+      color: "#dc2626",
+      flexShrink: 0
+    }}
+  />
+  <span>No pom.xml or build.gradle</span>
+</div>
                           )}
                           {(!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Java version not detected
-                            </div>
+                            <div
+  style={{
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: 6,
+    padding: "8px 12px",
+    fontSize: 13,
+    color: "#991b1b",
+    display: "flex",
+    alignItems: "center",
+    gap: 6
+  }}
+>
+  <FiAlertCircle
+    size={16}
+    style={{
+      color: "#dc2626",
+      flexShrink: 0
+    }}
+  />
+  <span>Java version not detected</span>
+</div>
                           )}
                           {!repoAnalysis?.structure?.has_src_main && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Non-standard project structure
-                            </div>
+                            <div
+  style={{
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: 6,
+    padding: "8px 12px",
+    fontSize: 13,
+    color: "#991b1b",
+    display: "flex",
+    alignItems: "center",
+    gap: 6
+  }}
+>
+  <HiOutlineExclamationTriangle
+    size={16}
+    style={{
+      color: "#f59e0b",
+      flexShrink: 0
+    }}
+  />
+  <span>Non-standard project structure</span>
+</div>
                           )}
                         </div>
                       </div>
@@ -1923,7 +2013,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             {sourceVersionStatus === "detected" ? "Java version automatically detected" : "Select Source Java Version:"}
                           </label>
                           {sourceVersionStatus === "detected" && suggestedJavaVersion !== "auto" ? (
-                            <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid rgba(226, 232, 240, 0.2)", backgroundColor: "rgba(226, 232, 240, 0.08)", minWidth: 200, color: "#e2e8f0" }}>
+                            <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid rgba(226, 232, 240, 0.2)", backgroundColor: "#ffffff", minWidth: 200, color: "#334155" }}>
                               Java {suggestedJavaVersion} detected from source code
                             </div>
                           ) : (
@@ -1946,7 +2036,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                   minWidth: 200
                                 }}
                               >
-                                <option value="auto">🔍 Auto-detect from code (Recommended)</option>
+                                <option value="auto"> Auto-detect from code (Recommended)</option>
                                 <option value="7">Java 7 (Legacy)</option>
                                 <option value="8">Java 8 (LTS)</option>
                                 <option value="11">Java 11 (LTS)</option>
@@ -1954,7 +2044,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                 <option value="21">Java 21 (LTS)</option>
                               </select>
                               <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                                💡 Auto-detect analyzes your code to determine the correct Java version
+                                 Auto-detect analyzes your code to determine the correct Java version
                               </div>
                             </>
                           )}
@@ -2026,7 +2116,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   {(!isHighRiskProject || highRiskConfirmed) && (
                     <>
                   {/* GitHub-like File Explorer */}
-                  <div style={styles.sectionTitle}>📂 Repository Files</div>
+                  <div style={styles.sectionTitle}>
+  <FiFolder size={20} />
+  <span>Repository Files</span>
+</div>
                   <div style={{
                     border: "1px solid #d0d7de",
                     borderRadius: 8,
@@ -2054,20 +2147,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
                         {currentPath && (
-                          <button
-                            onClick={navigateToRoot}
-                            style={{
-                              background: "none",
-                              border: "1px solid #d0d7de",
-                              borderRadius: 6,
-                              padding: "4px 12px",
-                              cursor: "pointer",
-                              fontSize: 12,
-                              color: "#24292f"
-                            }}
-                          >
-                            🏠 Root
-                          </button>
+                         <button
+  onClick={navigateToRoot}
+  style={{
+    background: "none",
+    border: "1px solid #d0d7de",
+    borderRadius: 6,
+    padding: "4px 12px",
+    cursor: "pointer",
+    fontSize: 12,
+    color: "#24292f",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  }}
+>
+  <FiHome size={14} />
+  Root
+</button>
                         )}
                         <button
                           onClick={() => setShowFileExplorer(!showFileExplorer)}
@@ -2081,7 +2178,17 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             color: "#24292f"
                           }}
                         >
-                          {showFileExplorer ? "🔽 Collapse" : "🔼 Expand"}
+                          {showFileExplorer ? (
+    <>
+      <FiChevronDown size={16} />
+      Collapse
+    </>
+  ) : (
+    <>
+      <FiChevronUp size={16} />
+      Expand
+    </>
+  )}
                         </button>
                       </div>
                     </div>
@@ -2109,7 +2216,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                 backgroundColor: "#f6f8fa"
                               }}
                             >
-                              <span>⬆️</span>
+                              <span>
+  <FiArrowUp size={16} />
+</span>
                               <span style={{ color: "#0969da", fontSize: 14 }}>..</span>
                             </div>
                           )}
@@ -2274,26 +2383,44 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   {/* Discovery Info */}
                   <div style={styles.discoveryContent}>
                     <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>📊</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Repository Analysis</div>
-                        <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>🔧</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis?.build_tool || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>☕</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Current Java version detected in the project</div>
-                      </div>
-                    </div>
+  <span style={styles.discoveryIcon}>
+    <FiBarChart2 size={20} />
+  </span>
+
+  <div>
+    <div style={styles.discoveryTitle}>Repository Analysis</div>
+    <div style={styles.discoveryDesc}>
+      Scanning {selectedRepo.name} for Java components
+    </div>
+  </div>
+</div>
+                   <div style={styles.discoveryItem}>
+  <span style={styles.discoveryIcon}>
+    <FiTool size={20} />
+  </span>
+  <div>
+    <div style={styles.discoveryTitle}>
+      Build Tool: {repoAnalysis?.build_tool || "Detecting..."}
+    </div>
+    <div style={styles.discoveryDesc}>
+      Identified build system for dependency management
+    </div>
+  </div>
+</div>
+
+<div style={styles.discoveryItem}>
+  <span style={styles.discoveryIcon}>
+    <FaJava size={20} />
+  </span>
+  <div>
+    <div style={styles.discoveryTitle}>
+      Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}
+    </div>
+    <div style={styles.discoveryDesc}>
+      Current Java version detected in the project
+    </div>
+  </div>
+</div>
                   </div>
 
                   {(detectedJavaVersion || detectedBuildType) && (
@@ -2340,7 +2467,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   )}
 
                   {/* Framework Detection - Clickable with File Preview */}
-                  <div style={styles.sectionTitle}>🎯 Detected Frameworks & Libraries</div>
+                <div style={styles.sectionTitle}>
+  <TbPackages size={22} />
+  <span>Detected Frameworks & Libraries</span>
+</div>
                   
                   {/* Framework File Viewer Modal */}
                   {viewingFrameworkFile && (
@@ -2391,20 +2521,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             }}>
                               Read Only
                             </span>
-                            <button
-                              onClick={() => setViewingFrameworkFile(null)}
-                              style={{
-                                background: "none",
-                                border: "1px solid #d0d7de",
-                                borderRadius: 6,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                                fontSize: 14,
-                                color: "#24292f"
-                              }}
-                            >
-                              ✖️ Close
-                            </button>
+                           <button
+  onClick={() => setViewingFrameworkFile(null)}
+  style={{
+    background: "none",
+    border: "1px solid #d0d7de",
+    borderRadius: 6,
+    padding: "6px 12px",
+    cursor: "pointer",
+    fontSize: 14,
+    color: "#24292f",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px"
+  }}
+>
+  <FiX size={16} />
+  Close
+</button>
                           </div>
                         </div>
                         {/* Modal Content */}
@@ -2685,7 +2819,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderAssessmentStep = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📊</span>
+        <span style={styles.stepIcon}>
+  <MdAnalytics size={24} />
+</span>
         <div>
           <h2 style={styles.title}>Application Assessment</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
@@ -2727,10 +2863,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   // Consolidated Step 3: Strategy (Assessment + Migration Strategy + Planning)
+  const [showDependencies, setShowDependencies] = useState(false);
   const renderStrategyStep = () => (
     <div style={styles.card}>
+       <div style={styles.connectEyebrow}>Step 3</div>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📋</span>
+        <span style={styles.stepIcon}>
+  <MdAnalytics size={24} />
+</span>
         <div>
           <h2 style={styles.title}>Assessment & Migration Strategy</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[2].summary}</p>
@@ -2740,179 +2880,123 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       {/* Assessment Section */}
       {selectedRepo && repoAnalysis && (
         <>
-          <div style={styles.sectionTitle}>📊 Application Assessment</div>
+          <div style={styles.sectionTitle}>
+  <FiBarChart2 size={20} />
+  <span>Application Assessment</span>
+</div>
           <div style={{ ...styles.riskBadge, backgroundColor: riskLevel === "low" ? "#dcfce7" : riskLevel === "medium" ? "#fef3c7" : "#fee2e2", color: riskLevel === "low" ? "#166534" : riskLevel === "medium" ? "#92400e" : "#991b1b" }}>
             Risk Level: {riskLevel.toUpperCase()}
           </div>
 
           <div style={styles.assessmentGrid}>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{repoAnalysis.java_version || "Unknown"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
-          </div>
+  <div style={styles.assessmentItem}>
+    <div style={styles.assessmentLabel}>Build Tool</div>
+    <div style={styles.assessmentValue}>
+      {repoAnalysis.build_tool || "Not Detected"}
+    </div>
+  </div>
 
-          {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
-            <div style={styles.field}>
-              <label style={styles.label}>Detected Dependencies ({repoAnalysis.dependencies.length})</label>
-              <div style={styles.dependenciesList}>
-                {repoAnalysis.dependencies.map((dep, idx) => (
-                  <div key={idx} style={styles.dependencyItem}>
-                    <span style={{ flex: 2 }}>{dep.group_id}:{dep.artifact_id}</span>
-                    <span style={{ ...styles.dependencyVersion, flex: 1, textAlign: "center" }}>{dep.current_version}</span>
-                    <span style={{ ...styles.detectedBadge, flex: 1, textAlign: "center", backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb", color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280" }}>
-                      {getDependencyStatusLabel(dep.status)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-{repoAnalysis.api_endpoints_by_method && (
-      <div
+  <div style={styles.assessmentItem}>
+    <div style={styles.assessmentLabel}>Java Version</div>
+    <div style={styles.assessmentValue}>
+      {repoAnalysis.java_version || "Unknown"}
+    </div>
+  </div>
+
+  <div style={styles.assessmentItem}>
+    <div style={styles.assessmentLabel}>Has Tests</div>
+    <div style={styles.assessmentValue}>
+      {repoAnalysis.has_tests ? "Yes" : "No"}
+    </div>
+  </div>
+
+  <div
+    style={{
+      ...styles.assessmentItem,
+      cursor: "pointer",
+    }}
+    onClick={() => setShowDependencies(!showDependencies)}
+  >
+    <div style={styles.assessmentLabel}>Dependencies</div>
+    <div style={styles.assessmentValue}>
+      {repoAnalysis.dependencies?.length || 0} found
+    </div>
+  </div>
+</div>
+
+{/* Show dependencies only when clicked */}
+{showDependencies && (
+  <div style={styles.field}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 12,
+      }}
+    >
+      <label style={styles.label}>
+        Detected Dependencies ({repoAnalysis.dependencies?.length || 0})
+      </label>
+
+      <button
+        onClick={() => setShowDependencies(false)}
         style={{
-          marginTop: 24,
-          padding: 20,
-          background: "#f8fafc",
-          border: "1px solid #e2e8f0",
-          borderRadius: 12,
+          padding: "6px 12px",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          background: "#fff",
+          cursor: "pointer",
         }}
       >
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            color: "#1e293b",
-            marginBottom: 16,
-          }}
-        >
-          🔗 API Endpoint Detection
+        Close
+      </button>
+    </div>
+
+    <div style={styles.dependenciesList}>
+      {repoAnalysis.dependencies?.map((dep, idx) => (
+        <div key={idx} style={styles.dependencyItem}>
+          <span style={{ flex: 2 }}>
+            {dep.group_id}:{dep.artifact_id}
+          </span>
+
+          <span
+            style={{
+              ...styles.dependencyVersion,
+              flex: 1,
+              textAlign: "center",
+            }}
+          >
+            {dep.current_version}
+          </span>
+
+          <span
+            style={{
+              ...styles.detectedBadge,
+              flex: 1,
+              textAlign: "center",
+              backgroundColor: isDetectedDependencyStatus(dep.status)
+                ? "#dcfce7"
+                : "#e5e7eb",
+              color: isDetectedDependencyStatus(dep.status)
+                ? "#166534"
+                : "#6b7280",
+            }}
+          >
+            {getDependencyStatusLabel(dep.status)}
+          </span>
         </div>
+      ))}
+    </div>
+  </div>
+)}
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 12,
-            marginBottom: 20,
-          }}
-        >
-          {Object.entries(repoAnalysis.api_endpoints_by_method).map(([method, endpoints]) => (
-            <div
-              key={method}
-              style={{
-                padding: 14,
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: 10,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#475569",
-                  marginBottom: 6,
-                }}
-              >
-                {method}
-              </div>
-              <div
-                style={{
-                  fontSize: 24,
-                  fontWeight: 800,
-                  color:
-                    method === "GET"
-                      ? "#2563eb"
-                      : method === "POST"
-                      ? "#16a34a"
-                      : method === "PUT"
-                      ? "#ca8a04"
-                      : method === "DELETE"
-                      ? "#dc2626"
-                      : "#64748b",
-                }}
-              >
-                {endpoints.length}
-              </div>
-            </div>
-          ))}
-        </div>
 
-        {Object.entries(repoAnalysis.api_endpoints_by_method).map(([method, endpoints]) => (
-          endpoints.length > 0 && (
-            <div key={method} style={{ marginBottom: 20 }}>
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#0f172a",
-                  marginBottom: 10,
-                }}
-              >
-                {method} APIs
-              </div>
-
-              <div style={{ overflowX: "auto" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    background: "#ffffff",
-                    borderRadius: 10,
-                    overflow: "hidden",
-                  }}
-                >
-                  <thead>
-                    <tr style={{ background: "#e2e8f0" }}>
-                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
-                        API Method Name
-                      </th>
-                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
-                        API Path
-                      </th>
-                      <th style={{ padding: 12, textAlign: "left", fontSize: 13 }}>
-                        File
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {endpoints.map((api, index) => (
-                      <tr key={index} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                        <td style={{ padding: 12, fontSize: 13, fontWeight: 600 }}>
-                          {api.name}
-                        </td>
-                        <td style={{ padding: 12, fontSize: 13 }}>
-                          <code
-                            style={{
-                              background: "#f1f5f9",
-                              padding: "4px 8px",
-                              borderRadius: 6,
-                              color: "#1d4ed8",
-                            }}
-                          >
-                            {api.path}
-                          </code>
-                        </td>
-                        <td style={{ padding: 12, fontSize: 13, color: "#475569" }}>
-                          {api.file}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )
-        ))}
-      </div> 
- )}
         </>
       )}
 
       {/* Strategy Section */}
-      <div style={styles.sectionTitle}>📋 Migration Strategy</div>
+      <div style={styles.sectionTitle}> Migration Strategy</div>
       <div style={styles.field}>
         <label style={styles.label}>Migration Approach</label>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
@@ -2990,7 +3074,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       top: 28,
                       right: 0,
                       width: 280,
-                      backgroundColor: "#1e293b",
+                      backgroundColor: "#ffffff",
                       color: "#f1f5f9",
                       padding: "12px 16px",
                       borderRadius: 8,
@@ -3001,7 +3085,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       whiteSpace: "normal"
                     }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#94a3b8" }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#64748b" }}>
                       {opt.label} Details
                     </div>
                     <div>{opt.tooltip}</div>
@@ -3014,7 +3098,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       height: 0,
                       borderLeft: "6px solid transparent",
                       borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
+                      borderBottom: "6px solid #ffffff"
                     }} />
                   </div>
                 </div>
@@ -3077,7 +3161,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     <option value="21">Java 21 (LTS)</option>
                   </select>
                   <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                    💡 Select the correct Java version for your project. This will be used as the source version for migration.
+                     Select the correct Java version for your project. This will be used as the source version for migration.
                   </div>
                 </div>
               )}
@@ -3122,7 +3206,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   </button>
                 </div>
                 <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
-                  Confidence: <span style={{ fontWeight: 700, color: "#e2e8f0" }}>{versionRecommendation.confidence}</span>
+                  Confidence: <span style={{ fontWeight: 700, color: "#334155" }}>{versionRecommendation.confidence}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
                   {versionRecommendation.rationale.map((reason, index) => (
@@ -3175,15 +3259,20 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     </div>
   );
 
+  const [showApiEndpoints, setShowApiEndpoints] = useState(false);
   // Consolidated Step 4: Migration (Build Modernization & Refactor + Code Migration + Testing)
   const renderMigrationStep = () => {
     const apiEndpointCount = repoAnalysis?.api_endpoints?.length ?? 0;
+    
     const codeRefactoringEndpointLabel = `API endpoints: ${apiEndpointCount}`;
 
     return (
     <div style={styles.card}>
+       <div style={styles.connectEyebrow}>Step 4</div>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>⚡</span>
+       <span style={styles.stepIcon}>
+  <FiZap size={24} />
+</span>
         <div>
           <h2 style={styles.title}>Build Modernization & Migration</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
@@ -3191,12 +3280,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       </div>
 
       {/* Show what we plan to modernize */}
-      <div style={styles.sectionTitle}>🎯 Migration Configuration</div>
+      <div style={styles.sectionTitle}> Migration Configuration</div>
 
       {/* What we'll modernize - Card Design */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-          ✨ What we'll modernize
+           What we'll modernize
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           {[
@@ -3244,19 +3333,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               color: "#0891b2"
             }
           ].filter((item) => item.title !== "Code Quality").map((item, idx) => (
-            <div
-              key={idx}
-              style={{
-                position: "relative",
-                padding: 20,
-                backgroundColor: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 12,
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                transition: "all 0.2s ease",
-                cursor: "default"
-              }}
-            >
+  <div
+    key={idx}
+    onClick={() => {
+      if (item.title === "Code Refactoring") {
+        setShowApiEndpoints(true);
+      }
+    }}
+    style={{
+      position: "relative",
+      padding: 20,
+      backgroundColor: "#fff",
+      border: "1px solid #e2e8f0",
+      borderRadius: 12,
+      boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+      transition: "all 0.2s ease",
+      cursor: item.title === "Code Refactoring" ? "pointer" : "default"
+    }}
+  >
               {item.showInfo && (
                 <div style={{ position: "absolute", top: 12, right: 12 }}>
                   <button
@@ -3416,10 +3510,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
 
               {codeChanges.length > 0 ? (
-                <div style={{ border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", backgroundColor: "rgba(226, 232, 240, 0.05)", borderBottom: "1px solid rgba(226, 232, 240, 0.15)" }}>
-                    <span style={{ fontWeight: 600, color: "#ffffff" }}>Repo-specific migration diff preview</span>
-                    <span style={{ fontSize: 12, color: "#94a3b8" }}>Read only</span>
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", backgroundColor: "#ffffff", borderBottom: "1px solid rgba(226, 232, 240, 0.15)" }}>
+                    <span style={{ fontWeight: 600, color: "#0f172a" }}>Repo-specific migration diff preview</span>
+                    <span style={{ fontSize: 12, color: "#64748b" }}>Read only</span>
                   </div>
                   <div style={{ maxHeight: 420, overflowY: "auto" }}>
                     {codeChanges.map((change, idx) => (
@@ -3488,25 +3582,57 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       </div>
 
-      <div style={styles.field}>
-        <label style={styles.label}>Conversion Types</label>
-        <select style={styles.select} value={selectedConversions[0] || ""} onChange={(e) => {
-          setSelectedConversions(e.target.value ? [e.target.value] : []);
-        }}>
-          <option value="">-- Select Conversion Type --</option>
-          {conversionTypes.map((ct) => (
-            <option key={ct.id} value={ct.id}>{ct.name} - {ct.description}</option>
-          ))}
-        </select>
-        {selectedConversions.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", backgroundColor: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 8, marginTop: 12 }}>
-            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0c4a6e" }}>
-              ✓ {conversionTypes.find((c) => c.id === selectedConversions[0])?.name} selected
-            </span>
-            <button style={{ background: "none", border: "none", color: "#0c4a6e", cursor: "pointer", fontSize: 18, padding: 0 }} onClick={() => setSelectedConversions([])}>×</button>
-          </div>
-        )}
+      <div style={styles.section}>
+  <h2 style={styles.heading}>Setup Conversion Type</h2>
+
+  <div style={styles.divider}></div>
+
+  <p style={styles.subtitle}>
+    Available modernization pathways for your project:
+  </p>
+
+  <div style={styles.grid}>
+ {conversionTypes.map((ct, index) => {
+  const isActive = index === 0; // Java Version Upgrade
+
+  return (
+    <div
+      key={ct.id}
+      onClick={() => {
+        if (isActive) {
+          setSelectedConversions([ct.id]);
+        }
+      }}
+      style={{
+        ...styles.conversionCard,
+        ...(isActive ? styles.selectedConversionCard : {}),
+        opacity: isActive ? 1 : 0.7,
+        cursor: isActive ? "pointer" : "not-allowed"
+      }}
+    >
+      <div style={styles.iconBox}>
+        {ct.icon}
       </div>
+
+      <div style={styles.content}>
+        <h3 style={styles.cardTitle}>{ct.name}</h3>
+        <p style={styles.cardDesc}>{ct.description}</p>
+      </div>
+
+      <span
+        style={{
+          ...styles.badge,
+          background: isActive ? "#2563eb" : "#e2e8f0",
+          color: isActive ? "#fff" : "#475569"
+        }}
+      >
+        {isActive ? "Active" : "Coming Soon"}
+      </span>
+    </div>
+  );
+})}
+</div>
+</div>
 
 
       <div style={styles.field}>
@@ -3678,7 +3804,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       top: 28,
                       right: 0,
                       width: 320,
-                      backgroundColor: "#1e293b",
+                      backgroundColor: "#ffffff",
                       color: "#f1f5f9",
                       padding: "14px 18px",
                       borderRadius: 10,
@@ -3689,7 +3815,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       whiteSpace: "normal"
                     }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 10, color: "#94a3b8", fontSize: 13 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 10, color: "#64748b", fontSize: 13 }}>
                       {option.title} Details
                     </div>
                     <div style={{ marginBottom: 8 }}>{option.tooltip}</div>
@@ -3707,7 +3833,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       height: 0,
                       borderLeft: "6px solid transparent",
                       borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
+                      borderBottom: "6px solid #ffffff"
                     }} />
                   </div>
                 </div>
@@ -3716,6 +3842,244 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           ))}
         </div>
       </div>
+
+     {showApiEndpoints && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(248, 250, 252, 0.78)",
+      zIndex: 1000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+    }}
+  >
+    <div
+      style={{
+        background: "#ffffff",
+        width: "90%",
+        maxWidth: "1100px",
+        maxHeight: "85vh",
+        overflowY: "auto",
+        borderRadius: 16,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+        padding: 24,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          position: "relative",
+          textAlign: "center",
+          marginBottom: 24,
+          paddingBottom: 16,
+          borderBottom: "1px solid #e2e8f0",
+        }}
+      >
+        <button
+          onClick={() => setShowApiEndpoints(false)}
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: 36,
+            height: 36,
+            border: "none",
+            borderRadius: "50%",
+            background: "#f1f5f9",
+            cursor: "pointer",
+            fontSize: 18,
+            fontWeight: 700,
+            color: "#475569",
+          }}
+        >
+          ✕
+        </button>
+
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 24,
+            fontWeight: 700,
+            color: "#1e293b",
+          }}
+        >
+          🔗 API Endpoint Detection
+        </h2>
+
+        <p
+          style={{
+            marginTop: 8,
+            color: "#64748b",
+            fontSize: 14,
+          }}
+        >
+          Endpoints grouped by HTTP methods
+        </p>
+      </div>
+
+      {/* API Sections */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        {["GET", "POST", "PUT", "DELETE", "PATCH"].map((method) => {
+          const endpoints =
+            repoAnalysis?.api_endpoints?.filter(
+              (api) => api.method?.toUpperCase() === method
+            ) || [];
+
+          if (endpoints.length === 0) return null;
+
+          const methodColor =
+            method === "GET"
+              ? "#2563eb"
+              : method === "POST"
+              ? "#16a34a"
+              : method === "PUT"
+              ? "#ca8a04"
+              : method === "DELETE"
+              ? "#dc2626"
+              : "#7c3aed";
+
+          return (
+            <div
+              key={method}
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 12,
+                overflow: "hidden",
+              }}
+            >
+              {/* Method Header */}
+              <div
+                style={{
+                  background: "#f8fafc",
+                  padding: "14px 18px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderBottom: "1px solid #e2e8f0",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <span
+                    style={{
+                      background: methodColor,
+                      color: "#fff",
+                      padding: "5px 12px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {method}
+                  </span>
+
+                  <span
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#1e293b",
+                    }}
+                  >
+                    {endpoints.length} Endpoint
+                    {endpoints.length > 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+
+              {/* Table */}
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    <th
+                      style={{
+                        padding: 12,
+                        textAlign: "center",
+                        borderBottom: "1px solid #e2e8f0",
+                        fontSize: 13,
+                      }}
+                    >
+                      Endpoint Path
+                    </th>
+
+                    <th
+                      style={{
+                        padding: 12,
+                        textAlign: "center",
+                        borderBottom: "1px solid #e2e8f0",
+                        fontSize: 13,
+                      }}
+                    >
+                      Source File
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {endpoints.map((api, index) => (
+                    <tr
+                      key={index}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                        }}
+                      >
+                        <code
+                          style={{
+                            background: "#eff6ff",
+                            color: "#1d4ed8",
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                          }}
+                        >
+                          {api.path}
+                        </code>
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                          color: "#64748b",
+                          fontSize: 13,
+                        }}
+                      >
+                        {api.file}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+)}
 
       <div style={styles.btnRow}>
         <button style={styles.secondaryBtn} onClick={() => setStep(3)}>← Back</button>
@@ -3927,7 +4291,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       top: 28,
                       right: 0,
                       width: 280,
-                      backgroundColor: "#1e293b",
+                      backgroundColor: "#ffffff",
                       color: "#f1f5f9",
                       padding: "12px 16px",
                       borderRadius: 8,
@@ -3938,7 +4302,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       whiteSpace: "normal"
                     }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#94a3b8" }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#64748b" }}>
                       {opt.label} Details
                     </div>
                     <div>{opt.tooltip}</div>
@@ -3951,7 +4315,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       height: 0,
                       borderLeft: "6px solid transparent",
                       borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
+                      borderBottom: "6px solid #ffffff"
                     }} />
                   </div>
                 </div>
@@ -4164,6 +4528,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const renderMigrationAnimation = () => (
     <div style={styles.card}>
+       <div style={styles.connectEyebrow}>Step 5</div>
       <div style={styles.stepHeader}>
         <span style={styles.stepIcon}>🚀</span>
         <div>
@@ -5406,11 +5771,11 @@ For questions or issues:
       </div>
     </div>
   );
-
   return (
     <div style={styles.container}>
-      <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
-      <div style={styles.main}>
+      <div style={styles.appLayout}>
+        <aside style={styles.stepIndicatorContainer}>{renderStepIndicator()}</aside>
+        <div style={styles.main}>
         {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
         {step === 1 && renderStep1()}
         {step === 2 && renderDiscoveryStep()}
@@ -5419,217 +5784,383 @@ For questions or issues:
         {step === 5 && renderMigrationAnimation()}
         {step === 6 && renderMigrationProgress()}
         {step === 7 && renderStep11()}
+        </div>
       </div>
     </div>
   );
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 40px", width: "100%", boxSizing: "border-box", background: "rgba(15, 23, 42, 0.98)", borderBottom: "1px solid rgba(226, 232, 240, 0.1)", backdropFilter: "blur(20px)" },
+  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "linear-gradient(135deg, var(--background) 0%, var(--card) 50%, var(--background) 100%)", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
+  appLayout: {
+    display: "grid",
+    gridTemplateColumns: "250px 1fr",
+    minHeight: "100vh",
+    width: "100%"
+  },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 40px", width: "100%", boxSizing: "border-box", background: "var(--glass-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "var(--glass-blur)" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
-  stepIndicatorContainer: { background: "rgba(15, 23, 42, 0.95)", borderBottom: "1px solid rgba(226, 232, 240, 0.1)", padding: "20px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto", boxShadow: "0 12px 48px rgba(0, 0, 0, 0.3)", backdropFilter: "blur(20px)" },
-  stepIndicator: { display: "flex", gap: 0, justifyContent: "center", alignItems: "flex-start", minWidth: "fit-content", flexWrap: "nowrap", maxWidth: 1120, margin: "0 auto" },
+  stepIndicatorContainer: { background: "var(--card)", borderRight: "1px solid var(--border)", padding: "32px 24px", width: "100%", boxSizing: "border-box", overflowY: "auto", boxShadow: "10px 0 30px rgba(0, 0, 0, 0.02)", backdropFilter: "var(--glass-blur)" },
+  stepIndicator: { display: "flex", flexDirection: "column", gap: 0, justifyContent: "flex-start", alignItems: "stretch", width: "100%", margin: 0, position: "relative" },
   stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.3s ease", cursor: "pointer", whiteSpace: "nowrap" },
-  stepCircle: { width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 700, transition: "all 0.3s ease", boxShadow: "inset 0 0 0 1px rgba(226, 232, 240, 0.2)" },
+  stepCircle: { width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, transition: "all 0.3s ease", position: "relative", zIndex: 2, border: "1px solid var(--border)" },
   stepLabel: { display: "flex", flexDirection: "column" },
-  main: { width: "100%", maxWidth: 1180, margin: "0 auto", padding: "32px 40px 40px", minHeight: "calc(100vh - 180px)", boxSizing: "border-box" },
-  card: { background: "rgba(15, 23, 42, 0.98)", borderRadius: 14, padding: "32px 36px", boxShadow: "0 20px 60px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(226, 232, 240, 0.1)", marginBottom: 24, width: "100%", boxSizing: "border-box", border: "1px solid rgba(226, 232, 240, 0.1)", backdropFilter: "blur(20px)" },
-  stepHeader: { display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 28, paddingBottom: 20, borderBottom: "1px solid rgba(226, 232, 240, 0.1)", flexWrap: "wrap" },
-  stepIcon: { fontSize: 28, width: 48, height: 48, borderRadius: 12, background: "linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)", color: "#60a5fa", display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(59, 130, 246, 0.2)" },
-  timerBadge: { marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "12px 16px", borderRadius: 12, background: "rgba(59, 130, 246, 0.1)", border: "1px solid rgba(59, 130, 246, 0.2)", minWidth: 120 },
-  timerLabel: { fontSize: 11, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.5px" },
-  timerValue: { fontSize: 20, fontWeight: 700, color: "#93c5fd", fontVariantNumeric: "tabular-nums" },
-  title: { fontSize: 24, fontWeight: 800, marginBottom: 8, color: "#ffffff", letterSpacing: "-0.5px" },
-  subtitle: { fontSize: 14, color: "#94a3b8", margin: 0, lineHeight: 1.5 },
-  sectionTitle: { fontSize: 15, fontWeight: 800, color: "#ffffff", marginBottom: 16, marginTop: 24, display: "flex", alignItems: "center", gap: 8, textTransform: "uppercase", letterSpacing: "0.3px" },
+  stepFlowItem: { display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 12, minWidth: 0, padding: "10px 8px", borderRadius: 10, transition: "all 0.3s ease", position: "relative", zIndex: 2 },
+  stepFlowLabel: { display: "flex", flexDirection: "column", alignItems: "flex-start", textAlign: "left", gap: 4, paddingTop: 1 },
+  stepStatusPill: { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 20, padding: "3px 8px", borderRadius: 999, border: "1px solid var(--border)", fontSize: 10, fontWeight: 700, lineHeight: 1, textTransform: "uppercase" },
+  stepFlowConnector: { width: 4, height: 32, marginTop: -2, marginBottom: -2, marginLeft: 24, borderRadius: 999, overflow: "hidden", position: "relative", background: "var(--border)", transition: "background 0.35s ease" },
+  stepFlowConnectorFill: { position: "absolute", inset: 0, borderRadius: 999, transition: "height 0.45s ease" },
+  main: { width: "100%", maxWidth: 1280, margin: "0 auto", padding: "32px 40px 40px", minHeight: "100vh", maxHeight: "100vh", overflowY: "auto", boxSizing: "border-box" },
+  
+  card: { background: "var(--card)", borderRadius: 16, padding: "32px 36px", boxShadow: "var(--shadow-lg)", marginBottom: 24, width: "100%", boxSizing: "border-box", border: "1px solid var(--border)", backdropFilter: "var(--glass-blur)", transition: "all 0.3s ease" },
+  
+  stepHeader: { display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 28, paddingBottom: 20, borderBottom: "1px solid var(--border)", flexWrap: "wrap" },
+  stepIcon: { fontSize: 28, width: 48, height: 48, borderRadius: 12, background: "linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)", color: "var(--primary)", display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(59, 130, 246, 0.2)" },
+  timerBadge: { marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "12px 16px", borderRadius: 12, background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.2)", minWidth: 120 },
+  timerLabel: { fontSize: 11, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" },
+  timerValue: { fontSize: 20, fontWeight: 700, color: "var(--primary)", fontVariantNumeric: "tabular-nums" },
+  title: { fontSize: 24, fontWeight: 800, marginBottom: 8, color: "var(--foreground)", letterSpacing: "-0.5px" },
+  subtitle: { fontSize: 14, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 },
+  sectionTitle: { fontSize: 15, fontWeight: 800, color: "var(--foreground)", marginBottom: 16, marginTop: 24, display: "flex", alignItems: "center", gap: 8, textTransform: "uppercase", letterSpacing: "0.3px" },
   field: { marginBottom: 22, width: "100%", boxSizing: "border-box" },
-  label: { fontWeight: 600, fontSize: 14, marginBottom: 10, display: "block", color: "#e2e8f0" },
-  input: { width: "100%", padding: "13px 16px", fontSize: 14, borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)", boxSizing: "border-box", transition: "all 0.3s ease", backgroundColor: "rgba(226, 232, 240, 0.08)", color: "#ffffff", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.2)" },
-  select: { width: "100%", padding: "13px 16px", fontSize: 14, borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)", backgroundColor: "rgba(226, 232, 240, 0.08)", color: "#ffffff", transition: "all 0.3s ease", cursor: "pointer", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.2)" },
-  helpText: { fontSize: 13, color: "#94a3b8", marginTop: 8, lineHeight: 1.4 },
+  label: { fontWeight: 600, fontSize: 14, marginBottom: 10, display: "block", color: "var(--foreground)" },
+  input: { width: "100%", padding: "13px 16px", fontSize: 14, borderRadius: 10, border: "1px solid var(--border)", boxSizing: "border-box", transition: "all 0.3s ease", backgroundColor: "var(--card)", color: "var(--foreground)", boxShadow: "var(--shadow-sm)" },
+  select: { width: "100%", padding: "13px 16px", fontSize: 14, borderRadius: 10, border: "1px solid var(--border)", backgroundColor: "var(--card)", color: "var(--foreground)", transition: "all 0.3s ease", cursor: "pointer", boxShadow: "var(--shadow-sm)" },
+  helpText: { fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.4 },
   infoButtonContainer: { position: "relative", display: "inline-block", zIndex: 100 },
-  infoButton: { width: 22, height: 22, borderRadius: "50%", background: "rgba(96, 165, 250, 0.2)", border: "1px solid rgba(96, 165, 250, 0.4)", cursor: "pointer", fontSize: 12, color: "#60a5fa", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease", padding: 0, fontWeight: 600 },
-  tooltip: { display: "none", position: "absolute", bottom: "calc(100% + 10px)", left: 0, width: 300, background: "rgba(15, 23, 42, 0.98)", color: "#e2e8f0", padding: "14px 16px", borderRadius: 10, fontSize: 13, zIndex: 1001, boxShadow: "0 20px 50px rgba(0, 0, 0, 0.5)", border: "1px solid rgba(226, 232, 240, 0.1)" },
-  link: { color: "#60a5fa", textDecoration: "none", fontWeight: 600, transition: "color 0.3s ease" },
-  infoBox: { background: "rgba(59, 130, 246, 0.1)", border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: 10, padding: 18, marginBottom: 22, fontSize: 14, color: "#93c5fd", width: "100%", boxSizing: "border-box", lineHeight: 1.5 },
-  warningBox: { background: "rgba(217, 119, 6, 0.1)", border: "1px solid rgba(217, 119, 6, 0.2)", borderRadius: 10, padding: 18, marginBottom: 22, width: "100%", boxSizing: "border-box" },
+  infoButton: { width: 22, height: 22, borderRadius: "50%", background: "rgba(96, 165, 250, 0.15)", border: "1px solid rgba(96, 165, 250, 0.3)", cursor: "pointer", fontSize: 12, color: "var(--primary)", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease", padding: 0, fontWeight: 600 },
+  tooltip: { display: "none", position: "absolute", bottom: "calc(100% + 10px)", left: 0, width: 300, background: "var(--card)", color: "var(--foreground)", padding: "14px 16px", borderRadius: 10, fontSize: 13, zIndex: 1001, boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)" },
+  link: { color: "var(--primary)", textDecoration: "none", fontWeight: 600, transition: "color 0.3s ease" },
+  infoBox: { background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.18)", borderRadius: 10, padding: 18, marginBottom: 22, fontSize: 14, color: "var(--primary)", width: "100%", boxSizing: "border-box", lineHeight: 1.5 },
+  warningBox: { background: "rgba(217, 119, 6, 0.08)", border: "1px solid rgba(217, 119, 6, 0.18)", borderRadius: 10, padding: 18, marginBottom: 22, width: "100%", boxSizing: "border-box" },
   warningTitle: { fontWeight: 600, marginBottom: 10, color: "#fb923c", fontSize: 14 },
-  warningList: { margin: 0, paddingLeft: 18, fontSize: 14, color: "#fed7aa", lineHeight: 1.6 },
-  errorBanner: { background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: 10, padding: "14px 18px", marginBottom: 22, display: "flex", justifyContent: "space-between", alignItems: "center", color: "#fca5a5", width: "100%", boxSizing: "border-box" },
-  errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#f87171" },
-  errorBox: { background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: 10, padding: "16px 18px", marginBottom: 22, color: "#fca5a5", width: "100%", boxSizing: "border-box" },
+  warningList: { margin: 0, paddingLeft: 18, fontSize: 14, color: "var(--foreground)", lineHeight: 1.6 },
+  errorBanner: { background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: 10, padding: "14px 18px", marginBottom: 22, display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--destructive)", width: "100%", boxSizing: "border-box" },
+  errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "var(--destructive)" },
+  errorBox: { background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: 10, padding: "16px 18px", marginBottom: 22, color: "var(--destructive)", width: "100%", boxSizing: "border-box" },
   btnRow: { display: "flex", gap: 14, marginTop: 28, justifyContent: "flex-end", flexWrap: "wrap" },
-  primaryBtn: { background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "13px 24px", fontWeight: 700, cursor: "pointer", fontSize: 14, transition: "all 0.3s ease", boxShadow: "0 8px 24px rgba(59, 130, 246, 0.3)" },
-  secondaryBtn: { background: "rgba(226, 232, 240, 0.08)", color: "#e2e8f0", border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, padding: "13px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.3s ease", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.2)" },
+  primaryBtn: { background: "var(--primary-gradient)", color: "white", border: "none", borderRadius: 10, padding: "13px 24px", fontWeight: 700, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease", boxShadow: "0 4px 14px rgba(59, 130, 246, 0.3)" },
+  secondaryBtn: { background: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)", borderRadius: 10, padding: "13px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease", boxShadow: "var(--shadow-sm)" },
   row: { display: "flex", gap: 22, flexWrap: "wrap" },
-  loadingBox: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: 48, color: "#60a5fa", fontWeight: 500, fontSize: 15 },
-  spinner: { width: 28, height: 28, border: "3px solid rgba(226, 232, 240, 0.15)", borderTop: "3px solid #60a5fa", borderRadius: "50%", animation: "spin 0.8s linear infinite" },
+  loadingBox: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: 48, color: "var(--primary)", fontWeight: 500, fontSize: 15 },
+  spinner: { width: 28, height: 28, border: "3px solid rgba(148, 163, 184, 0.15)", borderTop: "3px solid var(--primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite" },
   repoList: { display: "flex", flexDirection: "column", gap: 10, maxHeight: 300, overflowY: "auto", paddingRight: 8 },
-  repoItem: { display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, cursor: "pointer", transition: "all 0.3s ease", backgroundColor: "rgba(226, 232, 240, 0.05)", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
+  repoItem: { display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", transition: "all 0.3s ease", backgroundColor: "var(--card)", boxShadow: "var(--shadow-sm)" },
   repoIcon: { fontSize: 20 },
   repoInfo: { flex: 1 },
-  repoName: { fontWeight: 600, fontSize: 14, color: "#ffffff" },
-  repoPath: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
-  repoLanguage: { fontSize: 11, padding: "5px 12px", background: "rgba(59, 130, 246, 0.15)", borderRadius: 14, color: "#60a5fa", fontWeight: 600 },
-  arrow: { fontSize: 16, color: "#60a5fa" },
-  emptyText: { textAlign: "center", color: "#94a3b8", padding: 48, fontSize: 14 },
-  selectedRepoBox: { display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(59, 130, 246, 0.1)", borderRadius: 10, marginBottom: 22, border: "1px solid rgba(59, 130, 246, 0.2)" },
-  changeBtn: { marginLeft: "auto", background: "none", border: "none", color: "#60a5fa", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "color 0.3s ease" },
+  repoName: { fontWeight: 600, fontSize: 14, color: "var(--foreground)" },
+  repoPath: { fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 },
+  repoLanguage: { fontSize: 11, padding: "5px 12px", background: "rgba(59, 130, 246, 0.12)", color: "var(--primary)", borderRadius: 14, fontWeight: 600 },
+  arrow: { fontSize: 16, color: "var(--primary)" },
+  emptyText: { textAlign: "center", color: "var(--muted-foreground)", padding: 48, fontSize: 14 },
+  selectedRepoBox: { display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", background: "rgba(59, 130, 246, 0.06)", borderRadius: 10, marginBottom: 22, border: "1px solid rgba(59, 130, 246, 0.18)" },
+  changeBtn: { marginLeft: "auto", background: "none", border: "none", color: "var(--primary)", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "color 0.3s ease" },
   riskBadge: { display: "inline-block", padding: "10px 18px", borderRadius: 18, fontSize: 13, fontWeight: 600, marginBottom: 16 },
   assessmentGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 18, marginBottom: 22 },
-  assessmentItem: { background: "rgba(226, 232, 240, 0.05)", padding: 20, borderRadius: 10, textAlign: "center", border: "1px solid rgba(226, 232, 240, 0.15)", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
-  assessmentLabel: { fontSize: 11, color: "#94a3b8", marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  assessmentValue: { fontSize: 24, fontWeight: 700, color: "#ffffff" },
-  structureBox: { background: "rgba(226, 232, 240, 0.05)", padding: 20, borderRadius: 12, marginBottom: 22, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  structureTitle: { fontSize: 14, fontWeight: 600, marginBottom: 14, color: "#ffffff" },
+  assessmentItem: { background: "var(--card)", padding: 20, borderRadius: 10, textAlign: "center", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" },
+  assessmentLabel: { fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
+  assessmentValue: { fontSize: 24, fontWeight: 700, color: "var(--foreground)" },
+  structureBox: { background: "var(--card)", padding: 20, borderRadius: 12, marginBottom: 22, border: "1px solid var(--border)" },
+  structureTitle: { fontSize: 14, fontWeight: 600, marginBottom: 14, color: "var(--foreground)" },
   structureGrid: { display: "flex", gap: 16, flexWrap: "wrap" },
-  structureFound: { color: "#4ade80", fontWeight: 600 },
-  structureMissing: { color: "#94a3b8", fontWeight: 500 },
+  structureFound: { color: "#16a34a", fontWeight: 600 },
+  structureMissing: { color: "var(--muted-foreground)", fontWeight: 500 },
   dependenciesBox: { marginBottom: 22 },
-  dependenciesList: { background: "rgba(226, 232, 240, 0.05)", borderRadius: 12, padding: 16, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  dependencyItem: { display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(226, 232, 240, 0.08)", fontSize: 13 },
-  dependencyVersion: { color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
-  moreItems: { textAlign: "center", color: "#60a5fa", fontSize: 12, paddingTop: 12, fontWeight: 600 },
+  dependenciesList: { background: "var(--card)", borderRadius: 12, padding: 16, border: "1px solid var(--border)" },
+  dependencyItem: { display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)", fontSize: 13 },
+  dependencyVersion: { color: "var(--primary)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
+  moreItems: { textAlign: "center", color: "var(--primary)", fontSize: 12, paddingTop: 12, fontWeight: 600 },
   radioGroup: { display: "flex", flexDirection: "column", gap: 12 },
-  radioLabel: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, cursor: "pointer", transition: "all 0.3s ease", backgroundColor: "rgba(226, 232, 240, 0.05)", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
+  radioLabel: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", transition: "all 0.3s ease", backgroundColor: "var(--card)", boxShadow: "var(--shadow-sm)" },
   radio: { marginTop: 4, accentColor: "#3b82f6" },
   checkbox: { width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" },
   frameworkGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 },
-  frameworkItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, cursor: "pointer", background: "rgba(226, 232, 240, 0.05)", transition: "all 0.3s ease", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
+  frameworkItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", background: "var(--card)", transition: "all 0.3s ease", boxShadow: "var(--shadow-sm)" },
   detectedBadge: { marginLeft: "auto", fontSize: 11, padding: "5px 12px", background: "#4ade80", color: "#0f172a", borderRadius: 14, fontWeight: 600 },
-  conversionGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
-  conversionItem: { display: "flex", alignItems: "flex-start", gap: 16, padding: 20, border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, cursor: "pointer", position: "relative", transition: "all 0.3s ease", background: "rgba(226, 232, 240, 0.05)", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
-  conversionIcon: { fontSize: 24 },
-  checkMark: { position: "absolute", top: 12, right: 12, color: "#4ade80", fontWeight: 700, fontSize: 18 },
+  conversionGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gap: 20,
+    marginTop: 20
+  },
+  conversionItem: {
+    position: "relative",
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 16,
+    padding: "24px",
+    minHeight: "140px",
+    borderRadius: 16,
+    border: "2px solid var(--border)",
+    background: "var(--card)",
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+    boxShadow: "var(--shadow-sm)"
+  },
+  conversionItemSelected: {
+    border: "2px solid var(--primary)",
+    background: "rgba(59, 130, 246, 0.04)",
+    boxShadow: "0 8px 24px rgba(37,99,235,0.08)"
+  },
+  conversionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 22,
+    background: "rgba(59, 130, 246, 0.1)",
+    color: "var(--primary)",
+    flexShrink: 0
+  },
+  conversionTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: "var(--foreground)",
+    marginBottom: 8,
+    lineHeight: 1.3
+  },
+  conversionDescription: {
+    fontSize: 13,
+    color: "var(--muted-foreground)",
+    lineHeight: 1.5
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    padding: "4px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 600
+  },
+  checkMark: { position: "absolute", top: 12, right: 12, color: "#16a34a", fontWeight: 700, fontSize: 18 },
   optionsGrid: { display: "flex", flexDirection: "column", gap: 16 },
-  optionItem: { display: "flex", alignItems: "flex-start", gap: 16, padding: 20, border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, cursor: "pointer", background: "rgba(226, 232, 240, 0.05)", transition: "all 0.3s ease", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
+  optionItem: { display: "flex", alignItems: "flex-start", gap: 16, padding: 20, border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", background: "var(--card)", transition: "all 0.3s ease", boxShadow: "var(--shadow-sm)" },
   progressSection: { marginBottom: 28 },
-  progressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 14, fontWeight: 600, color: "#e2e8f0" },
-  progressBar: { width: "100%", height: 12, background: "rgba(226, 232, 240, 0.1)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(226, 232, 240, 0.15)" },
-  progressFill: { height: "100%", background: "linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)", borderRadius: 8, transition: "width 0.4s ease" },
+  progressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 14, fontWeight: 600, color: "var(--foreground)" },
+  progressBar: { width: "100%", height: 12, background: "var(--border)", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" },
+  progressFill: { height: "100%", background: "var(--primary-gradient)", borderRadius: 8, transition: "width 0.4s ease" },
   statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 18, marginBottom: 28 },
-  statBox: { background: "rgba(226, 232, 240, 0.05)", padding: 24, borderRadius: 12, textAlign: "center", border: "1px solid rgba(226, 232, 240, 0.15)", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
-  statValue: { fontSize: 32, fontWeight: 700, color: "#60a5fa" },
-  statLabel: { fontSize: 12, color: "#94a3b8", marginTop: 10, fontWeight: 600, textTransform: "uppercase" },
+  statBox: { background: "var(--card)", padding: 24, borderRadius: 12, textAlign: "center", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" },
+  statValue: { fontSize: 32, fontWeight: 700, color: "var(--primary)" },
+  statLabel: { fontSize: 12, color: "var(--muted-foreground)", marginTop: 10, fontWeight: 600, textTransform: "uppercase" },
   successBox: { background: "rgba(74, 222, 128, 0.1)", border: "1px solid rgba(74, 222, 128, 0.2)", borderRadius: 14, padding: 32, textAlign: "center", marginBottom: 28 },
-  successTitle: { fontSize: 22, fontWeight: 700, color: "#4ade80", marginBottom: 14 },
-  repoLink: { display: "inline-block", color: "#60a5fa", fontWeight: 600, textDecoration: "none", fontSize: 14, padding: "12px 24px", background: "rgba(59, 130, 246, 0.15)", borderRadius: 10, border: "1px solid rgba(59, 130, 246, 0.2)", transition: "all 0.3s ease" },
+  successTitle: { fontSize: 22, fontWeight: 700, color: "#16a34a", marginBottom: 14 },
+  repoLink: { display: "inline-block", color: "var(--primary)", fontWeight: 600, textDecoration: "none", fontSize: 14, padding: "12px 24px", background: "rgba(59, 130, 246, 0.08)", borderRadius: 10, border: "1px solid rgba(59, 130, 246, 0.18)", transition: "all 0.3s ease" },
+  connectLayout: { display: "block", minHeight: 0 },
+  connectFormPanel: { padding: "36px 38px", background: "var(--card)" },
+  connectSummaryPanel: { padding: "36px 30px", background: "var(--background)", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", justifyContent: "center" },
+  connectEyebrow: { display: "inline-flex", alignItems: "center", height: 24, padding: "0 10px", borderRadius: 999, background: "rgba(59, 130, 246, 0.12)", color: "var(--primary)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", marginBottom: 18 },
+  connectHeaderRow: { display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 30 },
+  connectInputCard: { padding: 22, border: "1px solid var(--border)", borderRadius: 12, background: "var(--card)", boxShadow: "var(--shadow-sm)", marginBottom: 18 },
+  connectInputWrap: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center" },
+  connectInput: { height: 48, fontSize: 15 },
+  connectInlineBtn: { height: 48, padding: "0 22px", whiteSpace: "nowrap" },
+  connectHelpGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 14 },
+  connectFormatBox: { padding: 14, borderRadius: 10, border: "1px solid var(--border)", background: "var(--background)", color: "var(--muted-foreground)", fontSize: 12, lineHeight: 1.6 },
+  connectFormatTitle: { color: "var(--foreground)", fontWeight: 800, fontSize: 12, marginBottom: 4 },
+  connectNote: { fontSize: 12, color: "var(--muted-foreground)", marginTop: 12, lineHeight: 1.5 },
+  connectValidation: { marginTop: 12, padding: "10px 12px", border: "1px solid", borderRadius: 10, fontSize: 12, fontWeight: 700 },
+  connectSummaryBadge: { alignSelf: "flex-start", padding: "7px 11px", borderRadius: 999, background: "var(--card)", border: "1px solid var(--border)", color: "var(--primary)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", marginBottom: 16 },
+  connectSummaryTitle: { margin: "0 0 22px", color: "var(--foreground)", fontSize: 24, lineHeight: 1.18 },
+  connectSummaryList: { display: "flex", flexDirection: "column", gap: 14 },
+  connectSummaryItem: { display: "flex", gap: 12, alignItems: "flex-start" },
+  connectSummaryIndex: { width: 28, height: 28, borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--primary)", color: "white", fontSize: 12, fontWeight: 800, flexShrink: 0 },
+  connectSummaryItemTitle: { color: "var(--foreground)", fontWeight: 800, fontSize: 13, marginBottom: 3 },
+  connectSummaryItemText: { color: "var(--muted-foreground)", fontSize: 12, lineHeight: 1.45 },
   connectionModes: { display: "flex", gap: 16, marginBottom: 22 },
-  modeButton: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: 22, border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 12, background: "rgba(226, 232, 240, 0.05)", cursor: "pointer", transition: "all 0.3s ease", fontWeight: 500, boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.1)" },
-  modeButtonActive: { border: "1px solid rgba(59, 130, 246, 0.4)", background: "rgba(59, 130, 246, 0.1)" },
+  modeButton: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: 22, border: "1px solid var(--border)", borderRadius: 12, background: "var(--card)", cursor: "pointer", transition: "all 0.3s ease", fontWeight: 500, boxShadow: "var(--shadow-sm)" },
+  modeButtonActive: { border: "1px solid var(--primary)", background: "rgba(59, 130, 246, 0.05)" },
   modeIcon: { fontSize: 28 },
-  modeTitle: { fontWeight: 600, fontSize: 14, color: "#e2e8f0" },
-  modeDesc: { fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.4 },
-  fileList: { display: "flex", flexDirection: "column", gap: 10, maxHeight: 380, overflowY: "auto", border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 12, padding: 16, background: "rgba(226, 232, 240, 0.03)" },
-  breadcrumb: { display: "flex", alignItems: "center", gap: 14, marginBottom: 16, padding: "12px 16px", background: "rgba(59, 130, 246, 0.1)", borderRadius: 10, border: "1px solid rgba(59, 130, 246, 0.2)" },
-  backBtn: { background: "none", border: "none", color: "#60a5fa", cursor: "pointer", fontSize: 14, fontWeight: 600, transition: "color 0.3s ease" },
-  fileItem: { display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid rgba(226, 232, 240, 0.15)", borderRadius: 10, cursor: "pointer", transition: "all 0.3s ease", backgroundColor: "rgba(226, 232, 240, 0.05)" },
+  modeTitle: { fontWeight: 600, fontSize: 14, color: "var(--foreground)" },
+  modeDesc: { fontSize: 12, color: "var(--muted-foreground)", textAlign: "center", lineHeight: 1.4 },
+  fileList: { display: "flex", flexDirection: "column", gap: 10, maxHeight: 380, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12, padding: 16, background: "var(--card)" },
+  breadcrumb: { display: "flex", alignItems: "center", gap: 14, marginBottom: 16, padding: "12px 16px", background: "rgba(59, 130, 246, 0.08)", borderRadius: 10, border: "1px solid rgba(59, 130, 246, 0.18)" },
+  backBtn: { background: "none", border: "none", color: "var(--primary)", cursor: "pointer", fontSize: 14, fontWeight: 600, transition: "color 0.3s ease" },
+  fileItem: { display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", transition: "all 0.3s ease", backgroundColor: "var(--card)" },
   fileIcon: { fontSize: 20 },
   fileInfo: { flex: 1 },
-  fileName: { fontWeight: 600, fontSize: 14, color: "#ffffff" },
-  filePath: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
-  fileSize: { fontSize: 11, color: "#94a3b8", fontWeight: 500, padding: "4px 10px", backgroundColor: "rgba(226, 232, 240, 0.08)", borderRadius: 6 },
+  fileName: { fontWeight: 600, fontSize: 14, color: "var(--foreground)" },
+  filePath: { fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 },
+  fileSize: { fontSize: 11, color: "var(--muted-foreground)", fontWeight: 500, padding: "4px 10px", backgroundColor: "var(--background)", borderRadius: 6 },
   discoveryContent: { display: "flex", flexDirection: "column", gap: 16 },
-  discoveryItem: { display: "flex", alignItems: "center", gap: 16, padding: 20, background: "rgba(226, 232, 240, 0.05)", borderRadius: 12, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  discoveryItem: { display: "flex", alignItems: "center", gap: 16, padding: 20, background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)" },
   discoveryIcon: { fontSize: 28 },
-  discoveryTitle: { fontSize: 15, fontWeight: 600, color: "#ffffff", marginBottom: 2 },
-  discoveryDesc: { fontSize: 13, color: "#94a3b8" },
-  detectedConfigCard: { background: "linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)", border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: 14, padding: 24, marginTop: 20, marginBottom: 22 },
+  discoveryTitle: { fontSize: 15, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 },
+  discoveryDesc: { fontSize: 13, color: "var(--muted-foreground)" },
+  detectedConfigCard: { background: "rgba(59, 130, 246, 0.06)", border: "1px solid rgba(59, 130, 246, 0.18)", borderRadius: 14, padding: 24, marginTop: 20, marginBottom: 22 },
   detectedConfigHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 18, marginBottom: 16 },
-  detectedConfigTitle: { fontSize: 16, fontWeight: 700, color: "#93c5fd", marginBottom: 4 },
-  detectedConfigSubtitle: { fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 },
+  detectedConfigTitle: { fontSize: 16, fontWeight: 700, color: "var(--primary)", marginBottom: 4 },
+  detectedConfigSubtitle: { fontSize: 13, color: "var(--foreground)", lineHeight: 1.5 },
   detectedConfigActions: { display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 },
-  detectedConfigChip: { padding: "12px 16px", borderRadius: 999, border: "1px solid rgba(96, 165, 250, 0.3)", background: "rgba(96, 165, 250, 0.1)", color: "#93c5fd", fontSize: 13, fontWeight: 600, cursor: "default" },
-  detectedConfigActionBtn: { padding: "12px 18px", borderRadius: 999, border: "none", background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.3s ease", boxShadow: "0 6px 20px rgba(59, 130, 246, 0.25)" },
-  detectedConfigActionBtnActive: { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.2)" },
-  detectedConfigNote: { fontSize: 12, color: "#94a3b8", lineHeight: 1.5 },
+  detectedConfigChip: { padding: "12px 16px", borderRadius: 999, border: "1px solid rgba(96, 165, 250, 0.3)", background: "rgba(96, 165, 250, 0.1)", color: "var(--primary)", fontSize: 13, fontWeight: 600, cursor: "default" },
+  detectedConfigActionBtn: { padding: "12px 18px", borderRadius: 999, border: "none", background: "var(--primary-gradient)", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.3s ease", boxShadow: "0 6px 20px rgba(59, 130, 246, 0.25)" },
+  detectedConfigActionBtnActive: { background: "var(--primary-gradient)", boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.2)" },
+  detectedConfigNote: { fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 },
   reportContainer: { display: "flex", flexDirection: "column", gap: 24 },
-  reportSection: { background: "rgba(226, 232, 240, 0.05)", borderRadius: 14, padding: 24, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  reportTitle: { fontSize: 17, fontWeight: 700, color: "#ffffff", marginBottom: 20, paddingBottom: 14, borderBottom: "1px solid rgba(226, 232, 240, 0.1)", display: "flex", alignItems: "center", gap: 10 },
+  reportSection: { background: "var(--card)", borderRadius: 14, padding: 24, border: "1px solid var(--border)" },
+  reportTitle: { fontSize: 17, fontWeight: 700, color: "var(--foreground)", marginBottom: 20, paddingBottom: 14, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 },
   reportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
   reportItem: { display: "flex", flexDirection: "column", gap: 8 },
-  reportLabel: { fontSize: 11, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  reportValue: { fontSize: 14, color: "#e2e8f0", fontWeight: 600 },
+  reportLabel: { fontSize: 11, color: "var(--muted-foreground)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
+  reportValue: { fontSize: 14, color: "var(--foreground)", fontWeight: 600 },
   testResults: { display: "flex", flexDirection: "column", gap: 12 },
-  testItem: { display: "flex", justifyContent: "space-between", padding: "16px 20px", background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  testItem: { display: "flex", justifyContent: "space-between", padding: "16px 20px", background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
   sonarqubeResults: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18 },
-  qualityItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 20px", background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  logsContainer: { background: "#0f172a", color: "#4ade80", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: 20, borderRadius: 12, maxHeight: 300, overflowY: "auto", fontSize: 12, lineHeight: 1.6, border: "1px solid rgba(226, 232, 240, 0.1)", boxShadow: "inset 0 1px 3px rgba(0, 0, 0, 0.3)" },
-  logEntry: { marginBottom: 6, padding: "3px 0", borderBottom: "1px solid rgba(74, 222, 128, 0.1)" },
+  qualityItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 20px", background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
+  logsContainer: { background: "var(--card)", color: "#16a34a", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: 20, borderRadius: 12, maxHeight: 300, overflowY: "auto", fontSize: 12, lineHeight: 1.6, border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" },
+  logEntry: { marginBottom: 6, padding: "3px 0", borderBottom: "1px solid var(--border)" },
   issuesContainer: { display: "flex", flexDirection: "column", gap: 14 },
-  issueItem: { padding: 20, background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  issueItem: { padding: 20, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
   issueHeader: { display: "flex", alignItems: "center", gap: 14, marginBottom: 12 },
   issueSeverity: { padding: "8px 14px", borderRadius: 14, fontSize: 11, fontWeight: 600, color: "#fff", textTransform: "uppercase" },
-  issueCategory: { fontSize: 12, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase" },
-  issueStatus: { fontSize: 12, color: "#4ade80", fontWeight: 600, marginLeft: "auto" },
-  issueMessage: { fontSize: 14, color: "#e2e8f0", marginBottom: 10, fontWeight: 500, lineHeight: 1.4 },
-  issueFile: { fontSize: 12, color: "#60a5fa", fontFamily: "'JetBrains Mono', monospace", backgroundColor: "rgba(59, 130, 246, 0.15)", padding: "8px 14px", borderRadius: 8, display: "inline-block", border: "1px solid rgba(59, 130, 246, 0.2)" },
-  noIssues: { textAlign: "center", color: "#94a3b8", padding: 32, fontStyle: "italic", fontSize: 14 },
-  noFilesMsg: { textAlign: "center", color: "#94a3b8", padding: 32, fontStyle: "italic", background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px dashed rgba(226, 232, 240, 0.2)" },
-  noLogs: { textAlign: "center", color: "#94a3b8", padding: 32, fontStyle: "italic" },
+  issueCategory: { fontSize: 12, color: "var(--muted-foreground)", fontWeight: 600, textTransform: "uppercase" },
+  issueStatus: { fontSize: 12, color: "#16a34a", fontWeight: 600, marginLeft: "auto" },
+  issueMessage: { fontSize: 14, color: "var(--foreground)", marginBottom: 10, fontWeight: 500, lineHeight: 1.4 },
+  issueFile: { fontSize: 12, color: "var(--primary)", fontFamily: "'JetBrains Mono', monospace", backgroundColor: "rgba(59, 130, 246, 0.12)", padding: "8px 14px", borderRadius: 8, display: "inline-block", border: "1px solid rgba(59, 130, 246, 0.2)" },
+  noIssues: { textAlign: "center", color: "var(--muted-foreground)", padding: 32, fontStyle: "italic", fontSize: 14 },
+  noFilesMsg: { textAlign: "center", color: "var(--muted-foreground)", padding: 32, fontStyle: "italic", background: "var(--card)", borderRadius: 10, border: "1px dashed var(--border)" },
+  noLogs: { textAlign: "center", color: "var(--muted-foreground)", padding: 32, fontStyle: "italic" },
 
   // Animation styles
-  animationContainer: { padding: 28, background: "rgba(226, 232, 240, 0.05)", borderRadius: 14, marginTop: 24, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  animationContainer: { padding: 28, background: "var(--card)", borderRadius: 14, marginTop: 24, border: "1px solid var(--border)" },
   migrationAnimation: { maxWidth: 600, margin: "0 auto" },
   animationHeader: { textAlign: "center", marginBottom: 36 },
-  migratingText: { fontSize: 26, fontWeight: 700, color: "#ffffff", marginBottom: 12 },
-  versionTransition: { fontSize: 14, color: "#fff", padding: "12px 24px", background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)", borderRadius: 24, display: "inline-block", fontWeight: 600, boxShadow: "0 6px 20px rgba(59, 130, 246, 0.25)" },
+  migratingText: { fontSize: 26, fontWeight: 700, color: "var(--foreground)", marginBottom: 12 },
+  versionTransition: { fontSize: 14, color: "#fff", padding: "12px 24px", background: "var(--primary-gradient)", borderRadius: 24, display: "inline-block", fontWeight: 600, boxShadow: "0 6px 20px rgba(59, 130, 246, 0.25)" },
   animationSteps: { display: "flex", flexDirection: "column", gap: 16, marginBottom: 32 },
-  animationStep: { display: "flex", alignItems: "center", gap: 16, padding: 20, background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  animationStep: { display: "flex", alignItems: "center", gap: 16, padding: 20, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
   stepIconAnimated: { fontSize: 22, minWidth: 22 },
-  stepText: { flex: 1, fontSize: 14, fontWeight: 500, color: "#e2e8f0" },
-  checkMarkAnimated: { fontSize: 18, color: "#4ade80" },
+  stepText: { flex: 1, fontSize: 14, fontWeight: 500, color: "var(--foreground)" },
+  checkMarkAnimated: { fontSize: 18, color: "#16a34a" },
   animatedProgressSection: { marginBottom: 28 },
-  animatedProgressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 14, fontSize: 14, fontWeight: 600, color: "#e2e8f0" },
-  animatedProgressBar: { width: "100%", height: 14, background: "rgba(226, 232, 240, 0.1)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(226, 232, 240, 0.15)" },
-  animatedProgressFill: { height: "100%", borderRadius: 8, transition: "width 0.4s ease", background: "linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)" },
+  animatedProgressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 14, fontSize: 14, fontWeight: 600, color: "var(--foreground)" },
+  animatedProgressBar: { width: "100%", height: 14, background: "var(--border)", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" },
+  animatedProgressFill: { height: "100%", borderRadius: 8, transition: "width 0.4s ease", background: "var(--primary-gradient)" },
   statusMessages: { textAlign: "center" },
-  currentStatus: { fontSize: 16, fontWeight: 600, color: "#e2e8f0", marginBottom: 12 },
-  recentLog: { fontSize: 13, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", background: "rgba(226, 232, 240, 0.05)", padding: "14px 18px", borderRadius: 8, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  currentStatus: { fontSize: 16, fontWeight: 600, color: "var(--foreground)", marginBottom: 12 },
+  recentLog: { fontSize: 13, color: "var(--muted-foreground)", fontFamily: "'JetBrains Mono', monospace", background: "var(--card)", padding: "14px 18px", borderRadius: 8, border: "1px solid var(--border)" },
 
   // Report styles
   changesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
-  changeItem: { display: "flex", alignItems: "center", gap: 16, padding: 20, background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  changeItem: { display: "flex", alignItems: "center", gap: 16, padding: 20, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
   changeIcon: { fontSize: 28 },
-  changeTitle: { fontSize: 14, fontWeight: 600, color: "#ffffff", marginBottom: 4 },
-  changeValue: { fontSize: 13, color: "#94a3b8" },
+  changeTitle: { fontSize: 14, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 },
+  changeValue: { fontSize: 13, color: "var(--muted-foreground)" },
   dependenciesReport: { display: "flex", flexDirection: "column", gap: 12 },
-  dependencyReportItem: { display: "grid", gridTemplateColumns: "1fr 200px 140px", gap: 16, alignItems: "center", padding: "16px 20px", background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  dependencyName: { fontSize: 14, fontWeight: 600, color: "#e2e8f0", fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-word" },
-  dependencyChange: { fontSize: 13, color: "#94a3b8", textAlign: "center" },
+  dependencyReportItem: { display: "grid", gridTemplateColumns: "1fr 200px 140px", gap: 16, alignItems: "center", padding: "16px 20px", background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
+  dependencyName: { fontSize: 14, fontWeight: 600, color: "var(--foreground)", fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-word" },
+  dependencyChange: { fontSize: 13, color: "var(--muted-foreground)", textAlign: "center" },
   dependencyStatus: { padding: "8px 14px", borderRadius: 14, fontSize: 11, fontWeight: 600, textTransform: "uppercase", textAlign: "center", color: "#fff" },
-  noData: { textAlign: "center", color: "#94a3b8", padding: 32, fontStyle: "italic" },
+  noData: { textAlign: "center", color: "var(--muted-foreground)", padding: 32, fontStyle: "italic" },
   errorsSummary: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 },
-  errorStat: { textAlign: "center", padding: 20, background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  errorCount: { display: "block", fontSize: 28, fontWeight: 700, color: "#ffffff", marginBottom: 8 },
-  errorLabel: { fontSize: 12, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase" },
+  errorStat: { textAlign: "center", padding: 20, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
+  errorCount: { display: "block", fontSize: 28, fontWeight: 700, color: "var(--foreground)", marginBottom: 8 },
+  errorLabel: { fontSize: 12, color: "var(--muted-foreground)", fontWeight: 600, textTransform: "uppercase" },
   businessLogicGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
-  businessItem: { display: "flex", alignItems: "flex-start", gap: 16, padding: 20, background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
+  businessItem: { display: "flex", alignItems: "flex-start", gap: 16, padding: 20, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
   businessIcon: { fontSize: 28, marginTop: 2 },
-  businessTitle: { fontSize: 14, fontWeight: 600, color: "#ffffff", marginBottom: 8 },
-  businessDesc: { fontSize: 13, color: "#94a3b8", lineHeight: 1.5 },
+  businessTitle: { fontSize: 14, fontWeight: 600, color: "var(--foreground)", marginBottom: 8 },
+  businessDesc: { fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 },
   sonarqubeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 22, marginBottom: 24 },
   sonarqubeItem: { textAlign: "center" },
   qualityGate: { marginBottom: 20 },
   gateStatus: { display: "inline-block", padding: "14px 28px", borderRadius: 24, color: "#fff", fontSize: 14, fontWeight: 700, textTransform: "uppercase" },
-  gateLabel: { display: "block", fontSize: 12, color: "#94a3b8", marginTop: 12, fontWeight: 600 },
+  gateLabel: { display: "block", fontSize: 12, color: "var(--muted-foreground)", marginTop: 12, fontWeight: 600 },
   coverageMeter: { position: "relative" },
-  coverageCircle: { width: 120, height: 120, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto", border: "3px solid rgba(96, 165, 250, 0.3)" },
-  coveragePercent: { fontSize: 28, fontWeight: 700, color: "#60a5fa" },
-  coverageLabel: { fontSize: 11, color: "#94a3b8", fontWeight: 600, marginTop: 4 },
+  coverageCircle: { width: 120, height: 120, borderRadius: "50%", background: "rgba(59, 130, 246, 0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto", border: "3px solid rgba(96, 165, 250, 0.3)" },
+  coveragePercent: { fontSize: 28, fontWeight: 700, color: "var(--primary)" },
+  coverageLabel: { fontSize: 11, color: "var(--muted-foreground)", fontWeight: 600, marginTop: 4 },
   qualityMetrics: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 },
-  metricItem: { textAlign: "center", padding: 16, background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  metricValue: { display: "block", fontSize: 24, fontWeight: 700, marginBottom: 8, color: "#ffffff" },
-  metricLabel: { fontSize: 11, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase" },
+  metricItem: { textAlign: "center", padding: 16, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
+  metricValue: { display: "block", fontSize: 24, fontWeight: 700, marginBottom: 8, color: "var(--foreground)" },
+  metricLabel: { fontSize: 11, color: "var(--muted-foreground)", fontWeight: 600, textTransform: "uppercase" },
   testReportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 20 },
-  testMetric: { textAlign: "center", padding: 20, background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  testValue: { display: "block", fontSize: 26, fontWeight: 700, color: "#60a5fa", marginBottom: 8 },
-  testLabel: { fontSize: 12, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase" },
+  testMetric: { textAlign: "center", padding: 20, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)" },
+  testValue: { display: "block", fontSize: 26, fontWeight: 700, color: "var(--primary)", marginBottom: 8 },
+  testLabel: { fontSize: 12, color: "var(--muted-foreground)", fontWeight: 600, textTransform: "uppercase" },
   testStatus: { display: "flex", alignItems: "center", gap: 12, padding: 16, background: "rgba(74, 222, 128, 0.1)", borderRadius: 10, border: "1px solid rgba(74, 222, 128, 0.2)" },
   testStatusIcon: { fontSize: 20 },
   jmeterGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
-  jmeterItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 22px", background: "rgba(226, 232, 240, 0.05)", borderRadius: 10, border: "1px solid rgba(226, 232, 240, 0.15)" },
-  jmeterLabel: { fontSize: 14, color: "#94a3b8" },
-  jmeterValue: { fontSize: 16, fontWeight: 700, color: "#e2e8f0" },
+  jmeterItem: { textAlign: "center", padding: 20, background: "var(--card)", borderRadius: 10, border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" },
+  jmeterLabel: { fontSize: 12, color: "var(--muted-foreground)", fontWeight: 600, textTransform: "uppercase", display: "block", marginBottom: 8 },
+  jmeterValue: { display: "block", fontSize: 24, fontWeight: 700, color: "var(--foreground)" },
+  grid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(280px, 1fr))",
+  gap: "18px",
+  width: "100%",
+  marginTop: "20px"
+},
+
+conversionCard: {
+  position: "relative",
+  background: "#ffffff",
+  border: "2px solid #dbe4f0",
+  borderRadius: "20px",
+  padding: "18px",
+  minHeight: "140px",
+  cursor: "pointer",
+  transition: "all 0.3s ease",
+  boxShadow: "0 2px 6px rgba(15,23,42,0.04)",
+  overflow: "hidden"
+},
+
+selectedConversionCard: {
+  border: "3px solid #2563eb",
+  background: "#eef4ff",
+  boxShadow: "0 6px 18px rgba(37,99,235,0.12)"
+},
+
+cardHeader: {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  marginBottom: "10px"
+},
+
+iconBox: {
+  width: "40px",
+  height: "40px",
+  borderRadius: "12px",
+  background: "#eff6ff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "18px",
+  flexShrink: 0
+},
+
+content: {
+  flex: 1,
+  minWidth: 0
+},
+
+cardTitle: {
+  margin: 0,
+  fontSize: "16px",
+  fontWeight: 700,
+  color: "#0f172a",
+  lineHeight: "1.3"
+},
+
+cardDesc: {
+  margin: 0,
+  fontSize: "13px",
+  color: "#64748b",
+  lineHeight: "1.5"
+},
+
+badge: {
+  position: "absolute",
+  top: "12px",
+  right: "12px",
+  padding: "6px 14px",
+  borderRadius: "999px",
+  fontSize: "11px",
+  fontWeight: 600,
+  whiteSpace: "nowrap"
+}
 };
