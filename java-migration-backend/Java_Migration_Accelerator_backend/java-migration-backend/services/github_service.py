@@ -1,32 +1,3 @@
-def get_github_client(token: str, repo_url: str = None):
-    """Return a Github client for public or enterprise GitHub."""
-    from github import Github
-    import re
-    if repo_url and "github.com" in repo_url and not "github." in repo_url.replace("github.com", ""):
-        # Public GitHub
-        if token and len(token.strip()) > 0:
-            return Github(token)
-        else:
-            return Github()  # No token for public access
-    elif repo_url:
-        # Enterprise (extract base domain)
-        m = re.match(r"https?://([^/]+)/", repo_url)
-        if m:
-            base_url = f"https://{m.group(1)}/api/v3"
-            if token and len(token.strip()) > 0:
-                return Github(base_url=base_url, login_or_token=token)
-            else:
-                return Github(base_url=base_url)  # No token for enterprise
-        else:
-            raise Exception("Invalid GitHub Enterprise URL")
-    else:
-        if token and len(token.strip()) > 0:
-            return Github(token)
-        else:
-            return Github()  # No token
-"""
-Git Service - Handles GitHub and GitLab API interactions
-"""
 import os
 import tempfile
 import shutil
@@ -41,6 +12,34 @@ import httpx
 _cache = {}
 _cache_ttl = 300  # 5 minutes cache TTL
 
+def get_github_client(token: str, repo_url: str = None):
+    from urllib3.util.retry import Retry
+    # Disable automatic sleeping on rate limits
+    no_retry = Retry(total=0, status_forcelist=[])
+    """Return a Github client for public or enterprise GitHub."""
+    import re
+    if repo_url and "github.com" in repo_url and not "github." in repo_url.replace("github.com", ""):
+        # Public GitHub
+        if token and len(token.strip()) > 0:
+            return Github(token.strip(), retry=no_retry)
+        else:
+            return Github(retry=no_retry)  # No token for public access
+    elif repo_url:
+        # Enterprise (extract base domain)
+        m = re.match(r"https?://([^/]+)/", repo_url)
+        if m:
+            base_url = f"https://{m.group(1)}/api/v3"
+            if token and len(token.strip()) > 0:
+                return Github(token.strip(), base_url=base_url, retry=no_retry)
+            else:
+                return Github(base_url=base_url, retry=no_retry)  # No token for enterprise
+        else:
+            raise Exception("Invalid GitHub Enterprise URL")
+    else:
+        if token and len(token.strip()) > 0:
+            return Github(token.strip(), retry=no_retry)
+        else:
+            return Github(retry=no_retry)  # No token
 
 def get_cached(key: str) -> Optional[Any]:
     """Get cached value if not expired"""
@@ -56,6 +55,29 @@ def set_cached(key: str, value: Any):
     """Set cached value with current timestamp"""
     _cache[key] = (value, time.time())
 
+
+
+def _github_error_message(error: GithubException) -> str:
+    data = getattr(error, "data", None)
+    if isinstance(data, dict):
+        return data.get("message", str(error))
+    return str(error)
+
+
+def _is_rate_limit_error(error: GithubException) -> bool:
+    message = _github_error_message(error).lower()
+    return "rate limit" in message or "api rate limit exceeded" in message
+
+
+def _rate_limit_exception_message(error: GithubException) -> str:
+    reset_header = getattr(error, "headers", {}).get("X-RateLimit-Reset") if getattr(error, "headers", None) else None
+    if reset_header:
+        try:
+            wait_seconds = max(0, int(reset_header) - int(time.time()))
+            return f"GitHub API rate limit exceeded. Resets in {wait_seconds / 60:.1f} minutes. Please wait or provide a different GitHub token."
+        except (TypeError, ValueError):
+            pass
+    return "GitHub API rate limit exceeded. Please wait a few minutes or provide a different GitHub token."
 
 class GitHubService:
     def __init__(self):
@@ -89,7 +111,7 @@ class GitHubService:
             
             return repos
         except GithubException as e:
-            error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+            error_msg = _github_error_message(e)
             raise Exception(f"GitHub API error: {error_msg}")
         except Exception as e:
             raise Exception(f"Failed to connect to GitHub: {str(e)}")
@@ -315,7 +337,7 @@ class GitHubService:
             wait_time = int(reset_time) - int(time.time()) if reset_time else 3600
             raise Exception(f"GitHub API rate limit exceeded. Resets in {wait_time/60:.1f} minutes. Please wait or provide a different GitHub token.")
         except GithubException as e:
-            error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+            error_msg = _github_error_message(e)
             if 'rate limit' in error_msg.lower():
                 raise Exception(f"GitHub API rate limit exceeded. Please wait a few minutes or provide a different GitHub token.")
             raise Exception(f"GitHub API error: {error_msg}")
@@ -342,9 +364,9 @@ class GitHubService:
         """Get repository information (works with or without token for public repos)"""
         try:
             if token:
-                g = Github(token)
+                g = get_github_client(token.strip())
             else:
-                g = Github()
+                g = get_github_client(None)
             
             repository = g.get_repo(f"{owner}/{repo}")
             
@@ -361,9 +383,11 @@ class GitHubService:
         except GithubException as e:
             # Check the HTTP status code for better error messages
             status_code = getattr(e, 'status', None)
-            error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+            error_msg = _github_error_message(e)
             
-            if status_code == 404:
+            if _is_rate_limit_error(e):
+                raise Exception(_rate_limit_exception_message(e))
+            elif status_code == 404:
                 raise Exception(f"Repository not found: {owner}/{repo}")
             elif status_code == 403:
                 raise Exception("Access denied. The repository may be private or you may not have permission to access it.")
@@ -419,9 +443,11 @@ class GitHubService:
         except GithubException as e:
             # Check the HTTP status code for better error messages
             status_code = getattr(e, 'status', None)
-            error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+            error_msg = _github_error_message(e)
             
-            if status_code == 404:
+            if _is_rate_limit_error(e):
+                raise Exception(_rate_limit_exception_message(e))
+            elif status_code == 404:
                 raise Exception(f"Repository not found. Please check that the repository URL is correct and the repository exists: {repo_url}")
             elif status_code == 403:
                 raise Exception("Access denied. The repository may be private or you may not have permission to access it.")
@@ -438,9 +464,9 @@ class GitHubService:
         """Get the content of a file from the repository"""
         try:
             if token:
-                g = Github(token)
+                g = get_github_client(token.strip())
             else:
-                g = Github()
+                g = get_github_client(None)
             
             repository = g.get_repo(f"{owner}/{repo}")
             file_content = repository.get_contents(path)
@@ -451,9 +477,11 @@ class GitHubService:
         except GithubException as e:
             # Check the HTTP status code for better error messages
             status_code = getattr(e, 'status', None)
-            error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+            error_msg = _github_error_message(e)
             
-            if status_code == 404:
+            if _is_rate_limit_error(e):
+                raise Exception(_rate_limit_exception_message(e))
+            elif status_code == 404:
                 raise Exception(f"File or repository not found: {path}")
             elif status_code == 403:
                 raise Exception("Access denied. The repository may be private or you may not have permission to access it.")
@@ -534,7 +562,7 @@ class GitHubService:
             if not token or len(token.strip()) == 0:
                 raise Exception("GitHub token is required to create and push repositories. Please provide a valid Personal Access Token with repo or public_repo scope.")
 
-            g = Github(token)
+            g = get_github_client(token.strip())
             user = g.get_user()
             print(f"DEBUG: Authenticated as user: {user.login}")
 
@@ -559,7 +587,7 @@ class GitHubService:
                 )
                 print(f"DEBUG: Repo created successfully: {new_repo.html_url}")
             except GithubException as e:
-                error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+                error_msg = _github_error_message(e)
                 print(f"DEBUG: Repo creation failed: {error_msg}")
                 if 'name already exists' in error_msg.lower():
                     # Try with timestamp suffix
@@ -684,7 +712,7 @@ class GitHubService:
             return new_repo.html_url
 
         except GithubException as e:
-            error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+            error_msg = _github_error_message(e)
             print(f"DEBUG: GitHub API error: {error_msg}")
             raise Exception(f"GitHub API error: {error_msg}")
         except Exception as e:
@@ -1998,3 +2026,7 @@ class GitHubService:
             return any(indicator in makefile_content.lower() for indicator in java_indicators)
         except:
             return False
+
+
+
+

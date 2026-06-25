@@ -78,35 +78,35 @@ const MIGRATION_STEPS = [
   {
     id: 1,
     name: "Connect",
-    icon: "🔗",
+    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
     description: "Connect to GitHub Repository",
     summary: "Enter your GitHub repository URL to start the migration process"
   },
   {
     id: 2,
     name: "Discovery",
-    icon: "🔍",
+    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
     description: "Repository Discovery & Dependencies",
     summary: "Explore repository structure and analyze project dependencies"
   },
   {
     id: 3,
     name: "Strategy",
-    icon: "📋",
+    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
     description: "Assessment & Migration Strategy",
     summary: "Review assessment results and define the migration roadmap"
   },
   {
     id: 4,
     name: "Migration",
-    icon: "⚡",
+    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>,
     description: "Build Modernization & Migration",
     summary: "Execute the upgrade using automation tools and refactor legacy components"
   },
   {
     id: 5,
     name: "Result",
-    icon: "📊",
+    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>,
     description: "Migration Results",
     summary: "View migration report and download migrated project"
   },
@@ -155,7 +155,36 @@ const writeSessionJson = (key: string, value: unknown) => {
   window.sessionStorage.setItem(key, JSON.stringify(value));
 };
 
+const normalizeErrorMessage = (message: string) => {
+  if (/failed to fetch/i.test(message)) {
+    return "We could not reach the migration service. Check your connection, confirm the backend is running, and try again.";
+  }
+
+  return message;
+};
 const getIndicatorStep = (step: number) => Math.min(step, MIGRATION_STEPS.length);
+type WizardNotificationKind = "success" | "warning" | "error" | "info";
+
+const pushFrontendNotification = (
+  kind: WizardNotificationKind,
+  title: string,
+  message: string,
+  id: string,
+) => {
+  if (typeof window === "undefined") return;
+
+  window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent("java-apex-notification", {
+      detail: {
+        id,
+        kind,
+        title,
+        message,
+        time: "Just now",
+      },
+    }));
+  }, 0);
+};
 
 export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () => void }) {
   const navigate = useNavigate();
@@ -179,7 +208,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const buildTargetRepoUrl = (repoName: string, timestamp: string) =>
-    `https://github.com/SrikkanthSorim/${repoName || "repo"}-Migrated${timestamp}`;
+    `https://github.com/JeniferNivetha0313/${repoName || "repo"}-Migrated${timestamp}`;
 
   const buildTargetBranchName = (repoName: string, timestamp: string) =>
     `migration/${repoName || "repo"}-Migrated${timestamp}`;
@@ -205,7 +234,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [isPrivateRepo, setIsPrivateRepo] = useState(
     persistedFormState?.isPrivateRepo ?? false
   );
-  const [patToken, setPatToken] = useState(persistedFormState?.patToken ?? "");
+  const [patToken, setPatToken] = useState(() => localStorage.getItem("github_pat_token") ?? persistedFormState?.patToken ?? "");
   // Show token input only for GitHub Enterprise
   const isEnterpriseGithub = (url: string) => {
     // Matches github.<anything>.com but not github.com
@@ -722,6 +751,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
   }, []);
 
+  // Persist manual PAT token to localStorage so it doesn't get cleared on tab reload
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (patToken) {
+      localStorage.setItem("github_pat_token", patToken);
+    } else {
+      localStorage.removeItem("github_pat_token");
+    }
+  }, [patToken]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -815,6 +854,76 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     sourceVersionStatus,
     updateSourceVersion,
   ]);
+
+
+  useEffect(() => {
+    if (!error) return;
+
+    const normalizedError = normalizeErrorMessage(error);
+    const isRateLimit = /rate limit/i.test(normalizedError);
+
+    pushFrontendNotification(
+      isRateLimit ? "warning" : "error",
+      isRateLimit ? "GitHub rate limit warning" : "Connection Error",
+      normalizedError,
+      isRateLimit ? "wizard-github-rate-limit" : `wizard-error-${normalizedError.slice(0, 48)}`,
+    );
+  }, [error]);
+
+  useEffect(() => {
+    if (isJavaProject !== false) return;
+
+    pushFrontendNotification(
+      "error",
+      "This is not a Java Project",
+      "The connected repository does not contain Java source code, Maven, or Gradle configuration files.",
+      "wizard-not-java-project",
+    );
+  }, [isJavaProject]);
+
+  useEffect(() => {
+    if (!repoAnalysis || isJavaProject !== true) return;
+
+    pushFrontendNotification(
+      "success",
+      "Repository analyzed successfully",
+      "Repository discovery completed and project metadata is ready for review.",
+      "wizard-repository-analyzed",
+    );
+  }, [repoAnalysis, isJavaProject]);
+
+  useEffect(() => {
+    if (step < 3 || !repoAnalysis || isJavaProject === false) return;
+
+    pushFrontendNotification(
+      "info",
+      "Migration plan generated",
+      "The migration strategy page is ready with detected configuration and recommendations.",
+      "wizard-migration-plan-generated",
+    );
+  }, [step, repoAnalysis, isJavaProject]);
+
+  useEffect(() => {
+    if (!fossaResult) return;
+
+    pushFrontendNotification(
+      "success",
+      "FOSSA scan completed",
+      "License and dependency compliance results are available in the migration report.",
+      "wizard-fossa-scan-completed",
+    );
+  }, [fossaResult]);
+
+  useEffect(() => {
+    if (migrationJob?.status !== "completed") return;
+
+    pushFrontendNotification(
+      "info",
+      "SonarQube report ready",
+      "Code quality metrics and migration results are ready to review.",
+      "wizard-sonarqube-report-ready",
+    );
+  }, [migrationJob?.status]);
 
   // Fetch FOSSA results for the migration job when requested or when job already has results
   useEffect(() => {
@@ -1379,11 +1488,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           >
             <div style={{ 
               ...styles.stepCircle, 
-              backgroundColor: isCompleted ? "#22c55e" : isActive ? "#3b82f6" : "#e5e7eb", 
-              color: currentIndicatorStep >= s.id ? "#fff" : "#6b7280",
+              backgroundColor: isCompleted ? "#22c55e" : isActive ? "var(--accent)" : "var(--bg-tertiary)", 
+              color: currentIndicatorStep >= s.id ? "#fff" : "var(--text-muted)",
               width: 44,
               height: 44,
               fontSize: 18,
+              border: "2px solid var(--border-color)",
               boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none"
             }}>
               {step > s.id ? "✓" : s.icon}
@@ -1392,14 +1502,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               <div style={{ 
                 fontWeight: isActive ? 700 : 500, 
                 fontSize: 13, 
-                color: isActive ? "#3b82f6" : isCompleted ? "#22c55e" : "#64748b",
+                color: isActive ? "var(--accent)" : isCompleted ? "#22c55e" : "var(--text-muted)",
                 marginBottom: 2
               }}>
                 {s.name}
               </div>
               <div style={{ 
                 fontSize: 10, 
-                color: isActive ? "#64748b" : "#94a3b8",
+                color: isActive ? "var(--text-secondary)" : "var(--text-muted)",
                 maxWidth: 100,
                 lineHeight: 1.3
               }}>
@@ -1412,10 +1522,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             <div style={{
               flex: 1,
               height: 3,
-              backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : "#e5e7eb",
-              marginTop: -50,
-              marginLeft: -10,
-              marginRight: -10,
+              backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : (maxVisitedIndicatorStep > s.id ? "#ef4444" : "var(--border-color)"),
+              marginTop: 20,
+              marginLeft: 8,
+              marginRight: 8,
               borderRadius: 2,
               transition: "background-color 0.3s ease"
             }} />
@@ -1428,159 +1538,230 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const renderStep1 = () => {
     return (
-      <div style={styles.card}>
-        <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🔗</span>
-          <div>
-            <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
-          </div>
-        </div>
+      <div className="premium-card" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)", padding: 0, overflow: "hidden" }}>
+        <div className="connect-container">
+          {/* Left panel: Info & Features */}
+          <div className="connect-left-panel">
+            <div>
+              <div className="connect-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Apex Java
+              </div>
+              <h2 className="connect-title">Modernize Your Java Codebase</h2>
+              <p className="connect-desc">Connect your GitHub repository to analyze, upgrade version settings, and automate Maven to Gradle conversions using AI recipes.</p>
 
-        <div style={styles.field}>
-          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
-            Repository URL
-            {/* Info Button with Tooltip */}
-            <div style={{ position: "relative", display: "inline-block" }}>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  backgroundColor: "#e2e8f0",
-                  color: "#64748b",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "help",
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#3b82f6";
-                  e.currentTarget.style.color = "#fff";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "block";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e2e8f0";
-                  e.currentTarget.style.color = "#64748b";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "none";
-                }}
-              >
-                i
-              </span>
-              {/* Tooltip */}
-              <div
-                style={{
-                  display: "none",
-                  position: "absolute",
-                  top: 24,
-                  left: 0,
-                  backgroundColor: "#1e293b",
-                  color: "#fff",
-                  padding: "12px 16px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  whiteSpace: "nowrap",
-                  zIndex: 1000,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
-                <div>• https://github.com/owner/repo</div>
-                <div>• github.com/owner/repo</div>
-                <div>• owner/repo</div>
-                {/* Arrow */}
-                <div style={{
-                  position: "absolute",
-                  top: -6,
-                  left: 9,
-                  width: 0,
-                  height: 0,
-                  borderLeft: "6px solid transparent",
-                  borderRight: "6px solid transparent",
-                  borderBottom: "6px solid #1e293b"
-                }} />
+              <div className="connect-features">
+                <div className="connect-feature-item">
+                  <div className="connect-feature-icon">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" /></svg>
+                  </div>
+                  <div>
+                    <div className="connect-feature-title">Version Upgrade</div>
+                    <div className="connect-feature-desc">Transition instantly from Java 8 legacy up to Java 17 or 21 LTS packages.</div>
+                  </div>
+                </div>
+
+                <div className="connect-feature-item">
+                  <div className="connect-feature-icon">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9" /></svg>
+                  </div>
+                  <div>
+                    <div className="connect-feature-title">Build Layout Migration</div>
+                    <div className="connect-feature-desc">Convert build configurations between Maven POM files and Gradle build scripts.</div>
+                  </div>
+                </div>
+
+                <div className="connect-feature-item">
+                  <div className="connect-feature-icon">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" /></svg>
+                  </div>
+                  <div>
+                    <div className="connect-feature-title">Dependency Analysis</div>
+                    <div className="connect-feature-desc">Scan, resolve, and update deprecated libraries automatically.</div>
+                  </div>
+                </div>
               </div>
             </div>
-          </label>
-          <input
-            type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
-            value={repoUrl}
-            onChange={(e) => {
-              setRepoUrl(e.target.value);
-              setSelectedRepo(null);
-              setRepoAnalysis(null);
-              setIsPrivateRepo(false);
-              setPatToken("");
-              setError("");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && urlValidation.valid) {
-                void handleRepositoryContinue();
-              }
-            }}
-            placeholder="https://github.com/owner/repository"
-          />
-          {!shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
-              Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+
+            <div className="connect-security-note">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              <span>Secure connection. Code resides in your repo.</span>
             </div>
-          )}
-          {repoAccessCheckLoading && !shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
-              Checking repository access...
+          </div>
+
+          {/* Right panel: Connection Form */}
+          <div className="connect-right-panel">
+            <div className="connect-right-header">
+              <h3 className="connect-right-title">Connect Repository</h3>
+              <p className="connect-right-desc">Enter a GitHub repository URL to begin migration analysis.</p>
             </div>
-          )}
-          {shouldShowPatInput && (
-            <div style={{ marginTop: 16 }}>
-              <label style={{ ...styles.label, fontWeight: 500 }}>
-                GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+
+            <div style={styles.field}>
+              <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8, color: "var(--text-primary)" }}>
+                Repository URL
+                {/* Info Button with Tooltip */}
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      backgroundColor: "var(--bg-tertiary)",
+                      color: "var(--text-muted)",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "help",
+                      border: "1px solid var(--border-color)",
+                      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--accent)";
+                      e.currentTarget.style.color = "#fff";
+                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (tooltip) tooltip.style.display = "block";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+                      e.currentTarget.style.color = "var(--text-muted)";
+                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (tooltip) tooltip.style.display = "none";
+                    }}
+                  >
+                    i
+                  </span>
+                  {/* Tooltip */}
+                  <div
+                    style={{
+                      display: "none",
+                      position: "absolute",
+                      top: 24,
+                      left: 0,
+                      backgroundColor: "var(--bg-primary)",
+                      border: "1px solid var(--border-light)",
+                      color: "var(--text-primary)",
+                      padding: "12px 16px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      whiteSpace: "nowrap",
+                      zIndex: 1000,
+                      boxShadow: "var(--shadow-soft)"
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--accent)" }}>Supported formats:</div>
+                    <div>• https://github.com/owner/repo</div>
+                    <div>• github.com/owner/repo</div>
+                    <div>• owner/repo</div>
+                    {/* Arrow */}
+                    <div style={{
+                      position: "absolute",
+                      top: -6,
+                      left: 9,
+                      width: 0,
+                      height: 0,
+                      borderLeft: "6px solid transparent",
+                      borderRight: "6px solid transparent",
+                      borderBottom: "6px solid var(--border-light)"
+                    }} />
+                  </div>
+                </div>
               </label>
               <input
-                type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
-                value={showEnterpriseToken ? githubToken : patToken}
-                onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
-                placeholder="Paste your GitHub PAT here"
-                autoComplete="off"
+                type="text"
+                style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : 'var(--border-light)', padding: "14px 16px", fontSize: 15 }}
+                value={repoUrl}
+                onChange={(e) => {
+                  setRepoUrl(e.target.value);
+                  setSelectedRepo(null);
+                  setRepoAnalysis(null);
+                  setIsPrivateRepo(false);
+                  // Don't auto-wipe the PAT token if they are just typing or changing the URL.
+                  // Only clear the token if the input field is cleared completely.
+                  if (!e.target.value.trim()) {
+                    setPatToken("");
+                  }
+                  setError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && urlValidation.valid) {
+                    void handleRepositoryContinue();
+                  }
+                }}
+                placeholder="https://github.com/owner/repository"
               />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                {showEnterpriseToken
-                  ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                  : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+              {!shouldShowPatInput && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12, lineHeight: 1.4 }}>
+                  Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+                </div>
+              )}
+              {repoAccessCheckLoading && !shouldShowPatInput && (
+                <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>
+                  Checking repository access...
+                </div>
+              )}
+              {shouldShowPatInput && (
+                <div style={{ marginTop: 16 }}>
+                  <label style={{ ...styles.label, fontWeight: 500, color: "var(--text-primary)" }}>
+                    GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                  </label>
+                  <input
+                    type="password"
+                    style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : 'var(--border-light)', padding: "14px 16px" }}
+                    value={showEnterpriseToken ? githubToken : patToken}
+                    onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
+                    placeholder="Paste your GitHub PAT here"
+                    autoComplete="off"
+                  />
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4 }}>
+                    {showEnterpriseToken
+                      ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "underline" }}>How to create a PAT?</a></>
+                      : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "underline" }}>How to create a PAT?</a></>}
+                  </div>
+                </div>
+              )}
+              {repoUrl && !urlValidation.valid && (
+                <div className="repo-validation-message repo-validation-message-error">
+                  <span aria-hidden="true">!</span>
+                  <strong>{urlValidation.message}</strong>
+                </div>
+              )}
+              {urlValidation.valid && (
+                <div className="repo-validation-message repo-validation-message-success">
+                  <span aria-hidden="true">OK</span>
+                  <strong>Repository URL is valid. You can start the analysis.</strong>
+                </div>
+              )}
+            </div>
+
+            {/* Start Analysis button with transition */}
+            <div style={{
+              maxHeight: urlValidation.valid ? "100px" : "0px",
+              opacity: urlValidation.valid ? 1 : 0,
+              overflow: "hidden",
+              transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+              marginTop: urlValidation.valid ? 16 : 0
+            }}>
+              <div style={{ ...styles.btnRow, marginTop: 0 }}>
+                <button
+                  className="gradient-btn"
+                  style={{ ...styles.primaryBtn, width: "100%", padding: "14px 28px", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                  onClick={() => void handleRepositoryContinue()}
+                >
+                  Start Analysis
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
               </div>
             </div>
-          )}
-          {repoUrl && !urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
-              ⚠️ {urlValidation.message}
-            </div>
-          )}
-          {urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
-              ✓ Valid repository URL
-            </div>
-          )}
-        </div>
 
-        <div style={styles.btnRow}>
-          <button
-            style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
-            disabled={!urlValidation.valid}
-            onClick={() => void handleRepositoryContinue()}
-          >
-            Continue →
-          </button>
+          </div>
         </div>
       </div>
     );
   };
+
 
   // Consolidated Step 2: Discovery (Repository discovery + Dependencies)
   const renderDiscoveryStep = () => {
@@ -1723,9 +1904,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     };
 
     return (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔍</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Repository Discovery & Dependencies</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[1].summary}</p>
@@ -1912,7 +2093,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             {sourceVersionStatus === "detected" ? "Java version automatically detected" : "Select Source Java Version:"}
                           </label>
                           {sourceVersionStatus === "detected" && suggestedJavaVersion !== "auto" ? (
-                            <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #d1d5db", backgroundColor: "#f8fafc", minWidth: 200, color: "#0f172a" }}>
+                            <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid var(--border-color)", backgroundColor: "#f8fafc", minWidth: 200, color: "#0f172a" }}>
                               Java {suggestedJavaVersion} detected from source code
                             </div>
                           ) : (
@@ -1930,7 +2111,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                   borderRadius: 6,
                                   border: "1px solid #d97706",
                                   fontSize: 14,
-                                  backgroundColor: "#fff",
+                                  backgroundColor: "var(--bg-card)",
                                   cursor: "pointer",
                                   minWidth: 200
                                 }}
@@ -1953,7 +2134,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                           <div style={{ fontSize: 14, fontWeight: 600, color: "#1e3a8a" }}>
                             {buildConversionLabel}
                           </div>
-                          <div style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 8 }}>
                             {buildConversionNote}
                           </div>
                         </div>
@@ -1992,7 +2173,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             setRepoUrl("");
                           }}
                           style={{
-                            backgroundColor: "#fff",
+                            backgroundColor: "var(--bg-card)",
                             color: "#92400e",
                             border: "2px solid #f59e0b",
                             borderRadius: 8,
@@ -2014,11 +2195,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   {/* GitHub-like File Explorer */}
                   <div style={styles.sectionTitle}>📂 Repository Files</div>
                   <div style={{
-                    border: "1px solid #d0d7de",
+                    border: "1px solid var(--border-color)",
                     borderRadius: 8,
                     overflow: "hidden",
                     marginBottom: 24,
-                    backgroundColor: "#fff"
+                    backgroundColor: "var(--bg-card)"
                   }}>
                     {/* Header bar like GitHub */}
                     <div style={{
@@ -2026,15 +2207,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       alignItems: "center",
                       justifyContent: "space-between",
                       padding: "12px 16px",
-                      backgroundColor: "#f6f8fa",
-                      borderBottom: "1px solid #d0d7de"
+                      backgroundColor: "var(--bg-tertiary)",
+                      borderBottom: "1px solid var(--border-color)"
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedRepo.name}</span>
+                        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{selectedRepo.name}</span>
                         {currentPath && (
                           <>
-                            <span style={{ color: "#57606a" }}>/</span>
-                            <span style={{ color: "#0969da" }}>{currentPath}</span>
+                            <span style={{ color: "var(--text-muted)" }}>/</span>
+                            <span style={{ color: "var(--accent)" }}>{currentPath}</span>
                           </>
                         )}
                       </div>
@@ -2044,12 +2225,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             onClick={navigateToRoot}
                             style={{
                               background: "none",
-                              border: "1px solid #d0d7de",
+                              border: "1px solid var(--border-color)",
                               borderRadius: 6,
                               padding: "4px 12px",
                               cursor: "pointer",
                               fontSize: 12,
-                              color: "#24292f"
+                              color: "var(--text-primary)"
                             }}
                           >
                             🏠 Root
@@ -2059,12 +2240,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                           onClick={() => setShowFileExplorer(!showFileExplorer)}
                           style={{
                             background: "none",
-                            border: "1px solid #d0d7de",
+                            border: "1px solid var(--border-color)",
                             borderRadius: 6,
                             padding: "4px 12px",
                             cursor: "pointer",
                             fontSize: 12,
-                            color: "#24292f"
+                            color: "var(--text-primary)"
                           }}
                         >
                           {showFileExplorer ? "🔽 Collapse" : "🔼 Expand"}
@@ -2077,7 +2258,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                         {/* File Tree - Left Panel */}
                         <div style={{
                           width: selectedFile ? "40%" : "100%",
-                          borderRight: selectedFile ? "1px solid #d0d7de" : "none",
+                          borderRight: selectedFile ? "1px solid var(--border-color)" : "none",
                           overflowY: "auto",
                           maxHeight: 500
                         }}>
@@ -2090,13 +2271,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                 alignItems: "center",
                                 gap: 10,
                                 padding: "10px 16px",
-                                borderBottom: "1px solid #d0d7de",
+                                borderBottom: "1px solid var(--border-color)",
                                 cursor: "pointer",
-                                backgroundColor: "#f6f8fa"
+                                backgroundColor: "var(--bg-tertiary)"
                               }}
                             >
                               <span>⬆️</span>
-                              <span style={{ color: "#0969da", fontSize: 14 }}>..</span>
+                              <span style={{ color: "var(--accent)", fontSize: 14 }}>..</span>
                             </div>
                           )}
                           
@@ -2111,14 +2292,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                   alignItems: "center",
                                   gap: 10,
                                   padding: "10px 16px",
-                                  borderBottom: "1px solid #d0d7de",
+                                  borderBottom: "1px solid var(--border-color)",
                                   cursor: "pointer",
-                                  backgroundColor: selectedFile?.path === file.path ? "#ddf4ff" : "transparent",
+                                  backgroundColor: selectedFile?.path === file.path ? "var(--bg-hover)" : "transparent",
                                   transition: "background-color 0.15s ease"
                                 }}
                                 onMouseEnter={(e) => {
                                   if (selectedFile?.path !== file.path) {
-                                    e.currentTarget.style.backgroundColor = "#f6f8fa";
+                                    e.currentTarget.style.backgroundColor = "var(--bg-hover)";
                                   }
                                 }}
                                 onMouseLeave={(e) => {
@@ -2130,21 +2311,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                 <span style={{ fontSize: 16 }}>{getFileIcon(file)}</span>
                                 <span style={{
                                   flex: 1,
-                                  color: file.type === "dir" ? "#0969da" : "#24292f",
+                                  color: file.type === "dir" ? "var(--accent)" : "var(--text-primary)",
                                   fontWeight: file.type === "dir" ? 600 : 400,
                                   fontSize: 14
                                 }}>
                                   {file.name}
                                 </span>
                                 {file.type === "file" && file.size > 0 && (
-                                  <span style={{ fontSize: 12, color: "#57606a" }}>
+                                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
                                     {file.size < 1024 ? `${file.size} B` : `${Math.round(file.size / 1024)} KB`}
                                   </span>
                                 )}
                               </div>
                             ))
                           ) : (
-                            <div style={{ padding: 20, textAlign: "center", color: "#57606a" }}>
+                            <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>
                               No files found
                             </div>
                           )}
@@ -2159,18 +2340,18 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                               alignItems: "center",
                               justifyContent: "space-between",
                               padding: "8px 16px",
-                              backgroundColor: "#f6f8fa",
-                              borderBottom: "1px solid #d0d7de"
+                              backgroundColor: "var(--bg-tertiary)",
+                              borderBottom: "1px solid var(--border-color)"
                             }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <span>{getFileIcon(selectedFile)}</span>
-                                <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedFile.name}</span>
+                                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{selectedFile.name}</span>
                                 <span style={{
                                   fontSize: 11,
                                   padding: "2px 8px",
-                                  backgroundColor: "#ddf4ff",
+                                  backgroundColor: "var(--bg-hover)",
                                   borderRadius: 12,
-                                  color: "#0969da"
+                                  color: "var(--accent)"
                                 }}>
                                   {getFileLanguage(selectedFile.name)}
                                 </span>
@@ -2185,12 +2366,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                   }}
                                   style={{
                                     background: "none",
-                                    border: "1px solid #d0d7de",
+                                    border: "1px solid var(--border-color)",
                                     borderRadius: 6,
                                     padding: "6px 12px",
                                     cursor: "pointer",
                                     fontSize: 12,
-                                    color: "#24292f"
+                                    color: "var(--text-primary)"
                                   }}
                                 >
                                   ✖️ Close
@@ -2283,7 +2464,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   </div>
 
                   {(detectedJavaVersion || detectedBuildType) && (
-                    <div style={styles.detectedConfigCard}>
+                    <div className="detected-config-card" style={styles.detectedConfigCard}>
                       <div style={styles.detectedConfigHeader}>
                         <div>
                           <div style={styles.detectedConfigTitle}>Detected Configuration</div>
@@ -2294,13 +2475,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       </div>
 
                       <div style={styles.detectedConfigActions}>
-                        <button type="button" style={styles.detectedConfigChip}>
+                        <button type="button" className="detected-config-chip" style={styles.detectedConfigChip}>
                           Java Version Detected: {detectedJavaVersion ? `Java ${detectedJavaVersion}` : "Unknown"}
                         </button>
-                        <button type="button" style={styles.detectedConfigChip}>
+                        <button type="button" className="detected-config-chip" style={styles.detectedConfigChip}>
                           Build Detected: {detectedBuildType ? detectedBuildType.charAt(0).toUpperCase() + detectedBuildType.slice(1) : "Unknown"}
                         </button>
-                        <button type="button" style={styles.detectedConfigChip}>
+                        <button type="button" className="detected-config-chip" style={styles.detectedConfigChip}>
                           Framework Detected: {primaryDetectedFramework || "None detected"}
                         </button>
                         {hasRecommendedBuildConversion && recommendedBuildConversionId && (
@@ -2343,7 +2524,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       zIndex: 1000
                     }}>
                       <div style={{
-                        backgroundColor: "#fff",
+                        backgroundColor: "var(--bg-card)",
                         borderRadius: 12,
                         width: "80%",
                         maxWidth: 900,
@@ -2357,23 +2538,23 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                           alignItems: "center",
                           justifyContent: "space-between",
                           padding: "16px 20px",
-                          backgroundColor: "#f6f8fa",
-                          borderBottom: "1px solid #d0d7de"
+                          backgroundColor: "var(--bg-tertiary)",
+                          borderBottom: "1px solid var(--border-color)"
                         }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <span style={{ fontSize: 20 }}>📄</span>
                             <div>
-                              <div style={{ fontWeight: 600, color: "#24292f" }}>{viewingFrameworkFile.name}</div>
-                              <div style={{ fontSize: 12, color: "#57606a" }}>{viewingFrameworkFile.path}</div>
+                              <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{viewingFrameworkFile.name}</div>
+                              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{viewingFrameworkFile.path}</div>
                             </div>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{
                               fontSize: 11,
                               padding: "4px 10px",
-                              backgroundColor: "#ddf4ff",
+                              backgroundColor: "var(--bg-hover)",
                               borderRadius: 12,
-                              color: "#0969da"
+                              color: "var(--accent)"
                             }}>
                               Read Only
                             </span>
@@ -2381,12 +2562,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                               onClick={() => setViewingFrameworkFile(null)}
                               style={{
                                 background: "none",
-                                border: "1px solid #d0d7de",
+                                border: "1px solid var(--border-color)",
                                 borderRadius: 6,
                                 padding: "6px 12px",
                                 cursor: "pointer",
                                 fontSize: 14,
-                                color: "#24292f"
+                                color: "var(--text-primary)"
                               }}
                             >
                               ✖️ Close
@@ -2440,6 +2621,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       {detectedFrameworks.map((fw, idx) => (
                         <div
                           key={idx}
+                          className="framework-detected-card"
                           onClick={async () => {
                             setFrameworkFileLoading(true);
                             setViewingFrameworkFile({ name: fw.name, path: fw.path, content: "" });
@@ -2457,22 +2639,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             alignItems: "center",
                             justifyContent: "space-between",
                             padding: "14px 16px",
-                            backgroundColor: "#fff",
-                            border: "1px solid #d0d7de",
+                            backgroundColor: "var(--bg-card)",
+                            border: "1px solid var(--border-color)",
                             borderRadius: 8,
                             cursor: "pointer",
-                            transition: "all 0.2s ease",
+                            transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                             boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#f6f8fa";
-                            e.currentTarget.style.borderColor = "#0969da";
-                            e.currentTarget.style.boxShadow = "0 2px 8px rgba(9, 105, 218, 0.15)";
+                            e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+                            e.currentTarget.style.borderColor = "var(--border-hover)";
+                            e.currentTarget.style.boxShadow = "var(--shadow-hover)";
+                            e.currentTarget.style.transform = "translateY(-2px)";
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#fff";
-                            e.currentTarget.style.borderColor = "#d0d7de";
+                            e.currentTarget.style.backgroundColor = "var(--bg-card)";
+                            e.currentTarget.style.borderColor = "var(--border-color)";
                             e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
+                            e.currentTarget.style.transform = "translateY(0)";
                           }}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -2485,9 +2669,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                                fw.type === "JSON Processing" ? "📦" : "📚"}
                             </span>
                             <div>
-                              <div style={{ fontWeight: 600, color: "#24292f", fontSize: 14 }}>{fw.name}</div>
+                              <div style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: 14 }}>{fw.name}</div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 11, color: "#57606a" }}>{fw.type}</span>
+                                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{fw.type}</span>
                                 <span style={{
                                   fontSize: 10,
                                   fontWeight: 700,
@@ -2514,7 +2698,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             }}>
                               Detected
                             </span>
-                            <span style={{ color: "#0969da", fontSize: 12 }}>📂 View</span>
+                            <span style={{ color: "var(--accent)", fontSize: 12 }}>📂 View</span>
                           </div>
                         </div>
                       ))}
@@ -2581,9 +2765,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   // Step 3: Dependencies
   const renderDependenciesStep = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📦</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Project Dependencies</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[2].summary}</p>
@@ -2669,9 +2853,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   // Consolidated Step 4: Assessment (Application Assessment)
   const renderAssessmentStep = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📊</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Application Assessment</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
@@ -2713,19 +2897,95 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   // Consolidated Step 3: Strategy (Assessment + Migration Strategy + Planning)
   const renderStrategyStep = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📋</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Assessment & Migration Strategy</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[2].summary}</p>
         </div>
       </div>
 
+      {/* Java Version Selection - PROMINENT AT TOP */}
+      <div style={{ ...styles.field, padding: 20, background: "linear-gradient(135deg, var(--accent-light) 0%, var(--bg-tertiary) 100%)", borderRadius: 12, border: "2px solid var(--accent)", marginBottom: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Select Source & Target Java Versions</div>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>Choose the current and target Java versions for migration</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <label style={{ ...styles.label, color: "var(--text-primary)" }}>Source Java Version</label>
+            <div style={{
+              padding: "12px 14px",
+              fontSize: 14,
+              borderRadius: 8,
+              border: "1px solid var(--border-light)",
+              backgroundColor: "var(--bg-secondary)",
+              color: "var(--text-primary)",
+              fontWeight: userSelectedVersion ? 600 : 500
+            }}>
+              {userSelectedVersion
+                ? `Java ${selectedSourceVersion} (manually selected)`
+                : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
+                    ? `Java ${repoAnalysis.java_version} (detected)`
+                    : "Source don't have a java version")
+              }
+            </div>
+            {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
+              <div style={{ marginTop: 12 }}>
+                <select
+                  value={selectedSourceVersion}
+                  onChange={(e) => {
+                    setSelectedSourceVersion(e.target.value);
+                    setUserSelectedVersion(e.target.value);
+                  }}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 6,
+                    border: "2px solid var(--accent)",
+                    fontSize: 14,
+                    backgroundColor: "var(--bg-secondary)",
+                    color: "var(--text-primary)",
+                    cursor: "pointer",
+                    width: "100%",
+                    fontWeight: 600
+                  }}
+                >
+                  <option value="7">Java 7 (Legacy)</option>
+                  <option value="8">Java 8 (LTS)</option>
+                  <option value="11">Java 11 (LTS)</option>
+                  <option value="17">Java 17 (LTS)</option>
+                  <option value="21">Java 21 (LTS)</option>
+                </select>
+              </div>
+            )}
+          </div>
+          <div>
+            <label style={{ ...styles.label, color: "var(--text-primary)" }}>Target Java Version</label>
+            {versionRecommendationLoading && (
+              <div style={{ ...styles.infoBox, backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-light)", color: "var(--text-secondary)", marginBottom: 0 }}>
+                Fetching recommendation...
+              </div>
+            )}
+            {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
+              <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, border: "1px solid var(--accent)", backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)", marginBottom: 6 }}>Recommended: Java {versionRecommendation.recommended_target_version}</div>
+              </div>
+            )}
+            <select style={{ ...styles.select, color: "var(--text-primary)", backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-light)" }} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
+              <option value="" disabled>Select Java Version</option>
+              {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Assessment Section */}
       {selectedRepo && repoAnalysis && (
         <>
-          <div style={styles.sectionTitle}>📊 Application Assessment</div>
+          <div style={{ ...styles.sectionTitle, color: "var(--text-primary)" }}>Application Assessment</div>
           <div style={{ ...styles.riskBadge, backgroundColor: riskLevel === "low" ? "#dcfce7" : riskLevel === "medium" ? "#fef3c7" : "#fee2e2", color: riskLevel === "low" ? "#166534" : riskLevel === "medium" ? "#92400e" : "#991b1b" }}>
             Risk Level: {riskLevel.toUpperCase()}
           </div>
@@ -2757,111 +3017,50 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       )}
 
       {/* Strategy Section */}
-      <div style={styles.sectionTitle}>📋 Migration Strategy</div>
+      <div style={{ ...styles.sectionTitle, color: "var(--text-primary)", marginTop: 32 }}>Migration Strategy</div>
       <div style={styles.field}>
         <label style={styles.label}>Migration Approach</label>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           {migrationApproachOptions.map((opt) => (
             <div key={opt.value} style={{ position: "relative" }}>
               <div
+                className="migration-approach-card"
                 onClick={() => setMigrationApproach(opt.value)}
                 style={{
                   padding: 20,
                   borderRadius: 12,
-                  border: `2px solid ${migrationApproach === opt.value ? opt.color : "#e2e8f0"}`,
-                  backgroundColor: migrationApproach === opt.value ? `${opt.color}08` : "#fff",
+                  border: `2px solid ${migrationApproach === opt.value ? opt.color : "var(--border-color)"}`,
+                  backgroundColor: migrationApproach === opt.value ? `${opt.color}18` : "var(--bg-card)",
                   cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: migrationApproach === opt.value ? `0 4px 12px ${opt.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
+                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: migrationApproach === opt.value ? `0 10px 26px ${opt.color}26` : "var(--shadow-soft)",
                   position: "relative"
                 }}
                 onMouseEnter={(e) => {
                   if (migrationApproach !== opt.value) {
                     e.currentTarget.style.borderColor = opt.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${opt.color}15`;
+                    e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+                    e.currentTarget.style.boxShadow = `0 12px 28px ${opt.color}22`;
+                    e.currentTarget.style.transform = "translateY(-3px)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (migrationApproach !== opt.value) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+                    e.currentTarget.style.borderColor = "var(--border-color)";
+                    e.currentTarget.style.backgroundColor = "var(--bg-card)";
+                    e.currentTarget.style.boxShadow = "var(--shadow-soft)";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  <span style={{ fontSize: 24 }}>{opt.icon}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>{opt.label}</div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{opt.desc}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>{opt.label}</div>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{opt.desc}</div>
                   </div>
                   {migrationApproach === opt.value && (
                     <div style={{ color: opt.color, fontSize: 18, fontWeight: 700 }}>✓</div>
                   )}
-                </div>
-
-                {/* Info button for tooltip */}
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </div>
-
-                  {/* Tooltip */}
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 28,
-                      right: 0,
-                      width: 280,
-                      backgroundColor: "#1e293b",
-                      color: "#f1f5f9",
-                      padding: "12px 16px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      zIndex: 1000,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      whiteSpace: "normal"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#94a3b8" }}>
-                      {opt.label} Details
-                    </div>
-                    <div>{opt.tooltip}</div>
-                    {/* Arrow */}
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      right: 16,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
-                  </div>
                 </div>
               </div>
             </div>
@@ -2869,125 +3068,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       </div>
 
-        <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>Source Java Version</label>
-              <div style={{
-                padding: "12px 14px",
-                fontSize: 14,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                backgroundColor: "#f9fafb",
-                color: userSelectedVersion ? "#1e293b" : "#6b7280",
-                fontWeight: userSelectedVersion ? 600 : 500
-              }}>
-                {userSelectedVersion
-                  ? `Java ${selectedSourceVersion} (manually selected)`
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? `Java ${repoAnalysis.java_version} (detected)`
-                      : "Source don't have a java version")
-                }
-              </div>
-              <p style={styles.helpText}>
-                {userSelectedVersion
-                  ? "Source version manually selected in discovery step"
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? "Java version detected from build configuration"
-                      : "No Java version found - please select a source version below")
-                }
-              </p>
-              {/* Show version selector when not detected */}
-              {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                <div style={{ marginTop: 12 }}>
-                  <select
-                    value={selectedSourceVersion}
-                    onChange={(e) => {
-                      setSelectedSourceVersion(e.target.value);
-                      setUserSelectedVersion(e.target.value); // Mark as user-selected
-                    }}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 6,
-                      border: "1px solid #d97706",
-                      fontSize: 14,
-                      backgroundColor: "#fff",
-                      cursor: "pointer",
-                      width: "100%"
-                    }}
-                  >
-                    <option value="7">Java 7 (Legacy)</option>
-                    <option value="8">Java 8 (LTS)</option>
-                    <option value="11">Java 11 (LTS)</option>
-                    <option value="17">Java 17 (LTS)</option>
-                    <option value="21">Java 21 (LTS)</option>
-                  </select>
-                  <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                    💡 Select the correct Java version for your project. This will be used as the source version for migration.
-                  </div>
-                </div>
-              )}
-            </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Target Java Version</label>
-            {versionRecommendationLoading && (
-              <div style={{ ...styles.infoBox, marginBottom: 12 }}>
-                Fetching recommended target Java version from Hugging Face...
-              </div>
-            )}
-            {!versionRecommendationLoading && versionRecommendationError && (
-              <div style={{ ...styles.errorBox, marginBottom: 12 }}>
-                {versionRecommendationError}
-              </div>
-            )}
-            {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 16,
-                  borderRadius: 10,
-                  border: "1px solid #bfdbfe",
-                  background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                      Hugging Face Recommendation
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginTop: 4 }}>
-                      Target Java {versionRecommendation.recommended_target_version}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    style={{ ...styles.secondaryBtn, padding: "8px 14px" }}
-                    onClick={() => setSelectedTargetVersion(versionRecommendation.recommended_target_version)}
-                  >
-                    Use recommendation
-                  </button>
-                </div>
-                <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
-                  Confidence: <span style={{ fontWeight: 700, color: "#0f172a" }}>{versionRecommendation.confidence}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
-                  {versionRecommendation.rationale.map((reason, index) => (
-                    <div key={index}>{index + 1}. {reason}</div>
-                  ))}
-                </div>
-                {versionRecommendation.alternatives.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 10 }}>
-                    Alternatives: {versionRecommendation.alternatives.map((value) => `Java ${value}`).join(", ")}
-                  </div>
-                )}
-              </div>
-            )}
-            <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
-              <option value="" disabled>Select Java Version</option>
-              {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-            </select>
-            <p style={styles.helpText}>Only versions newer than the source Java version are available</p>
-          </div>
-        </div>
+
 
       <div style={styles.field}>
         <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
@@ -3005,7 +3086,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           />
         </div>
         <p style={styles.helpText}>
-          Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
+          Format: <code style={{ backgroundColor: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
             {migrationApproach === "branch"
               ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
               : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
@@ -3026,9 +3107,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const codeRefactoringEndpointLabel = `API endpoints: ${apiEndpointCount}`;
 
     return (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>⚡</span>
+        <span style={{...styles.stepIcon, color: "#3b82f6"}}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </span>
         <div>
           <h2 style={styles.title}>Build Modernization & Migration</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
@@ -3040,7 +3123,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
       {/* What we'll modernize - Card Design */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
           ✨ What we'll modernize
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
@@ -3049,7 +3132,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               icon: "☕",
               title: "Java Version Upgrade",
               desc: `From Java ${selectedSourceVersion} to Java ${selectedTargetVersion || "Select Java Version"}`,
-              color: "#2563eb"
+              color: "var(--accent)"
             },
             {
               icon: "🔧",
@@ -3094,11 +3177,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               style={{
                 position: "relative",
                 padding: 20,
-                backgroundColor: "#fff",
-                border: "1px solid #e2e8f0",
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
                 borderRadius: 12,
                 boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                transition: "all 0.2s ease",
+                transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                 cursor: "default"
               }}
             >
@@ -3112,8 +3195,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       height: 20,
                       borderRadius: "50%",
                       border: "1px solid #cbd5e1",
-                      backgroundColor: "#fff",
-                      color: "#64748b",
+                      backgroundColor: "var(--bg-card)",
+                      color: "var(--text-muted)",
                       fontSize: 12,
                       fontWeight: 700,
                       display: "flex",
@@ -3140,8 +3223,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       right: 0,
                       width: 320,
                       minHeight: 140,
-                      background: "#fff",
-                      border: "1px solid #e2e8f0",
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border-color)",
                       boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                     }}
                     onMouseEnter={(e) => {
@@ -3181,10 +3264,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   {item.icon}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
                     {item.title}
                   </div>
-                  <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.4 }}>
                     {item.desc}
                   </div>
                   {item.detail && (
@@ -3230,12 +3313,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       </div>
 
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 12 }}>
           Preview code changes
         </div>
-        <div style={{ padding: 16, border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#fff" }}>
+        <div style={{ padding: 16, border: "1px solid var(--border-color)", borderRadius: 12, backgroundColor: "var(--bg-card)" }}>
           {migrationPreviewLoading && (
-            <div style={{ fontSize: 14, color: "#475569" }}>
+            <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
               Analyzing the connected repository and building a real migration preview...
             </div>
           )}
@@ -3249,7 +3332,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           {!migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
             <>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#eff6ff", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
+                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "var(--accent-light)", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
                   {migrationPreview.summary.files_to_modify} files to modify
                 </div>
                 <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#ecfdf5", color: "#047857", fontSize: 13, fontWeight: 600 }}>
@@ -3261,10 +3344,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
 
               {codeChanges.length > 0 ? (
-                <div style={{ border: "1px solid #d0d7de", borderRadius: 8, overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid #d0d7de" }}>
-                    <span style={{ fontWeight: 600, color: "#1e293b" }}>Repo-specific migration diff preview</span>
-                    <span style={{ fontSize: 12, color: "#64748b" }}>Read only</span>
+                <div style={{ border: "1px solid var(--border-color)", borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid var(--border-color)" }}>
+                    <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Repo-specific migration diff preview</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Read only</span>
                   </div>
                   <div style={{ maxHeight: 420, overflowY: "auto" }}>
                     {codeChanges.map((change, idx) => (
@@ -3276,14 +3359,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             alignItems: "center",
                             justifyContent: "space-between",
                             padding: "10px 16px",
-                            backgroundColor: selectedDiffFile === change.filePath ? "#f0f6fc" : "#fafbfc",
-                            borderBottom: "1px solid #d0d7de",
+                            backgroundColor: selectedDiffFile === change.filePath ? "var(--bg-hover)" : "var(--bg-card)",
+                            borderBottom: "1px solid var(--border-color)",
                             cursor: "pointer"
                           }}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <span style={{ fontSize: 14 }}>{selectedDiffFile === change.filePath ? "▼" : "▶"}</span>
-                            <span style={{ fontFamily: "'JetBrains Mono', 'Consolas', monospace", fontSize: 13, color: "#0969da" }}>
+                            <span style={{ fontFamily: "'JetBrains Mono', 'Consolas', monospace", fontSize: 13, color: "var(--accent)" }}>
                               {change.filePath}
                             </span>
                           </div>
@@ -3324,7 +3407,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   </div>
                 </div>
               ) : (
-                <div style={{ fontSize: 14, color: "#475569" }}>
+                <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
                   No file-level diff preview is available for this repository yet.
                 </div>
               )}
@@ -3406,6 +3489,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           ].map((option) => (
             <div key={option.key} style={{ position: "relative", height: '100%' }}>
               <div
+              className="migration-option-card"
               onClick={() => {
               if (option.key === "runSonar") {
                   setRunSonar(!runSonar);
@@ -3423,11 +3507,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 style={{
                   padding: 20,
                   borderRadius: 12,
-                  border: `2px solid ${option.checked ? option.color : "#e2e8f0"}`,
-                  backgroundColor: option.checked ? `${option.color}08` : "#fff",
+                  border: `2px solid ${option.checked ? option.color : "var(--border-color)"}`,
+                  backgroundColor: option.checked ? `${option.color}18` : "var(--bg-card)",
                   cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: option.checked ? `0 4px 12px ${option.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
+                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: option.checked ? `0 10px 26px ${option.color}26` : "var(--shadow-soft)",
                   position: "relative",
                   height: "100%",
                   minHeight: 132,       
@@ -3438,13 +3522,17 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 onMouseEnter={(e) => {
                   if (!option.checked) {
                     e.currentTarget.style.borderColor = option.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${option.color}15`;
+                    e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+                    e.currentTarget.style.boxShadow = `0 12px 28px ${option.color}22`;
+                    e.currentTarget.style.transform = "translateY(-3px)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!option.checked) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+                    e.currentTarget.style.borderColor = "var(--border-color)";
+                    e.currentTarget.style.backgroundColor = "var(--bg-card)";
+                    e.currentTarget.style.boxShadow = "var(--shadow-soft)";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }
                 }}
               >
@@ -3452,7 +3540,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   <span style={{ fontSize: 24 }}>{option.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 16, fontWeight: 600, color: "#1e293b" }}>{option.title}</span>
+                      <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>{option.title}</span>
                       {option.recommended && (
                         <span style={{
                           fontSize: 10,
@@ -3467,7 +3555,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{option.desc}</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{option.desc}</div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 64, justifyContent: "flex-end" }}>
                     <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: option.color, fontSize: 18, fontWeight: 700 }}>
@@ -3494,14 +3582,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       width: 20,
                       height: 20,
                       borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
+                      backgroundColor: "var(--bg-tertiary)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: 12,
                       fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
+                      color: "var(--text-muted)",
+                      cursor: "help",
+                      border: "1px solid var(--border-color)",
+                      transition: "all 0.2s ease"
                     }}
                     onMouseEnter={(e) => {
                       const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
@@ -3534,7 +3624,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       whiteSpace: "normal"
                     }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 10, color: "#94a3b8", fontSize: 13 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 10, color: "var(--text-faint)", fontSize: 13 }}>
                       {option.title} Details
                     </div>
                     <div style={{ marginBottom: 8 }}>{option.tooltip}</div>
@@ -3565,7 +3655,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       <div style={styles.btnRow}>
         <button style={styles.secondaryBtn} onClick={() => setStep(3)}>← Back</button>
         <button style={{ ...styles.primaryBtn, opacity: loading ? 0.5 : 1 }} onClick={handleStartMigration} disabled={loading}>
-          {loading ? "Starting..." : "🚀 Start Migration"}
+          {loading ? "Starting..." : "Start Migration"}
         </button>
       </div>
     </div>
@@ -3574,9 +3664,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const renderStep3 = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔍</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Application Discovery</h2>
           <p style={styles.subtitle}>Analyzing the application structure and components.</p>
@@ -3615,9 +3705,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   const renderStep4 = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📊</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Application Assessment</h2>
           <p style={styles.subtitle}>Review the detailed assessment report.</p>
@@ -3687,9 +3777,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   const renderStep5 = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📋</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Migration Strategy</h2>
           <p style={styles.subtitle}>Define your migration approach and target configuration.</p>
@@ -3701,104 +3791,43 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           {migrationApproachOptions.map((opt) => (
             <div key={opt.value} style={{ position: "relative" }}>
               <div
+                className="migration-approach-card"
                 onClick={() => setMigrationApproach(opt.value)}
                 style={{
                   padding: 20,
                   borderRadius: 12,
-                  border: `2px solid ${migrationApproach === opt.value ? opt.color : "#e2e8f0"}`,
-                  backgroundColor: migrationApproach === opt.value ? `${opt.color}08` : "#fff",
+                  border: `2px solid ${migrationApproach === opt.value ? opt.color : "var(--border-color)"}`,
+                  backgroundColor: migrationApproach === opt.value ? `${opt.color}18` : "var(--bg-card)",
                   cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: migrationApproach === opt.value ? `0 4px 12px ${opt.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
+                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: migrationApproach === opt.value ? `0 10px 26px ${opt.color}26` : "var(--shadow-soft)",
                   position: "relative"
                 }}
                 onMouseEnter={(e) => {
                   if (migrationApproach !== opt.value) {
                     e.currentTarget.style.borderColor = opt.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${opt.color}15`;
+                    e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+                    e.currentTarget.style.boxShadow = `0 12px 28px ${opt.color}22`;
+                    e.currentTarget.style.transform = "translateY(-3px)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (migrationApproach !== opt.value) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+                    e.currentTarget.style.borderColor = "var(--border-color)";
+                    e.currentTarget.style.backgroundColor = "var(--bg-card)";
+                    e.currentTarget.style.boxShadow = "var(--shadow-soft)";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  <span style={{ fontSize: 24 }}>{opt.icon}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>{opt.label}</div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{opt.desc}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>{opt.label}</div>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{opt.desc}</div>
                   </div>
                   {migrationApproach === opt.value && (
                     <div style={{ color: opt.color, fontSize: 18, fontWeight: 700 }}>✓</div>
                   )}
-                </div>
-
-                {/* Info button for tooltip */}
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </div>
-
-                  {/* Tooltip */}
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 28,
-                      right: 0,
-                      width: 280,
-                      backgroundColor: "#1e293b",
-                      color: "#f1f5f9",
-                      padding: "12px 16px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      zIndex: 1000,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      whiteSpace: "normal"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#94a3b8" }}>
-                      {opt.label} Details
-                    </div>
-                    <div>{opt.tooltip}</div>
-                    {/* Arrow */}
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      right: 16,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
-                  </div>
                 </div>
               </div>
             </div>
@@ -3814,9 +3843,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const renderStep6 = () => {
     return (
-      <div style={styles.card}>
+      <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
         <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🎯</span>
+          <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
           <div>
             <h2 style={styles.title}>Migration Planning</h2>
             <p style={styles.subtitle}>Configure Java versions and target settings.</p>
@@ -3855,7 +3884,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             />
           </div>
           <p style={styles.helpText}>
-            Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
+            Format: <code style={{ backgroundColor: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
               {migrationApproach === "branch"
                 ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
                 : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
@@ -3871,9 +3900,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }
 
   const renderStep7 = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📦</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Dependencies Analysis</h2>
           <p style={styles.subtitle}>Review and plan dependency updates.</p>
@@ -3921,9 +3950,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   const renderStep8 = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔧</span>
+        <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
         <div>
           <h2 style={styles.title}>Build Modernization & Refactor</h2>
           <p style={styles.subtitle}>Configure conversions and prepare for migration.</p>
@@ -4001,16 +4030,18 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       <div style={styles.btnRow}>
         <button style={styles.secondaryBtn} onClick={() => setStep(7)}>← Back</button>
         <button style={{ ...styles.primaryBtn, opacity: loading ? 0.5 : 1 }} onClick={handleStartMigration} disabled={loading}>
-          {loading ? "Starting..." : "Start Migration 🚀"}
+          {loading ? "Starting..." : "Start Migration"}
         </button>
       </div>
     </div>
   );
 
   const renderMigrationAnimation = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🚀</span>
+        <span style={{...styles.stepIcon, color: "#8b5cf6"}}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.5 10.5 21 3"></path><path d="M16 3h5v5"></path><path d="M10.44 16.56a5 5 0 1 0 7.02-7.02"></path><path d="M10.5 13.5 3 21"></path><path d="M8 21H3v-5"></path><path d="M13.56 7.44a5 5 0 1 0-7.02 7.02"></path></svg>
+        </span>
         <div>
           <h2 style={styles.title}>Migration in Progress</h2>
           <p style={styles.subtitle}>Your project is being migrated... Please wait.</p>
@@ -4102,9 +4133,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderMigrationProgress = () => {
     if (!migrationJob) return null;
     return (
-      <div style={styles.card}>
+      <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
         <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>{migrationJob?.status === "completed" ? "✅" : migrationJob?.status === "failed" ? "❌" : "⏳"}</span>
+          <span style={{...styles.stepIcon, color: 'var(--accent)'}}><svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 16 16 12 12 8'></polyline><line x1='8' y1='12' x2='16' y2='12'></line></svg></span>
           <div>
             <h2 style={styles.title}>{migrationJob?.status === "completed" ? "Migration Completed!" : migrationJob?.status === "failed" ? "Migration Failed" : "Migration in Progress"}</h2>
             <p style={styles.subtitle}>{migrationJob?.current_step || "Processing..."}</p>
@@ -4178,9 +4209,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const renderStep11 = () => (
-    <div style={styles.card}>
+    <div className="premium-card hoverable-box" style={{ ...styles.card, border: "2px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-primary)" }}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📄</span>
+        <span style={{...styles.stepIcon, color: "#14b8a6"}}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 18v-6"></path><path d="M9 15l3 3 3-3"></path></svg>
+        </span>
         <div>
           <h2 style={styles.title}>Migration Report</h2>
           <p style={styles.subtitle}>Complete migration summary with all results and metrics.</p>
@@ -4340,12 +4373,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   onClick={() => setShowCodeChanges(!showCodeChanges)}
                   style={{
                     background: "none",
-                    border: "1px solid #d0d7de",
+                    border: "1px solid var(--border-color)",
                     borderRadius: 6,
                     padding: "6px 12px",
                     cursor: "pointer",
                     fontSize: 12,
-                    color: "#24292f"
+                    color: "var(--text-primary)"
                   }}
                 >
                   {showCodeChanges ? "🔽 Collapse" : "🔼 Expand"}
@@ -4355,10 +4388,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             
             {showCodeChanges && (
               <div style={{
-                border: "1px solid #d0d7de",
+                border: "1px solid var(--border-color)",
                 borderRadius: 8,
                 overflow: "hidden",
-                backgroundColor: "#fff"
+                backgroundColor: "var(--bg-card)"
               }}>
                 {/* File List Header */}
                 <div style={{
@@ -4366,11 +4399,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "12px 16px",
-                  backgroundColor: "#f6f8fa",
-                  borderBottom: "1px solid #d0d7de"
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderBottom: "1px solid var(--border-color)"
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontWeight: 600, color: "#24292f" }}>
+                    <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
                       {codeChanges.length} files changed
                     </span>
                     <span style={{ color: "#22c55e", fontSize: 13 }}>
@@ -4383,9 +4416,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   <span style={{
                     fontSize: 11,
                     padding: "4px 10px",
-                    backgroundColor: "#ddf4ff",
+                    backgroundColor: "var(--bg-hover)",
                     borderRadius: 12,
-                    color: "#0969da"
+                    color: "var(--accent)"
                   }}>
                     Read Only
                   </span>
@@ -4403,19 +4436,19 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                           alignItems: "center",
                           justifyContent: "space-between",
                           padding: "10px 16px",
-                          backgroundColor: selectedDiffFile === change.filePath ? "#f0f6fc" : "#fafbfc",
-                          borderBottom: "1px solid #d0d7de",
+                          backgroundColor: selectedDiffFile === change.filePath ? "var(--bg-hover)" : "var(--bg-card)",
+                          borderBottom: "1px solid var(--border-color)",
                           cursor: "pointer",
                           transition: "background-color 0.15s"
                         }}
                         onMouseEnter={(e) => {
                           if (selectedDiffFile !== change.filePath) {
-                            e.currentTarget.style.backgroundColor = "#f6f8fa";
+                            e.currentTarget.style.backgroundColor = "var(--bg-hover)";
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (selectedDiffFile !== change.filePath) {
-                            e.currentTarget.style.backgroundColor = "#fafbfc";
+                            e.currentTarget.style.backgroundColor = "var(--bg-card)";
                           }
                         }}
                       >
@@ -4437,7 +4470,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                           <span style={{
                             fontFamily: "'JetBrains Mono', 'Consolas', monospace",
                             fontSize: 13,
-                            color: "#0969da"
+                            color: "var(--accent)"
                           }}>
                             {change.filePath}
                           </span>
@@ -4452,7 +4485,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       {selectedDiffFile === change.filePath && (
                         <div style={{
                           backgroundColor: "#0d1117",
-                          borderBottom: "1px solid #d0d7de",
+                          borderBottom: "1px solid var(--border-color)",
                           overflowX: "auto"
                         }}>
                           {/* Diff Header */}
@@ -4542,7 +4575,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     <div style={{
                       padding: 40,
                       textAlign: "center",
-                      color: "#57606a"
+                      color: "var(--text-muted)"
                     }}>
                       No code changes to display
                     </div>
@@ -4695,7 +4728,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 <span style={styles.testLabel}>Success Rate</span>
               </div>
             </div>
-            <div style={styles.testStatus}>
+            <div className="test-status-banner" style={styles.testStatus}>
               <span style={styles.testStatusIcon}>✅</span>
               <span>All unit tests passed successfully</span>
             </div>
@@ -4748,7 +4781,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 migrationJob.issues.slice(0, 10).map((issue) => (
                   <div key={issue.id} style={styles.issueItem}>
                     <div style={styles.issueHeader}>
-                      <span style={{ ...styles.issueSeverity, backgroundColor: issue.severity === "error" ? "#fee2e2" : issue.severity === "warning" ? "#fef3c7" : "#e0f2fe" }}>
+                      <span style={{ ...styles.issueSeverity, backgroundColor: issue.severity === "error" ? "#dc2626" : issue.severity === "warning" ? "#d97706" : "#2563eb", borderColor: issue.severity === "error" ? "#fca5a5" : issue.severity === "warning" ? "#fcd34d" : "#93c5fd" }}>
                         {issue.severity.toUpperCase()}
                       </span>
                       <span style={styles.issueCategory}>{issue.category}</span>
@@ -5253,10 +5286,68 @@ For questions or issues:
   );
 
   return (
-    <div style={styles.container}>
+    <div className="migration-wizard" style={styles.container}>
       <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
       <div style={styles.main}>
-        {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
+        {error && (
+          <div className="premium-card error-shake" style={{
+            background: "var(--bg-secondary)",
+            borderLeft: "4px solid #ef4444",
+            padding: "16px 20px",
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 16,
+            color: "var(--text-primary)",
+            position: "relative",
+            width: "100%",
+            boxSizing: "border-box"
+          }}>
+            <div style={{
+              background: "#fee2e2",
+              color: "#dc2626",
+              borderRadius: "50%",
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: "0 0 4px 0", fontSize: 15, fontWeight: 700, color: "#ef4444" }}>Connection Error</h4>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5 }}>{normalizeErrorMessage(error)}</p>
+            </div>
+            <button 
+              onClick={() => setError("")}
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--text-muted)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 4,
+                borderRadius: 4,
+                transition: "background 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-tertiary)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        )}
         {step === 1 && renderStep1()}
         {step === 2 && renderDiscoveryStep()}
         {step === 3 && renderStrategyStep()}
@@ -5270,34 +5361,34 @@ For questions or issues:
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "#f8fafc", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
+  container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "var(--bg-primary)", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "var(--bg-card)", borderBottom: "1px solid var(--border-light)" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
-  stepIndicatorContainer: { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
-  stepIndicator: { display: "flex", gap: 0, justifyContent: "center", alignItems: "flex-start", minWidth: "fit-content", flexWrap: "nowrap" },
-  stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.2s ease", cursor: "pointer", whiteSpace: "nowrap" },
-  stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "all 0.2s ease" },
+  stepIndicatorContainer: { background: "var(--bg-card)", borderBottom: "1px solid var(--border-light)", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
+  stepIndicator: { display: "flex", gap: 0, justifyContent: "space-between", alignItems: "flex-start", width: "100%", flexWrap: "nowrap" },
+  stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", cursor: "pointer", whiteSpace: "nowrap" },
+  stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)" },
   stepLabel: { display: "flex", flexDirection: "column" },
   main: { width: "100%", maxWidth: "100vw", padding: "24px 40px", minHeight: "calc(100vh - 160px)", boxSizing: "border-box" },
-  card: { background: "#fff", borderRadius: 12, padding: "28px 32px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid #e2e8f0" },
-  stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" },
+  card: { background: "var(--bg-card)", borderRadius: 12, padding: "28px 32px", boxShadow: "var(--shadow-soft)", marginBottom: 20, width: "100%", boxSizing: "border-box", border: "1px solid var(--border-color)" },
+  stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid var(--border-light)", flexWrap: "wrap" },
   stepIcon: { fontSize: 36 },
-  timerBadge: { marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "10px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", minWidth: 110 },
-  timerLabel: { fontSize: 11, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.5px" },
+  timerBadge: { marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "10px 14px", borderRadius: 10, background: "var(--accent-light)", border: "1px solid var(--border-color)", minWidth: 110 },
+  timerLabel: { fontSize: 11, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.5px" },
   timerValue: { fontSize: 20, fontWeight: 700, color: "#1e3a8a", fontVariantNumeric: "tabular-nums" },
-  title: { fontSize: 22, fontWeight: 700, marginBottom: 6, color: "#1e293b" },
-  subtitle: { fontSize: 14, color: "#64748b", margin: 0, lineHeight: 1.5 },
-  sectionTitle: { fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 14, marginTop: 20, display: "flex", alignItems: "center", gap: 8 },
+  title: { fontSize: 22, fontWeight: 700, marginBottom: 6, color: "var(--text-primary)" },
+  subtitle: { fontSize: 14, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 },
+  sectionTitle: { fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 14, marginTop: 20, display: "flex", alignItems: "center", gap: 8 },
   field: { marginBottom: 20, width: "100%", boxSizing: "border-box" },
-  label: { fontWeight: 600, fontSize: 14, marginBottom: 8, display: "block", color: "#374151" },
-  input: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #d1d5db", boxSizing: "border-box", transition: "all 0.2s ease", backgroundColor: "#fff" },
-  select: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #d1d5db", backgroundColor: "#fff", transition: "all 0.2s ease", cursor: "pointer" },
-  helpText: { fontSize: 13, color: "#64748b", marginTop: 6, lineHeight: 1.4 },
+  label: { fontWeight: 600, fontSize: 14, marginBottom: 8, display: "block", color: "var(--text-primary)" },
+  input: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid var(--border-color)", boxSizing: "border-box", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", backgroundColor: "var(--bg-card)" },
+  select: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid var(--border-color)", backgroundColor: "var(--bg-card)", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", cursor: "pointer" },
+  helpText: { fontSize: 13, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.4 },
   infoButtonContainer: { position: "relative", display: "inline-block", zIndex: 100 },
-  infoButton: { width: 22, height: 22, borderRadius: "50%", background: "#e5e7eb", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease", padding: 0, fontWeight: 600 },
+  infoButton: { width: 22, height: 22, borderRadius: "50%", background: "var(--bg-tertiary)", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", padding: 0, fontWeight: 600 },
   tooltip: { display: "none", position: "absolute", bottom: "calc(100% + 10px)", left: 0, width: 280, background: "#1e293b", color: "#f1f5f9", padding: "14px", borderRadius: 8, fontSize: 13, zIndex: 1001, boxShadow: "0 10px 25px rgba(0,0,0,0.2)" },
-  link: { color: "#2563eb", textDecoration: "none", fontWeight: 500 },
-  infoBox: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: 16, marginBottom: 20, fontSize: 14, color: "#1e40af", width: "100%", boxSizing: "border-box", lineHeight: 1.5 },
+  link: { color: "var(--accent)", textDecoration: "none", fontWeight: 500 },
+  infoBox: { background: "var(--accent-light)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 16, marginBottom: 20, fontSize: 14, color: "#1e40af", width: "100%", boxSizing: "border-box", lineHeight: 1.5 },
   warningBox: { background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: 16, marginBottom: 20, width: "100%", boxSizing: "border-box" },
   warningTitle: { fontWeight: 600, marginBottom: 10, color: "#78350f", fontSize: 14 },
   warningList: { margin: 0, paddingLeft: 18, fontSize: 14, color: "#92400e", lineHeight: 1.6 },
@@ -5305,176 +5396,199 @@ const styles: { [key: string]: React.CSSProperties } = {
   errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#dc2626" },
   errorBox: { background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "14px 16px", marginBottom: 20, color: "#991b1b", width: "100%", boxSizing: "border-box" },
   btnRow: { display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" },
-  primaryBtn: { background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
-  secondaryBtn: { background: "#fff", color: "#374151", border: "1px solid #d1d5db", borderRadius: 8, padding: "12px 24px", fontWeight: 500, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease" },
+  primaryBtn: { background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)" },
+  secondaryBtn: { background: "var(--bg-card)", color: "var(--text-secondary)", border: "1px solid var(--border-color)", borderRadius: 8, padding: "12px 24px", fontWeight: 500, cursor: "pointer", fontSize: 14, transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)" },
   row: { display: "flex", gap: 20 },
-  loadingBox: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 40, color: "#2563eb", fontWeight: 500, fontSize: 15 },
+  loadingBox: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 40, color: "var(--accent)", fontWeight: 500, fontSize: 15 },
   spinner: { width: 24, height: 24, border: "3px solid #e5e7eb", borderTop: "3px solid #2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite" },
   repoList: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto", paddingRight: 6 },
-  repoItem: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", transition: "all 0.2s ease", backgroundColor: "#fff" },
+  repoItem: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", border: "1px solid var(--border-color)", borderRadius: 8, cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", backgroundColor: "var(--bg-card)" },
   repoIcon: { fontSize: 20 },
   repoInfo: { flex: 1 },
-  repoName: { fontWeight: 600, fontSize: 14, color: "#1e293b" },
-  repoPath: { fontSize: 12, color: "#64748b", marginTop: 2 },
-  repoLanguage: { fontSize: 11, padding: "4px 10px", background: "#eff6ff", borderRadius: 12, color: "#2563eb", fontWeight: 500 },
-  arrow: { fontSize: 16, color: "#2563eb" },
-  emptyText: { textAlign: "center", color: "#64748b", padding: 40, fontSize: 14 },
-  selectedRepoBox: { display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "#eff6ff", borderRadius: 8, marginBottom: 20, border: "1px solid #bfdbfe" },
-  changeBtn: { marginLeft: "auto", background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: 13, fontWeight: 600 },
+  repoName: { fontWeight: 600, fontSize: 14, color: "var(--text-primary)" },
+  repoPath: { fontSize: 12, color: "var(--text-muted)", marginTop: 2 },
+  repoLanguage: { fontSize: 11, padding: "4px 10px", background: "var(--accent-light)", borderRadius: 12, color: "var(--accent)", fontWeight: 500 },
+  arrow: { fontSize: 16, color: "var(--accent)" },
+  emptyText: { textAlign: "center", color: "var(--text-muted)", padding: 40, fontSize: 14 },
+  selectedRepoBox: { display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--accent-light)", borderRadius: 8, marginBottom: 20, border: "1px solid var(--border-color)" },
+  changeBtn: { marginLeft: "auto", background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 13, fontWeight: 600 },
   riskBadge: { display: "inline-block", padding: "8px 16px", borderRadius: 16, fontSize: 13, fontWeight: 600, marginBottom: 14 },
   assessmentGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 20 },
-  assessmentItem: { background: "#fff", padding: 18, borderRadius: 10, textAlign: "center", border: "1px solid #e2e8f0" },
-  assessmentLabel: { fontSize: 11, color: "#64748b", marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  assessmentValue: { fontSize: 20, fontWeight: 700, color: "#1e293b" },
-  structureBox: { background: "#f8fafc", padding: 18, borderRadius: 10, marginBottom: 20, border: "1px solid #e2e8f0" },
-  structureTitle: { fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#1e293b" },
+  assessmentItem: { background: "var(--bg-secondary)", padding: 18, borderRadius: 10, textAlign: "center", border: "1px solid var(--border-light)", color: "var(--text-primary)" },
+  assessmentLabel: { fontSize: 11, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
+  assessmentValue: { fontSize: 20, fontWeight: 700, color: "var(--text-primary)" },
+  structureBox: { background: "var(--bg-tertiary)", padding: 18, borderRadius: 10, marginBottom: 20, border: "1px solid var(--border-light)" },
+  structureTitle: { fontSize: 14, fontWeight: 600, marginBottom: 12, color: "var(--text-primary)" },
   structureGrid: { display: "flex", gap: 14, flexWrap: "wrap" },
   structureFound: { color: "#059669", fontWeight: 600 },
   structureMissing: { color: "#9ca3af", fontWeight: 500 },
   dependenciesBox: { marginBottom: 20 },
-  dependenciesList: { background: "#fff", borderRadius: 10, padding: 14, border: "1px solid #e2e8f0" },
-  dependencyItem: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f1f5f9", fontSize: 13 },
-  dependencyVersion: { color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
-  moreItems: { textAlign: "center", color: "#2563eb", fontSize: 12, paddingTop: 10, fontWeight: 500 },
+  dependenciesList: { background: "var(--bg-secondary)", borderRadius: 10, padding: 14, border: "1px solid var(--border-light)" },
+  dependencyItem: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border-light)", fontSize: 13, color: "var(--text-primary)" },
+  dependencyVersion: { color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
+  moreItems: { textAlign: "center", color: "var(--accent)", fontSize: 12, paddingTop: 10, fontWeight: 500 },
   radioGroup: { display: "flex", flexDirection: "column", gap: 10 },
-  radioLabel: { display: "flex", alignItems: "flex-start", gap: 12, padding: 16, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", transition: "all 0.2s ease", backgroundColor: "#fff" },
+  radioLabel: { display: "flex", alignItems: "flex-start", gap: 12, padding: 16, border: "1px solid var(--border-color)", borderRadius: 10, cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", backgroundColor: "var(--bg-card)" },
   radio: { marginTop: 4, accentColor: "#2563eb" },
   checkbox: { width: 18, height: 18, accentColor: "#2563eb", cursor: "pointer" },
   frameworkGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 },
-  frameworkItem: { display: "flex", alignItems: "center", gap: 12, padding: 16, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", background: "#fff", transition: "all 0.2s ease" },
+  frameworkItem: { display: "flex", alignItems: "center", gap: 12, padding: 16, border: "1px solid var(--border-color)", borderRadius: 10, cursor: "pointer", background: "var(--bg-card)", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)" },
   detectedBadge: { marginLeft: "auto", fontSize: 11, padding: "4px 10px", background: "#059669", color: "#fff", borderRadius: 12, fontWeight: 600 },
   conversionGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 },
-  conversionItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", position: "relative", transition: "all 0.2s ease", background: "#fff" },
+  conversionItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid var(--border-color)", borderRadius: 10, cursor: "pointer", position: "relative", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", background: "var(--bg-card)" },
   conversionIcon: { fontSize: 24 },
   checkMark: { position: "absolute", top: 10, right: 10, color: "#059669", fontWeight: 700, fontSize: 18 },
   optionsGrid: { display: "flex", flexDirection: "column", gap: 14 },
-  optionItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", background: "#fff", transition: "all 0.2s ease" },
+  optionItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid var(--border-color)", borderRadius: 10, cursor: "pointer", background: "var(--bg-card)", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)" },
   progressSection: { marginBottom: 24 },
-  progressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 14, fontWeight: 600, color: "#1e293b" },
-  progressBar: { width: "100%", height: 10, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" },
-  progressFill: { height: "100%", background: "#2563eb", borderRadius: 6, transition: "width 0.4s ease" },
+  progressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" },
+  progressBar: { width: "100%", height: 10, background: "var(--bg-tertiary)", borderRadius: 6, overflow: "hidden" },
+  progressFill: { height: "100%", background: "var(--accent)", borderRadius: 6, transition: "width 0.4s ease" },
   statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 24 },
-  statBox: { background: "#fff", padding: 20, borderRadius: 10, textAlign: "center", border: "1px solid #e2e8f0" },
-  statValue: { fontSize: 28, fontWeight: 700, color: "#2563eb" },
-  statLabel: { fontSize: 12, color: "#64748b", marginTop: 8, fontWeight: 600, textTransform: "uppercase" },
+  statBox: { background: "var(--bg-card)", padding: 20, borderRadius: 10, textAlign: "center", border: "1px solid var(--border-color)" },
+  statValue: { fontSize: 28, fontWeight: 700, color: "var(--accent)" },
+  statLabel: { fontSize: 12, color: "var(--text-muted)", marginTop: 8, fontWeight: 600, textTransform: "uppercase" },
   successBox: { background: "#dcfce7", border: "1px solid #86efac", borderRadius: 12, padding: 28, textAlign: "center", marginBottom: 24 },
   successTitle: { fontSize: 20, fontWeight: 700, color: "#166534", marginBottom: 12 },
-  repoLink: { display: "inline-block", color: "#2563eb", fontWeight: 600, textDecoration: "none", fontSize: 14, padding: "10px 20px", background: "#eff6ff", borderRadius: 8 },
+  repoLink: { display: "inline-block", color: "var(--accent)", fontWeight: 600, textDecoration: "none", fontSize: 14, padding: "10px 20px", background: "var(--accent-light)", borderRadius: 8 },
   connectionModes: { display: "flex", gap: 14, marginBottom: 20 },
-  modeButton: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: 20, border: "1px solid #e2e8f0", borderRadius: 10, background: "#fff", cursor: "pointer", transition: "all 0.2s ease", fontWeight: 500 },
-  modeButtonActive: { border: "1px solid #2563eb", background: "#eff6ff" },
+  modeButton: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: 20, border: "1px solid var(--border-color)", borderRadius: 10, background: "var(--bg-card)", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", fontWeight: 500 },
+  modeButtonActive: { border: "1px solid #2563eb", background: "var(--accent-light)" },
   modeIcon: { fontSize: 28 },
   modeTitle: { fontWeight: 600, fontSize: 14 },
-  modeDesc: { fontSize: 12, color: "#64748b", textAlign: "center", lineHeight: 1.4 },
-  fileList: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 10, padding: 14, background: "#f8fafc" },
-  breadcrumb: { display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: "10px 14px", background: "#eff6ff", borderRadius: 8, border: "1px solid #bfdbfe" },
-  backBtn: { background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: 14, fontWeight: 600 },
-  fileItem: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", transition: "all 0.2s ease", backgroundColor: "#fff" },
+  modeDesc: { fontSize: 12, color: "var(--text-muted)", textAlign: "center", lineHeight: 1.4 },
+  fileList: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto", border: "1px solid var(--border-color)", borderRadius: 10, padding: 14, background: "var(--bg-primary)" },
+  breadcrumb: { display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: "10px 14px", background: "var(--accent-light)", borderRadius: 8, border: "1px solid var(--border-color)" },
+  backBtn: { background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 14, fontWeight: 600 },
+  fileItem: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", border: "1px solid var(--border-color)", borderRadius: 8, cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", backgroundColor: "var(--bg-card)" },
   fileIcon: { fontSize: 20 },
   fileInfo: { flex: 1 },
-  fileName: { fontWeight: 600, fontSize: 14, color: "#1e293b" },
-  filePath: { fontSize: 12, color: "#64748b", marginTop: 2 },
-  fileSize: { fontSize: 11, color: "#94a3b8", fontWeight: 500, padding: "3px 8px", backgroundColor: "#f1f5f9", borderRadius: 6 },
+  fileName: { fontWeight: 600, fontSize: 14, color: "var(--text-primary)" },
+  filePath: { fontSize: 12, color: "var(--text-muted)", marginTop: 2 },
+  fileSize: { fontSize: 11, color: "var(--text-faint)", fontWeight: 500, padding: "3px 8px", backgroundColor: "var(--bg-tertiary)", borderRadius: 6 },
   discoveryContent: { display: "flex", flexDirection: "column", gap: 14 },
-  discoveryItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  discoveryItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
   discoveryIcon: { fontSize: 26 },
-  discoveryTitle: { fontSize: 15, fontWeight: 600, color: "#1e293b", marginBottom: 2 },
-  discoveryDesc: { fontSize: 13, color: "#64748b" },
-  detectedConfigCard: { background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)", border: "1px solid #bfdbfe", borderRadius: 12, padding: 20, marginTop: 18, marginBottom: 20 },
+  discoveryTitle: { fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 },
+  discoveryDesc: { fontSize: 13, color: "var(--text-muted)" },
+  detectedConfigCard: { background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: 20, marginTop: 18, marginBottom: 20, boxShadow: "var(--shadow-soft)", color: "var(--text-primary)", transition: "all 0.25s ease" },
   detectedConfigHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 14 },
-  detectedConfigTitle: { fontSize: 16, fontWeight: 700, color: "#1e3a8a", marginBottom: 4 },
-  detectedConfigSubtitle: { fontSize: 13, color: "#475569", lineHeight: 1.5 },
+  detectedConfigTitle: { fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 },
+  detectedConfigSubtitle: { fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 },
   detectedConfigActions: { display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 },
-  detectedConfigChip: { padding: "10px 14px", borderRadius: 999, border: "1px solid #93c5fd", background: "#fff", color: "#1e3a8a", fontSize: 13, fontWeight: 600, cursor: "default" },
-  detectedConfigActionBtn: { padding: "10px 16px", borderRadius: 999, border: "1px solid #2563eb", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s ease" },
-  detectedConfigActionBtnActive: { background: "#1d4ed8", borderColor: "#1d4ed8", boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.15)" },
-  detectedConfigNote: { fontSize: 12, color: "#475569", lineHeight: 1.5 },
+  detectedConfigChip: { padding: "10px 14px", borderRadius: 999, border: "1px solid var(--border-color)", background: "var(--bg-tertiary)", color: "var(--text-primary)", fontSize: 13, fontWeight: 700, cursor: "default", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: "0 1px 2px rgba(15, 23, 42, 0.08)" },
+  detectedConfigActionBtn: { padding: "10px 16px", borderRadius: 999, border: "1px solid var(--border-hover)", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: "0 8px 18px rgba(37, 99, 235, 0.22)" },
+  detectedConfigActionBtnActive: { background: "#1d4ed8", borderColor: "var(--border-hover)", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.22)" },
+  detectedConfigNote: { fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 },
   reportContainer: { display: "flex", flexDirection: "column", gap: 20 },
-  reportSection: { background: "#fff", borderRadius: 12, padding: 22, border: "1px solid #e2e8f0" },
-  reportTitle: { fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 18, paddingBottom: 12, borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 10 },
+  reportSection: { background: "var(--bg-card)", borderRadius: 12, padding: 22, border: "1px solid var(--border-color)" },
+  reportTitle: { fontSize: 17, fontWeight: 700, color: "var(--text-primary)", marginBottom: 18, paddingBottom: 12, borderBottom: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 10 },
   reportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
   reportItem: { display: "flex", flexDirection: "column", gap: 6 },
-  reportLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600 },
+  reportLabel: { fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
+  reportValue: { fontSize: 14, color: "var(--text-primary)", fontWeight: 600 },
   testResults: { display: "flex", flexDirection: "column", gap: 10 },
-  testItem: { display: "flex", justifyContent: "space-between", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  testItem: { display: "flex", justifyContent: "space-between", padding: "14px 18px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
   sonarqubeResults: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
-  qualityItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  qualityItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 18px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
   logsContainer: { background: "#1e293b", color: "#10b981", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: 18, borderRadius: 10, maxHeight: 300, overflowY: "auto", fontSize: 12, lineHeight: 1.6, border: "1px solid #334155" },
   logEntry: { marginBottom: 6, padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" },
   issuesContainer: { display: "flex", flexDirection: "column", gap: 12 },
-  issueItem: { padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  issueItem: { padding: 18, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)", boxShadow: "var(--shadow-soft)", transition: "all 0.25s ease" },
   issueHeader: { display: "flex", alignItems: "center", gap: 12, marginBottom: 10 },
-  issueSeverity: { padding: "6px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600, color: "#fff", textTransform: "uppercase" },
-  issueCategory: { fontSize: 12, color: "#64748b", fontWeight: 600, textTransform: "uppercase" },
-  issueStatus: { fontSize: 12, color: "#059669", fontWeight: 600, marginLeft: "auto" },
-  issueMessage: { fontSize: 14, color: "#1e293b", marginBottom: 8, fontWeight: 500, lineHeight: 1.4 },
-  issueFile: { fontSize: 12, color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", backgroundColor: "#eff6ff", padding: "6px 12px", borderRadius: 6, display: "inline-block" },
-  noIssues: { textAlign: "center", color: "#64748b", padding: 28, fontStyle: "italic", fontSize: 14 },
-  noFilesMsg: { textAlign: "center", color: "#64748b", padding: 28, fontStyle: "italic", background: "#f8fafc", borderRadius: 10, border: "1px dashed #e2e8f0" },
-  noLogs: { textAlign: "center", color: "#64748b", padding: 28, fontStyle: "italic" },
+  issueSeverity: { padding: "6px 14px", borderRadius: 999, fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase", border: "1px solid", letterSpacing: "0.2px", boxShadow: "0 8px 18px rgba(0, 0, 0, 0.18)" },
+  issueCategory: { fontSize: 12, color: "#bfdbfe", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.2px" },
+  issueStatus: { fontSize: 12, color: "#34d399", fontWeight: 800, marginLeft: "auto", textTransform: "uppercase" },
+  issueMessage: { fontSize: 14, color: "var(--text-primary)", marginBottom: 10, fontWeight: 700, lineHeight: 1.45 },
+  issueFile: { fontSize: 13, color: "#93c5fd", fontFamily: "'JetBrains Mono', monospace", backgroundColor: "rgba(37, 99, 235, 0.18)", border: "1px solid rgba(147, 197, 253, 0.45)", padding: "8px 14px", borderRadius: 8, display: "inline-block", fontWeight: 800, letterSpacing: "0.1px", wordBreak: "break-word" },
+  noIssues: { textAlign: "center", color: "var(--text-muted)", padding: 28, fontStyle: "italic", fontSize: 14 },
+  noFilesMsg: { textAlign: "center", color: "var(--text-muted)", padding: 28, fontStyle: "italic", background: "var(--bg-primary)", borderRadius: 10, border: "1px dashed var(--border-color)" },
+  noLogs: { textAlign: "center", color: "var(--text-muted)", padding: 28, fontStyle: "italic" },
 
   // Animation styles
-  animationContainer: { padding: 24, background: "#f8fafc", borderRadius: 12, marginTop: 20, border: "1px solid #e2e8f0" },
+  animationContainer: { padding: 24, background: "var(--bg-primary)", borderRadius: 12, marginTop: 20, border: "1px solid var(--border-color)" },
   migrationAnimation: { maxWidth: 600, margin: "0 auto" },
   animationHeader: { textAlign: "center", marginBottom: 32 },
-  migratingText: { fontSize: 24, fontWeight: 700, color: "#1e293b", marginBottom: 10 },
-  versionTransition: { fontSize: 14, color: "#fff", padding: "10px 20px", background: "#2563eb", borderRadius: 20, display: "inline-block", fontWeight: 600 },
+  migratingText: { fontSize: 24, fontWeight: 700, color: "var(--text-primary)", marginBottom: 10 },
+  versionTransition: { fontSize: 14, color: "#fff", padding: "10px 20px", background: "var(--accent)", borderRadius: 20, display: "inline-block", fontWeight: 600 },
   animationSteps: { display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 },
-  animationStep: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  animationStep: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
   stepIconAnimated: { fontSize: 22, minWidth: 22 },
-  stepText: { flex: 1, fontSize: 14, fontWeight: 500, color: "#1e293b" },
+  stepText: { flex: 1, fontSize: 14, fontWeight: 500, color: "var(--text-primary)" },
   checkMarkAnimated: { fontSize: 18, color: "#059669" },
   animatedProgressSection: { marginBottom: 24 },
-  animatedProgressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 14, fontWeight: 600, color: "#1e293b" },
-  animatedProgressBar: { width: "100%", height: 12, background: "#e5e7eb", borderRadius: 8, overflow: "hidden" },
-  animatedProgressFill: { height: "100%", borderRadius: 8, transition: "width 0.4s ease", background: "#2563eb" },
+  animatedProgressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" },
+  animatedProgressBar: { width: "100%", height: 12, background: "var(--bg-tertiary)", borderRadius: 8, overflow: "hidden" },
+  animatedProgressFill: { height: "100%", borderRadius: 8, transition: "width 0.4s ease", background: "var(--accent)" },
   statusMessages: { textAlign: "center" },
-  currentStatus: { fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 10 },
-  recentLog: { fontSize: 13, color: "#64748b", fontFamily: "'JetBrains Mono', monospace", background: "#f8fafc", padding: "12px 16px", borderRadius: 8, border: "1px solid #e2e8f0" },
+  currentStatus: { fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 10 },
+  recentLog: { fontSize: 13, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", background: "var(--bg-primary)", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--border-color)" },
 
   // Report styles
   changesGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
-  changeItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  changeItem: { display: "flex", alignItems: "center", gap: 14, padding: 18, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
   changeIcon: { fontSize: 26 },
-  changeTitle: { fontSize: 14, fontWeight: 600, color: "#1e293b", marginBottom: 4 },
-  changeValue: { fontSize: 13, color: "#64748b" },
+  changeTitle: { fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 },
+  changeValue: { fontSize: 13, color: "var(--text-muted)" },
   dependenciesReport: { display: "flex", flexDirection: "column", gap: 10 },
-  dependencyReportItem: { display: "grid", gridTemplateColumns: "1fr 200px 140px", gap: 14, alignItems: "center", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
-  dependencyName: { fontSize: 14, fontWeight: 600, color: "#1e293b", fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-word" },
-  dependencyChange: { fontSize: 13, color: "#64748b", textAlign: "center" },
+  dependencyReportItem: { display: "grid", gridTemplateColumns: "1fr 200px 140px", gap: 14, alignItems: "center", padding: "14px 18px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
+  dependencyName: { fontSize: 14, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-word" },
+  dependencyChange: { fontSize: 13, color: "var(--text-muted)", textAlign: "center" },
   dependencyStatus: { padding: "6px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600, textTransform: "uppercase", textAlign: "center" },
-  noData: { textAlign: "center", color: "#64748b", padding: 28, fontStyle: "italic" },
+  noData: { textAlign: "center", color: "var(--text-muted)", padding: 28, fontStyle: "italic" },
   errorsSummary: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 },
-  errorStat: { textAlign: "center", padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
-  errorCount: { display: "block", fontSize: 26, fontWeight: 700, color: "#1e293b", marginBottom: 6 },
-  errorLabel: { fontSize: 12, color: "#64748b", fontWeight: 600, textTransform: "uppercase" },
+  errorStat: { textAlign: "center", padding: 18, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
+  errorCount: { display: "block", fontSize: 26, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 },
+  errorLabel: { fontSize: 12, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" },
   businessLogicGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
-  businessItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
+  businessItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
   businessIcon: { fontSize: 26, marginTop: 2 },
-  businessTitle: { fontSize: 14, fontWeight: 600, color: "#1e293b", marginBottom: 6 },
-  businessDesc: { fontSize: 13, color: "#64748b", lineHeight: 1.5 },
+  businessTitle: { fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 },
+  businessDesc: { fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 },
   sonarqubeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 20 },
   sonarqubeItem: { textAlign: "center" },
   qualityGate: { marginBottom: 18 },
   gateStatus: { display: "inline-block", padding: "12px 24px", borderRadius: 20, color: "#fff", fontSize: 14, fontWeight: 700, textTransform: "uppercase" },
-  gateLabel: { display: "block", fontSize: 12, color: "#64748b", marginTop: 10, fontWeight: 600 },
+  gateLabel: { display: "block", fontSize: 12, color: "var(--text-muted)", marginTop: 10, fontWeight: 600 },
   coverageMeter: { position: "relative" },
-  coverageCircle: { width: 110, height: 110, borderRadius: "50%", background: "#eff6ff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto", border: "3px solid #2563eb" },
-  coveragePercent: { fontSize: 26, fontWeight: 700, color: "#2563eb" },
-  coverageLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, marginTop: 2 },
+  coverageCircle: { width: 110, height: 110, borderRadius: "50%", background: "var(--accent-light)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto", border: "3px solid #2563eb" },
+  coveragePercent: { fontSize: 26, fontWeight: 700, color: "var(--accent)" },
+  coverageLabel: { fontSize: 11, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 },
   qualityMetrics: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 },
-  metricItem: { textAlign: "center", padding: 14, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
-  metricValue: { display: "block", fontSize: 22, fontWeight: 700, marginBottom: 6, color: "#1e293b" },
-  metricLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase" },
+  metricItem: { textAlign: "center", padding: 14, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
+  metricValue: { display: "block", fontSize: 22, fontWeight: 700, marginBottom: 6, color: "var(--text-primary)" },
+  metricLabel: { fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" },
   testReportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginBottom: 18 },
-  testMetric: { textAlign: "center", padding: 18, background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
-  testValue: { display: "block", fontSize: 24, fontWeight: 700, color: "#2563eb", marginBottom: 6 },
-  testLabel: { fontSize: 12, color: "#64748b", fontWeight: 600, textTransform: "uppercase" },
-  testStatus: { display: "flex", alignItems: "center", gap: 10, padding: 14, background: "#dcfce7", borderRadius: 10, border: "1px solid #86efac" },
+  testMetric: { textAlign: "center", padding: 18, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
+  testValue: { display: "block", fontSize: 24, fontWeight: 700, color: "var(--accent)", marginBottom: 6 },
+  testLabel: { fontSize: 12, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" },
+  testStatus: { display: "flex", alignItems: "center", gap: 10, padding: 14, background: "rgba(34, 197, 94, 0.14)", borderRadius: 10, border: "1px solid rgba(34, 197, 94, 0.55)", color: "var(--text-primary)", fontWeight: 700, transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: "var(--shadow-soft)" },
   testStatusIcon: { fontSize: 18 },
   jmeterGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 },
-  jmeterItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
-  jmeterLabel: { fontSize: 14, color: "#64748b" },
-  jmeterValue: { fontSize: 16, fontWeight: 700, color: "#1e293b" },
+  jmeterItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-color)" },
+  jmeterLabel: { fontSize: 14, color: "var(--text-muted)" },
+  jmeterValue: { fontSize: 16, fontWeight: 700, color: "var(--text-primary)" },
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -237,15 +237,17 @@
 
 /* Metric Card */
 .metric-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 2px solid #e2e8f0;
+  background: var(--bg-card, #ffffff);
+  border: 2px solid var(--border-color, #1e293b);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-primary, #0f172a);
 }
 
 .metric-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
-  border-color: #6366f1;
+  box-shadow: var(--shadow-hover, 0 8px 25px rgba(99, 102, 241, 0.18));
+  border-color: var(--border-hover, #6366f1);
+  background: var(--card-hover-bg, #f0f4ff);
 }
 
 /* Quality Gate */
@@ -336,13 +338,14 @@
 
 /* Premium Card Styles */
 .premium-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 2px solid transparent;
+  background: var(--bg-card, #ffffff);
+  border: 2px solid var(--border-color, #1e293b);
   border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-soft, 0 1px 3px rgba(0,0,0,0.1));
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  color: var(--text-primary, #0f172a);
 }
 
 .premium-card::before {
@@ -357,8 +360,9 @@
 
 .premium-card:hover {
   transform: translateY(-8px);
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
-  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: var(--shadow-hover, 0 8px 25px rgba(99, 102, 241, 0.18));
+  border-color: var(--border-hover, #6366f1);
+  background: var(--card-hover-bg, #f0f4ff);
 }
 
 /* Icon Container */
@@ -462,3 +466,229 @@
   background: linear-gradient(180deg, #6366f1, #8b5cf6);
   border-radius: 4px;
 }
+
+/* ============================================
+   DARK THEME OVERRIDES FOR ALL COMPONENTS
+   ============================================ */
+
+/* Glass card dark mode */
+body.dark-theme .glass-card {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: var(--text-primary);
+}
+
+/* Card hover effects - universal */
+body.dark-theme .card-hover:hover {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+  background: var(--card-hover-bg);
+}
+
+/* File item dark mode hover */
+body.dark-theme .file-item:hover {
+  background: var(--card-hover-bg);
+  border-color: var(--border-hover);
+}
+
+/* Repo card dark mode hover */
+body.dark-theme .repo-card:hover {
+  background: var(--card-hover-bg);
+  border-color: var(--border-hover);
+}
+
+/* Code block dark mode */
+body.dark-theme .code-block {
+  background: linear-gradient(135deg, #0f172a 0%, #020617 100%);
+  border: 1px solid #334155;
+}
+
+/* Stat value text in dark mode */
+body.dark-theme .stat-value {
+  background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Section title dark mode */
+body.dark-theme .section-title {
+  background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Divider dark mode */
+body.dark-theme .divider {
+  background: linear-gradient(90deg, transparent, #475569, transparent);
+}
+
+/* Conversion selected dark mode */
+body.dark-theme .conversion-selected {
+  border-color: #818cf8 !important;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%) !important;
+}
+
+/* Skeleton dark mode */
+body.dark-theme .skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+}
+
+/* Connect Step Modern Layout */
+.connect-container {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  min-height: 520px;
+}
+
+.connect-left-panel {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+  color: #ffffff;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.connect-left-panel::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.connect-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(129, 140, 248, 0.15);
+  border: 1px solid rgba(129, 140, 248, 0.3);
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #a5b4fc;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+  align-self: flex-start;
+}
+
+.connect-title {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.25;
+  margin-bottom: 16px;
+  background: linear-gradient(to right, #ffffff, #c7d2fe);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.connect-desc {
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 36px;
+}
+
+.connect-features {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.connect-feature-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 8px 12px;
+  border-radius: 12px;
+  margin-left: -12px;
+}
+
+.connect-feature-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(6px);
+}
+
+.connect-feature-icon {
+  background: rgba(129, 140, 248, 0.2);
+  padding: 10px;
+  border-radius: 10px;
+  color: #818cf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(129, 140, 248, 0.25);
+}
+
+.connect-feature-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #f8fafc;
+  margin-bottom: 4px;
+}
+
+.connect-feature-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.connect-right-panel {
+  padding: 45px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--bg-card);
+}
+
+.connect-right-header {
+  margin-bottom: 28px;
+}
+
+.connect-right-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.connect-right-desc {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.connect-security-note {
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 40px;
+}
+
+@media (max-width: 900px) {
+  .connect-container {
+    grid-template-columns: 1fr;
+  }
+  .connect-left-panel {
+    padding: 30px;
+  }
+  .connect-right-panel {
+    padding: 30px;
+  }
+}
+

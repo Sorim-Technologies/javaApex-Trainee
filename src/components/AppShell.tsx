@@ -1,80 +1,310 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import apexLogo from "../assets/logo.jpg";
 import { GITHUB_AUTH_LOGIN_URL } from "../services/api";
 
-const shellStyles: { [key: string]: React.CSSProperties } = {
-  root: {
-    minHeight: "100vh",
-    width: "100%",
-    margin: 0,
-    padding: 0,
-    background: "#f8fafc",
-    display: "flex",
-    flexDirection: "column",
+type NotificationKind = "success" | "warning" | "error" | "info";
+
+interface NotificationItem {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  time: string;
+}
+
+const NOTIFICATION_ITEMS_KEY = "java_apex_notifications";
+const NOTIFICATION_EVENT_NAME = "java-apex-notification";
+
+const SAMPLE_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: "repo-analyzed",
+    kind: "success",
+    title: "Repository analyzed successfully",
+    message: "The repository structure, Java version, build tool, and frameworks were detected.",
+    time: "Just now",
   },
-  header: {
-    background: "#fff",
-    borderBottom: "1px solid #e2e8f0",
-    padding: "12px 32px",
-    width: "100%",
-    boxSizing: "border-box",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
+  {
+    id: "migration-plan-generated",
+    kind: "info",
+    title: "Migration plan generated",
+    message: "A migration strategy is ready for review before starting code changes.",
+    time: "5 min ago",
   },
-  main: {
-    flex: 1,
-    width: "100%",
-    padding: 0,
-    margin: 0,
+  {
+    id: "github-rate-limit",
+    kind: "warning",
+    title: "GitHub rate limit warning",
+    message: "GitHub requests are close to the hourly limit. A token can improve reliability.",
+    time: "12 min ago",
   },
-  content: {
-    width: "100%",
-    margin: 0,
-    padding: 0,
+  {
+    id: "fossa-completed",
+    kind: "success",
+    title: "FOSSA scan completed",
+    message: "Dependency license and open-source compliance checks are complete.",
+    time: "18 min ago",
   },
-  footer: {
-    background: "#fff",
-    borderTop: "1px solid #e2e8f0",
-    padding: "16px 32px",
-    fontSize: 13,
-    width: "100%",
-    boxSizing: "border-box",
+  {
+    id: "sonarqube-ready",
+    kind: "info",
+    title: "SonarQube report ready",
+    message: "Quality metrics and maintainability findings are available in the report.",
+    time: "25 min ago",
   },
-  footerContent: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    color: "#64748b",
-  },
+];
+
+const iconPaths = {
+  bell: (
+    <>
+      <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+      <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8a6 6 0 0 0-12 0c0 4.499-1.411 5.956-2.738 7.326" />
+    </>
+  ),
+  success: (
+    <>
+      <path d="M20 6 9 17l-5-5" />
+    </>
+  ),
+  warning: (
+    <>
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  error: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </>
+  ),
+  check: (
+    <>
+      <path d="M20 6 9 17l-5-5" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </>
+  ),
 };
+
+const LucideIcon: React.FC<{ name: keyof typeof iconPaths; size?: number }> = ({ name, size = 18 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {iconPaths[name]}
+  </svg>
+);
 
 const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("notification_read_ids") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const storedNotifications = localStorage.getItem(NOTIFICATION_ITEMS_KEY);
+      if (storedNotifications) {
+        return JSON.parse(storedNotifications);
+      }
 
+      const clearedSampleIds = JSON.parse(localStorage.getItem("notification_cleared_ids") || "[]");
+      return SAMPLE_NOTIFICATIONS.filter((notification) => !clearedSampleIds.includes(notification.id));
+    } catch {
+      return SAMPLE_NOTIFICATIONS;
+    }
+  });
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("theme") || "light";
+  });
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.body.classList.add("dark-theme");
+    } else {
+      document.body.classList.remove("dark-theme");
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+  };
+
+  const isDark = theme === "dark";
+  const unreadCount = notifications.filter((notification) => !readNotificationIds.includes(notification.id)).length;
+
+  useEffect(() => {
+    localStorage.setItem("notification_read_ids", JSON.stringify(readNotificationIds));
+  }, [readNotificationIds]);
+
+  useEffect(() => {
+    localStorage.setItem(NOTIFICATION_ITEMS_KEY, JSON.stringify(notifications));
+  }, [notifications]);
+
+  useEffect(() => {
+    const handleNotification = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<NotificationItem>>).detail;
+      if (!detail?.title || !detail?.message || !detail?.kind) return;
+
+      const notification: NotificationItem = {
+        id: detail.id || `ui-${Date.now()}`,
+        kind: detail.kind,
+        title: detail.title,
+        message: detail.message,
+        time: detail.time || "Just now",
+      };
+
+      setNotifications((current) => [
+        notification,
+        ...current.filter((item) => item.id !== notification.id),
+      ].slice(0, 20));
+      setReadNotificationIds((current) => current.filter((id) => id !== notification.id));
+    };
+
+    window.addEventListener(NOTIFICATION_EVENT_NAME, handleNotification);
+    return () => window.removeEventListener(NOTIFICATION_EVENT_NAME, handleNotification);
+  }, []);
+
+  const markNotificationRead = (notificationId: string) => {
+    setReadNotificationIds((current) => (
+      current.includes(notificationId) ? current : [...current, notificationId]
+    ));
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
+    setReadNotificationIds([]);
+    localStorage.setItem("notification_cleared_ids", JSON.stringify(SAMPLE_NOTIFICATIONS.map((notification) => notification.id)));
+  };
+
+  const restoreSampleNotifications = () => {
+    setNotifications(SAMPLE_NOTIFICATIONS);
+    setReadNotificationIds([]);
+    localStorage.removeItem("notification_cleared_ids");
+    localStorage.removeItem("notification_read_ids");
+  };
   return (
-    <div style={shellStyles.root}>
-      <header style={shellStyles.header}>
+    <div style={{
+      minHeight: "100vh",
+      width: "100%",
+      margin: 0,
+      padding: 0,
+      background: "var(--bg-primary)",
+      display: "flex",
+      flexDirection: "column",
+      transition: "background-color 0.3s ease",
+    }}>
+      <header style={{
+        background: "var(--bg-secondary)",
+        borderBottom: "2px solid var(--border-color)",
+        padding: "12px 32px",
+        width: "100%",
+        boxSizing: "border-box",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        transition: "all 0.3s ease",
+      }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <img src={apexLogo} alt="Apex Logo" style={{ height: 40, width: "auto" }} />
-          <span style={{ fontWeight: 900, color: "#1e293b", fontSize: 20 }}> Full Migration</span>
+          <span style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 20, transition: "color 0.3s ease" }}> APEX Migration Studio</span>
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span 
-            title="Coming Soon"
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              padding: "8px 14px",
+              justifyContent: "center",
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              border: `2px solid var(--border-color)`,
+              background: isDark ? "#334155" : "transparent",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+              position: "relative",
+              overflow: "hidden",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = isDark ? "#475569" : "#f1f5f9";
+              e.currentTarget.style.borderColor = "var(--border-hover)";
+              e.currentTarget.style.transform = "rotate(20deg) scale(1.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isDark ? "#334155" : "transparent";
+              e.currentTarget.style.borderColor = "var(--border-color)";
+              e.currentTarget.style.transform = "rotate(0deg) scale(1)";
+            }}
+            title={isDark ? "Switch to Light Theme" : "Switch to Dark Theme"}
+          >
+            {isDark ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            )}
+          </button>
+
+          <span 
+            title="Coming Soon"
+            className="hoverable-box"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
               borderRadius: 8,
-              color: "#94a3b8",
+              color: "var(--text-primary)",
               textDecoration: "none",
               fontSize: 14,
-              fontWeight: 500,
-              background: "transparent",
+              fontWeight: 600,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-color)",
               cursor: "not-allowed",
-              opacity: 0.6
+              opacity: 0.7,
+              boxShadow: "var(--shadow-soft)",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -86,30 +316,106 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </svg>
             Docs
           </span>
-          <span 
-            title="Coming Soon"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 14px",
-              borderRadius: 8,
-              color: "#94a3b8",
-              textDecoration: "none",
-              fontSize: 14,
-              fontWeight: 500,
-              background: "transparent",
-              cursor: "not-allowed",
-              opacity: 0.6
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.6 }}>
-              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-            </svg>
-            Support
-          </span>
-          <div style={{ width: 1, height: 24, background: "#e2e8f0", margin: "0 4px" }} />
+          <div style={{ width: 1, height: 24, background: "var(--border-light)", margin: "0 4px" }} />
           
+          <div style={{ position: "relative" }}>
+            <button
+              className="notification-bell-button"
+              onClick={() => {
+                setShowNotifications((current) => !current);
+                setShowProfileMenu(false);
+              }}
+              title="Notifications"
+              aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                border: "2px solid var(--border-color)",
+                background: showNotifications ? "var(--bg-tertiary)" : "transparent",
+                color: "var(--text-primary)",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                position: "relative",
+              }}
+            >
+              <LucideIcon name="bell" size={18} />
+              {unreadCount > 0 && <span className="notification-count-badge">{unreadCount}</span>}
+            </button>
+
+            {showNotifications && (
+              <>
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 999 }}
+                  onClick={() => setShowNotifications(false)}
+                />
+                <section className="notification-panel" aria-label="Notification Center">
+                  <div className="notification-panel-header">
+                    <div>
+                      <div className="notification-panel-title">Notification Center</div>
+                      <div className="notification-panel-subtitle">{unreadCount} unread updates</div>
+                    </div>
+                    <button
+                      className="notification-action-button"
+                      onClick={clearAllNotifications}
+                      disabled={notifications.length === 0}
+                      title="Clear all notifications"
+                    >
+                      <LucideIcon name="trash" size={15} />
+                      Clear all
+                    </button>
+                  </div>
+                  <div className="notification-list">
+                    {notifications.length === 0 ? (
+                      <div className="notification-empty-state">
+                        <LucideIcon name="bell" size={22} />
+                        <span>No notifications right now</span>
+                      </div>
+                    ) : (
+                      notifications.map((notification) => {
+                        const isRead = readNotificationIds.includes(notification.id);
+
+                        return (
+                          <article
+                            key={notification.id}
+                            className={`notification-item notification-${notification.kind} ${
+                              isRead ? "is-read" : "is-unread"
+                            }`}
+                          >
+                            <div className="notification-icon-wrap">
+                              <LucideIcon name={notification.kind} size={17} />
+                            </div>
+                            <div className="notification-content">
+                              <div className="notification-row">
+                                <h4>{notification.title}</h4>
+                                {!isRead && <span className="notification-unread-dot" />}
+                              </div>
+                              <p>{notification.message}</p>
+                              <div className="notification-meta-row">
+                                <span>{notification.time}</span>
+                                {!isRead && (
+                                  <button
+                                    className="notification-mark-read"
+                                    onClick={() => markNotificationRead(notification.id)}
+                                  >
+                                    <LucideIcon name="check" size={14} />
+                                    Mark read
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              </>
+            )}
+          </div>
           {/* Profile Button with Dropdown */}
           <div style={{ position: "relative" }}>
             <button
@@ -121,24 +427,24 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 width: 36,
                 height: 36,
                 borderRadius: "50%",
-                border: "1px solid #e2e8f0",
-                background: showProfileMenu ? "#f1f5f9" : "transparent",
+                border: `2px solid var(--border-color)`,
+                background: showProfileMenu ? "var(--bg-tertiary)" : "transparent",
                 cursor: "pointer",
                 transition: "all 0.2s ease"
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f1f5f9";
-                e.currentTarget.style.borderColor = "#cbd5e1";
+                e.currentTarget.style.background = "var(--bg-tertiary)";
+                e.currentTarget.style.borderColor = "var(--border-hover)";
               }}
               onMouseLeave={(e) => {
                 if (!showProfileMenu) {
                   e.currentTarget.style.background = "transparent";
                 }
-                e.currentTarget.style.borderColor = "#e2e8f0";
+                e.currentTarget.style.borderColor = "var(--border-color)";
               }}
               title="Profile"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                 <circle cx="12" cy="7" r="4"></circle>
               </svg>
@@ -158,18 +464,18 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     top: 44,
                     right: 0,
                     width: 280,
-                    background: "#fff",
+                    background: "var(--bg-secondary)",
                     borderRadius: 12,
-                    boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
-                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+                    border: `2px solid var(--border-color)`,
                     zIndex: 1000,
                     overflow: "hidden"
                   }}
                 >
                   {/* Header */}
-                  <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "#1e293b" }}>Welcome</div>
-                    <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Sign in to continue</div>
+                  <div style={{ padding: "16px 20px", borderBottom: `1px solid var(--border-light)`, background: "var(--bg-tertiary)" }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>Welcome</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>Sign in to continue</div>
                   </div>
 
                   {/* Menu Items */}
@@ -214,9 +520,9 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         gap: 12,
                         padding: "12px 16px",
                         borderRadius: 8,
-                        border: "1px solid #e2e8f0",
-                        background: "#f1f5f9",
-                        color: "#94a3b8",
+                        border: `1px solid var(--border-light)`,
+                        background: "var(--bg-tertiary)",
+                        color: "var(--text-faint)",
                         fontSize: 14,
                         fontWeight: 500,
                         cursor: "not-allowed",
@@ -235,9 +541,9 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                     {/* Divider */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "8px 0" }}>
-                      <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
-                      <span style={{ fontSize: 12, color: "#94a3b8" }}>or continue with</span>
-                      <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+                      <div style={{ flex: 1, height: 1, background: "var(--border-light)" }} />
+                      <span style={{ fontSize: 12, color: "var(--text-faint)" }}>or continue with</span>
+                      <div style={{ flex: 1, height: 1, background: "var(--border-light)" }} />
                     </div>
 
                     {/* Social Login Buttons */}
@@ -254,9 +560,9 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           gap: 8,
                           padding: "10px 12px",
                           borderRadius: 8,
-                          border: "1px solid #e2e8f0",
-                          background: "#f1f5f9",
-                          color: "#94a3b8",
+                          border: `1px solid var(--border-light)`,
+                          background: "var(--bg-tertiary)",
+                          color: "var(--text-faint)",
                           fontSize: 13,
                           fontWeight: 500,
                           cursor: "not-allowed",
@@ -282,9 +588,9 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           gap: 8,
                           padding: "10px 12px",
                           borderRadius: 8,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#1e293b",
+                          border: `2px solid var(--border-color)`,
+                          background: "var(--bg-secondary)",
+                          color: "var(--text-primary)",
                           fontSize: 13,
                           fontWeight: 500,
                           cursor: "pointer",
@@ -294,14 +600,14 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           window.location.href = GITHUB_AUTH_LOGIN_URL;
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "#1e293b";
+                          e.currentTarget.style.background = isDark ? "#475569" : "#1e293b";
                           e.currentTarget.style.color = "#fff";
-                          e.currentTarget.style.borderColor = "#1e293b";
+                          e.currentTarget.style.borderColor = isDark ? "#818cf8" : "#1e293b";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "#fff";
-                          e.currentTarget.style.color = "#1e293b";
-                          e.currentTarget.style.borderColor = "#e2e8f0";
+                          e.currentTarget.style.background = "var(--bg-secondary)";
+                          e.currentTarget.style.color = "var(--text-primary)";
+                          e.currentTarget.style.borderColor = "var(--border-color)";
                         }}
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -318,14 +624,36 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </nav>
       </header>
 
-      <main style={shellStyles.main}>
-        <div style={shellStyles.content}>
+      <main style={{
+        flex: 1,
+        width: "100%",
+        padding: 0,
+        margin: 0,
+      }}>
+        <div style={{
+          width: "100%",
+          margin: 0,
+          padding: 0,
+        }}>
           {children}
         </div>
       </main>
 
-      <footer style={shellStyles.footer}>
-        <div style={shellStyles.footerContent}>
+      <footer style={{
+        background: "var(--bg-secondary)",
+        borderTop: "2px solid var(--border-color)",
+        padding: "16px 32px",
+        fontSize: 13,
+        width: "100%",
+        boxSizing: "border-box",
+        transition: "all 0.3s ease",
+      }}>
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          color: "var(--text-muted)",
+        }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <img src={apexLogo} alt="Apex" style={{ height: 24, width: "auto" }} />
           </div>
@@ -337,3 +665,17 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 export default AppShell;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
