@@ -35,6 +35,7 @@ interface JavaVersionOption {
   label: string;
 }
 
+//newchange
 type RecommendationLevel = "Highly Recommended" | "Recommended" | "Alternative";
 type ConfidenceLevel = "High" | "Medium" | "Low";
 type MigrationEffort = "Low" | "Medium" | "High";
@@ -51,6 +52,7 @@ interface RankedJavaVersionRecommendation {
   isLts: boolean;
   score: number;
 }
+//
 
 interface PersistedWizardFormState {
   maxVisitedIndicatorStep: number;
@@ -150,6 +152,8 @@ const WIZARD_REPO_URL_KEY = "migration_wizard_repo_url";
 const WIZARD_SELECTED_REPO_KEY = "migration_wizard_selected_repo";
 const WIZARD_REPO_ANALYSIS_KEY = "migration_wizard_repo_analysis";
 const WIZARD_FORM_STATE_KEY = "migration_wizard_form_state";
+
+//newchange
 const LTS_JAVA_VERSIONS = new Set(["8", "11", "17", "21", "25"]);
 
 const normalizeConfidence = (confidence: string | undefined): ConfidenceLevel => {
@@ -158,6 +162,7 @@ const normalizeConfidence = (confidence: string | undefined): ConfidenceLevel =>
   if (normalized.includes("low")) return "Low";
   return "Medium";
 };
+//
 
 const readPersistedValue = (key: string) => {
   if (typeof window === "undefined") return null;
@@ -205,7 +210,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const buildTargetRepoUrl = (repoName: string, timestamp: string) =>
-    `https://github.com/SrikkanthSorim/${repoName || "repo"}-Migrated${timestamp}`;
+    `https://github.com/Pavithra-Sorim/${repoName || "repo"}-Migrated${timestamp}`;
 
   const buildTargetBranchName = (repoName: string, timestamp: string) =>
     `migration/${repoName || "repo"}-Migrated${timestamp}`;
@@ -229,6 +234,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
   const [zipUploadStatus, setZipUploadStatus] = useState<"idle" | "ready" | "uploading" | "success" | "error">("idle");
   const [zipUploadMessage, setZipUploadMessage] = useState("");
+  const [zipUploadProgress, setZipUploadProgress] = useState(0);
+  const [zipDragActive, setZipDragActive] = useState(false);
   const [zipProjectId, setZipProjectId] = useState("");
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<RepoInfo | null>(() =>
@@ -239,6 +246,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     persistedFormState?.isPrivateRepo ?? false
   );
   const [patToken, setPatToken] = useState(persistedFormState?.patToken ?? "");
+  const [showPatModal, setShowPatModal] = useState(false);
+  const [showPatToken, setShowPatToken] = useState(false);
+  const [patTokenError, setPatTokenError] = useState("");
   // Show token input only for GitHub Enterprise
   const isEnterpriseGithub = (url: string) => {
     // Matches github.<anything>.com but not github.com
@@ -288,13 +298,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const urlValidation = repoUrl ? normalizeGithubUrl(repoUrl) : { valid: false, normalizedUrl: "", message: "" };
-  const showEnterpriseToken = repoUrl && isEnterpriseGithub(urlValidation.normalizedUrl || repoUrl);
+  const showEnterpriseToken = Boolean(repoUrl && isEnterpriseGithub(urlValidation.normalizedUrl || repoUrl));
 
   const getCurrentToken = () => {
     if (showEnterpriseToken) return githubToken.trim();
     if (isPrivateRepo) return patToken.trim() || githubToken.trim();
     if (githubToken.trim()) return githubToken.trim();
-    if (patToken.trim()) return patToken.trim();
     return "";
   };
 
@@ -714,18 +723,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     };
   };
 
-  const handleZipFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null;
+  const resetZipSelection = () => {
     setSelectedZipFile(null);
     setZipProjectId("");
     setZipUploadMessage("");
+    setZipUploadProgress(0);
     setSelectedRepo(null);
     setRepoAnalysis(null);
     setRepoFiles([]);
     setCurrentPath("");
     setPathHistory([""]);
     setError("");
+  };
 
+  const selectZipFile = (file: File | null) => {
+    resetZipSelection();
     if (!file) {
       setZipUploadStatus("idle");
       return;
@@ -736,7 +748,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     if (!isZipFile) {
       setZipUploadStatus("error");
       setZipUploadMessage("Invalid file type. Please upload only a .zip file.");
-      event.target.value = "";
       return;
     }
 
@@ -745,16 +756,32 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setZipUploadMessage(`Valid ZIP file selected: ${file.name} (${formatFileSize(file.size)})`);
   };
 
+  const handleZipFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    selectZipFile(event.target.files?.[0] || null);
+    if (event.target.files?.[0] && !event.target.files[0].name.toLowerCase().endsWith(".zip")) {
+      event.target.value = "";
+    }
+  };
+
+  const handleZipDrop = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setZipDragActive(false);
+    if (zipUploadStatus === "uploading") return;
+    selectZipFile(event.dataTransfer.files?.[0] || null);
+  };
+
   const handleZipContinue = async () => {
     if (!selectedZipFile) {
       setZipUploadStatus("error");
       setZipUploadMessage("Please select a .zip file before continuing.");
+      setZipUploadProgress(0);
       return;
     }
 
     setError("");
     setLoading(true);
     setZipUploadStatus("uploading");
+    setZipUploadProgress(35);
     setZipUploadMessage("Uploading and analyzing ZIP file...");
 
     try {
@@ -781,11 +808,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       } as RepoInfo);
       applyRepositoryAnalysis(analysis);
       setZipUploadStatus("success");
+      setZipUploadProgress(100);
       setZipUploadMessage(uploadResult.message || `${selectedZipFile.name} uploaded and analyzed successfully.`);
       setStep(2);
     } catch (err: any) {
       const message = err?.message || "Failed to upload and analyze ZIP file.";
       setZipUploadStatus("error");
+      setZipUploadProgress(0);
       setZipUploadMessage(message);
       setError(message);
     } finally {
@@ -800,12 +829,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const token = getCurrentToken().trim();
 
     if (showEnterpriseToken && !token) {
-      alert("Please enter a GitHub Personal Access Token for repository analysis.");
+      setPatTokenError("");
+      setShowPatModal(true);
       return;
     }
 
     if (isPrivateRepo && !token) {
-      alert("Please enter a GitHub Personal Access Token for this private repository.");
+      setPatTokenError("");
+      setShowPatModal(true);
       return;
     }
 
@@ -831,6 +862,18 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       description: ""
     });
     setStep(2);
+  };
+
+  const handlePatModalContinue = () => {
+    const token = (showEnterpriseToken ? githubToken : patToken).trim();
+    if (!token) {
+      setPatTokenError("Enter a GitHub Personal Access Token to continue.");
+      return;
+    }
+
+    setPatTokenError("");
+    setShowPatModal(false);
+    void handleRepositoryContinue();
   };
 
   useEffect(() => {
@@ -1017,6 +1060,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     });
   }, [selectedSourceVersion, targetVersions]);
 
+//newchange
   const rankedJavaRecommendations = useMemo<RankedJavaVersionRecommendation[]>(() => {
     if (!repoAnalysis || availableTargetVersions.length === 0) {
       return [];
@@ -1158,6 +1202,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     selectedSourceVersion,
     versionRecommendation,
   ]);
+//
 
   const plannedCodeRefactoringTooltip = useMemo(() => {
     const previewDescriptions = migrationPreview
@@ -1289,7 +1334,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           if (!getCurrentToken().trim() && !showEnterpriseToken && isPrivateRepoAccessError(message)) {
             setIsPrivateRepo(true);
             setStep(1);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+            setPatTokenError("");
+            setShowPatModal(true);
+            setError("");
             return;
           }
           setError(message);
@@ -1342,7 +1389,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [step, repoAnalysis, selectedSourceVersion, riskLevel]);
 
   useEffect(() => {
-    if (step !== 1 || !urlValidation.valid || showEnterpriseToken || patToken.trim()) {
+    if (step !== 1 || sourceInputType !== "github" || !urlValidation.valid || showEnterpriseToken || isPrivateRepo || patToken.trim()) {
       setRepoAccessCheckLoading(false);
       return;
     }
@@ -1358,7 +1405,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           if (cancelled) return;
           if (visibility.requires_token) {
             setIsPrivateRepo(true);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+            setPatTokenError("");
+            setShowPatModal(true);
+            setError("");
             return;
           }
 
@@ -1370,7 +1419,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           const message = err?.message || "Failed to analyze repository.";
           if (isPrivateRepoAccessError(message)) {
             setIsPrivateRepo(true);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+            setPatTokenError("");
+            setShowPatModal(true);
+            setError("");
           }
         })
         .finally(() => {
@@ -1384,7 +1435,27 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [step, urlValidation.valid, urlValidation.normalizedUrl, showEnterpriseToken, patToken]);
+  }, [step, sourceInputType, urlValidation.valid, urlValidation.normalizedUrl, showEnterpriseToken, isPrivateRepo, patToken]);
+
+  useEffect(() => {
+    if (
+      step !== 1 ||
+      sourceInputType !== "github" ||
+      !isPrivateRepo ||
+      !urlValidation.valid ||
+      currentToken.trim() ||
+      showPatModal
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setPatTokenError("");
+      setShowPatModal(true);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [step, sourceInputType, isPrivateRepo, urlValidation.valid, urlValidation.normalizedUrl, currentToken, showPatModal]);
 
   useEffect(() => {
     if (step === 2 && selectedRepo) {
@@ -1733,70 +1804,112 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     </div>
   );
 
-  const renderStep1 = () => {
+  const renderConnectStep = () => {
+    const repositorySourceMode = sourceInputType === "zip" ? "zip" : isPrivateRepo ? "private" : "public";
     const isGithubSelected = sourceInputType === "github";
     const isZipSelected = sourceInputType === "zip";
+    const tokenValue = showEnterpriseToken ? githubToken : patToken;
+    const repoStatusMessage = !repoUrl
+      ? ""
+      : urlValidation.valid
+        ? "✅ Valid Repository"
+        : "❌ Invalid Repository";
+    const canContinueRepository =
+      urlValidation.valid &&
+      !repoAccessCheckLoading &&
+      (!isPrivateRepo || Boolean(currentToken.trim()));
+
+    const sourceOptionStyle = (active: boolean, accent = "#3b82f6") => ({
+      padding: "16px",
+      borderRadius: 12,
+      border: active ? `2px solid ${accent}` : "1px solid #dbe3ef",
+      background: active ? "#eff6ff" : "#ffffff",
+      cursor: "pointer",
+      textAlign: "left" as const,
+      transition: "all 0.2s ease",
+      minHeight: 104,
+    });
+
+    const sourceTitleStyle = (active: boolean, color = "#1d4ed8") => ({
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      fontWeight: 800,
+      color: active ? color : "#0f172a",
+      fontSize: 15,
+    });
 
     return (
       <div style={styles.card}>
         <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>{isZipSelected ? "📦" : "🔗"}</span>
+          <span style={styles.stepIcon}>{isZipSelected ? "📦" : isPrivateRepo ? "🔒" : "🔗"}</span>
           <div>
             <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Choose a GitHub repository or upload a local ZIP file to start migration analysis.</p>
+            <p style={styles.subtitle}>Choose one source and the wizard will handle access automatically.</p>
           </div>
         </div>
 
-        <div className="source-option-tabs" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginBottom: 22 }}>
+        <div className="source-option-tabs" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 24 }}>
           <button
             type="button"
-            className={`source-option-tab ${isGithubSelected ? "source-option-tab--active" : ""}`}
+            className={`source-option-tab ${repositorySourceMode === "public" ? "source-option-tab--active" : ""}`}
             onClick={() => {
               setSourceInputType("github");
+              setIsPrivateRepo(false);
+              setShowPatModal(false);
+              setPatTokenError("");
               setError("");
             }}
-            style={{
-              padding: "14px 16px",
-              borderRadius: 14,
-              border: isGithubSelected ? "2px solid #3b82f6" : "1px solid #dbe3ef",
-              background: isGithubSelected ? "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)" : "#ffffff",
-              cursor: "pointer",
-              textAlign: "left",
-              transition: "all 0.25s ease",
-            }}
+            style={sourceOptionStyle(repositorySourceMode === "public")}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800, color: isGithubSelected ? "#1d4ed8" : "#0f172a" }}>
+            <div style={sourceTitleStyle(repositorySourceMode === "public")}>
               <span>🔗</span>
-              GitHub Repository
+              Public GitHub Repository
             </div>
-            <div style={{ marginTop: 5, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
-              Analyze a public, private, or enterprise Git repository URL.
+            <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+              Paste a repository URL and continue without a token.
             </div>
           </button>
 
           <button
             type="button"
-            className={`source-option-tab ${isZipSelected ? "source-option-tab--active" : ""}`}
+            className={`source-option-tab ${repositorySourceMode === "private" ? "source-option-tab--active" : ""}`}
+            onClick={() => {
+              setSourceInputType("github");
+              setIsPrivateRepo(true);
+              setError("");
+              if (urlValidation.valid && !currentToken.trim()) {
+                setPatTokenError("");
+                setShowPatModal(true);
+              }
+            }}
+            style={sourceOptionStyle(repositorySourceMode === "private")}
+          >
+            <div style={sourceTitleStyle(repositorySourceMode === "private")}>
+              <span>🔒</span>
+              Private GitHub Repository
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+              Use a GitHub PAT only when private access is required.
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`source-option-tab ${repositorySourceMode === "zip" ? "source-option-tab--active" : ""}`}
             onClick={() => {
               setSourceInputType("zip");
+              setShowPatModal(false);
               setError("");
             }}
-            style={{
-              padding: "14px 16px",
-              borderRadius: 14,
-              border: isZipSelected ? "2px solid #f59e0b" : "1px solid #dbe3ef",
-              background: isZipSelected ? "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)" : "#ffffff",
-              cursor: "pointer",
-              textAlign: "left",
-              transition: "all 0.25s ease",
-            }}
+            style={sourceOptionStyle(repositorySourceMode === "zip", "#f59e0b")}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800, color: isZipSelected ? "#b45309" : "#0f172a" }}>
+            <div style={sourceTitleStyle(repositorySourceMode === "zip", "#b45309")}>
               <span>📦</span>
-              Upload ZIP File
+              Upload Local ZIP
             </div>
-            <div style={{ marginTop: 5, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
-              Upload a local project ZIP and process it like a repository.
+            <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+              Drop or browse for a local .zip project.
             </div>
           </button>
         </div>
@@ -1804,138 +1917,45 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         {isGithubSelected && (
           <>
             <div style={styles.field}>
-              <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
-                Repository URL
-                <div style={{ position: "relative", display: "inline-block" }}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 18,
-                      height: 18,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      color: "#64748b",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "help",
-                      transition: "all 0.2s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#3b82f6";
-                      e.currentTarget.style.color = "#fff";
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#e2e8f0";
-                      e.currentTarget.style.color = "#64748b";
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </span>
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 24,
-                      left: 0,
-                      backgroundColor: "#1e293b",
-                      color: "#fff",
-                      padding: "12px 16px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      lineHeight: 1.6,
-                      whiteSpace: "nowrap",
-                      zIndex: 1000,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
-                    <div>• https://github.com/owner/repo</div>
-                    <div>• github.com/owner/repo</div>
-                    <div>• owner/repo</div>
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      left: 9,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
-                  </div>
-                </div>
-              </label>
+              <label style={styles.label}>Repository URL</label>
               <input
                 type="text"
-                style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
+                style={{ ...styles.input, borderColor: urlValidation.valid ? "#22c55e" : repoUrl ? "#ef4444" : "#e2e8f0" }}
                 value={repoUrl}
-                onChange={(e) => {
-                  setRepoUrl(e.target.value);
+                onChange={(event) => {
+                  setRepoUrl(event.target.value);
                   setSelectedRepo(null);
                   setRepoAnalysis(null);
-                  setIsPrivateRepo(false);
-                  setPatToken("");
                   setError("");
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && urlValidation.valid) {
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && canContinueRepository) {
                     void handleRepositoryContinue();
                   }
                 }}
                 placeholder="https://github.com/owner/repository"
               />
-              {!shouldShowPatInput && (
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
-                  Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+              {repoStatusMessage && (
+                <div style={{ fontSize: 12, color: urlValidation.valid ? "#16a34a" : "#dc2626", marginTop: 8, fontWeight: 700 }}>
+                  {repoStatusMessage}
                 </div>
               )}
-              {repoAccessCheckLoading && !shouldShowPatInput && (
-                <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
+              {repoAccessCheckLoading && (
+                <div style={{ fontSize: 12, color: "#2563eb", marginTop: 8, fontWeight: 600 }}>
                   Checking repository access...
                 </div>
               )}
-              {shouldShowPatInput && (
-                <div style={{ marginTop: 16 }}>
-                  <label style={{ ...styles.label, fontWeight: 500 }}>
-                    GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
-                  </label>
-                  <input
-                    type="password"
-                    style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
-                    value={showEnterpriseToken ? githubToken : patToken}
-                    onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
-                    placeholder="Paste your GitHub PAT here"
-                    autoComplete="off"
-                  />
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                    {showEnterpriseToken
-                      ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                      : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
-                  </div>
-                </div>
-              )}
-              {repoUrl && !urlValidation.valid && (
-                <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
-                  ⚠️ {urlValidation.message}
-                </div>
-              )}
-              {urlValidation.valid && (
-                <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
-                  ✓ Valid repository URL
+              {!repoAccessCheckLoading && isPrivateRepo && currentToken.trim() && (
+                <div style={{ fontSize: 12, color: "#16a34a", marginTop: 8, fontWeight: 700 }}>
+                  Token added for private repository access.
                 </div>
               )}
             </div>
 
             <div style={styles.btnRow}>
               <button
-                style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
-                disabled={!urlValidation.valid}
+                style={{ ...styles.primaryBtn, opacity: canContinueRepository ? 1 : 0.5 }}
+                disabled={!canContinueRepository}
                 onClick={() => void handleRepositoryContinue()}
               >
                 Continue →
@@ -1947,23 +1967,29 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         {isZipSelected && (
           <>
             <div style={styles.field}>
-              <label style={styles.label}>Upload Project ZIP</label>
+              <label style={styles.label}>Upload Local ZIP</label>
               <label
                 className={`zip-upload-box ${zipUploadStatus === "ready" ? "zip-upload-box--ready" : ""} ${zipUploadStatus === "error" ? "zip-upload-box--error" : ""} ${zipUploadStatus === "success" ? "zip-upload-box--success" : ""}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (zipUploadStatus !== "uploading") setZipDragActive(true);
+                }}
+                onDragLeave={() => setZipDragActive(false)}
+                onDrop={handleZipDrop}
                 style={{
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 10,
-                  minHeight: 150,
-                  padding: "24px",
-                  border: `2px dashed ${zipUploadStatus === "error" ? "#ef4444" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#22c55e" : "#cbd5e1"}`,
-                  borderRadius: 16,
-                  background: zipUploadStatus === "error" ? "#fef2f2" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#f0fdf4" : "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                  minHeight: 170,
+                  padding: "26px",
+                  border: `2px dashed ${zipDragActive ? "#2563eb" : zipUploadStatus === "error" ? "#ef4444" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#22c55e" : "#cbd5e1"}`,
+                  borderRadius: 14,
+                  background: zipDragActive ? "#eff6ff" : zipUploadStatus === "error" ? "#fef2f2" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#f0fdf4" : "#f8fafc",
                   cursor: zipUploadStatus === "uploading" ? "not-allowed" : "pointer",
                   textAlign: "center",
-                  transition: "all 0.25s ease",
+                  transition: "all 0.2s ease",
                 }}
               >
                 <input
@@ -1973,14 +1999,26 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   onChange={handleZipFileChange}
                   style={{ display: "none" }}
                 />
-                <div style={{ fontSize: 34 }}>{zipUploadStatus === "success" || zipUploadStatus === "ready" ? "✅" : zipUploadStatus === "error" ? "⚠️" : "📦"}</div>
+                <div style={{ fontSize: 34 }}>{zipUploadStatus === "success" ? "✅" : zipUploadStatus === "error" ? "⚠️" : "📦"}</div>
                 <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                  {zipUploadStatus === "ready" ? "Valid ZIP File Selected" : selectedZipFile ? selectedZipFile.name : "Choose a .zip file"}
+                  {selectedZipFile ? selectedZipFile.name : "Drop a .zip file here or click to browse"}
                 </div>
                 <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-                  Only .zip project files are accepted. The backend will extract and analyze the project contents.
+                  Only .zip files are accepted.
                 </div>
               </label>
+
+              {(zipUploadStatus === "uploading" || zipUploadStatus === "success") && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12, color: "#475569", fontWeight: 700 }}>
+                    <span>{zipUploadStatus === "success" ? "Upload complete" : "Uploading..."}</span>
+                    <span>{zipUploadProgress}%</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "#e2e8f0" }}>
+                    <div style={{ width: `${zipUploadProgress}%`, height: "100%", background: "#2563eb", transition: "width 0.25s ease" }} />
+                  </div>
+                </div>
+              )}
 
               {zipUploadMessage && (
                 <div
@@ -1999,7 +2037,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
             <div style={styles.btnRow}>
               <button
-                style={{ ...styles.primaryBtn, opacity: !selectedZipFile || zipUploadStatus === "uploading" ? 0.5 : 1 }}
+                style={{ ...styles.primaryBtn, opacity: selectedZipFile && zipUploadStatus !== "uploading" ? 1 : 0.5 }}
                 disabled={!selectedZipFile || zipUploadStatus === "uploading"}
                 onClick={() => void handleZipContinue()}
               >
@@ -2007,6 +2045,94 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </button>
             </div>
           </>
+        )}
+
+        {showPatModal && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pat-modal-title"
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15, 23, 42, 0.45)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 20,
+              zIndex: 2000,
+            }}
+          >
+            <div style={{ width: "min(460px, 100%)", background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 24px 60px rgba(15,23,42,0.25)" }}>
+              <h3 id="pat-modal-title" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#0f172a" }}>
+                GitHub Personal Access Token
+              </h3>
+              <p style={{ margin: "8px 0 18px", fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+                This repository needs authenticated access. Paste a PAT with repository read access to continue.
+              </p>
+              <label style={styles.label}>Personal Access Token</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type={showPatToken ? "text" : "password"}
+                  value={tokenValue}
+                  onChange={(event) => {
+                    if (showEnterpriseToken) {
+                      setGithubToken(event.target.value);
+                    } else {
+                      setPatToken(event.target.value);
+                    }
+                    setPatTokenError("");
+                  }}
+                  placeholder="Paste your GitHub PAT"
+                  autoComplete="off"
+                  style={{ ...styles.input, flex: 1, borderColor: patTokenError ? "#ef4444" : "#e2e8f0" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPatToken((value) => !value)}
+                  style={{
+                    minWidth: 76,
+                    border: "1px solid #dbe3ef",
+                    borderRadius: 8,
+                    background: "#fff",
+                    color: "#334155",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {showPatToken ? "Hide" : "Show"}
+                </button>
+              </div>
+              {patTokenError && (
+                <div style={{ marginTop: 8, color: "#dc2626", fontSize: 12, fontWeight: 700 }}>
+                  {patTokenError}
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPatModal(false);
+                    setPatTokenError("");
+                    if (!currentToken.trim()) {
+                      setIsPrivateRepo(false);
+                    }
+                  }}
+                  style={{ ...styles.secondaryBtn, padding: "11px 18px" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePatModalContinue}
+                  disabled={!tokenValue.trim()}
+                  style={{ ...styles.primaryBtn, padding: "11px 18px", opacity: tokenValue.trim() ? 1 : 0.5 }}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -3361,9 +3487,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             <label style={styles.label}>Target Java Version</label>
             {versionRecommendationLoading && (
               <div style={{ ...styles.infoBox, marginBottom: 12 }}>
-                Analyzing source version, build configuration, frameworks, dependencies, and migration risk...
+                Fetching recommmendations for target Java versions from Hugging Face based on your project analysis...
+                {/* Analyzing source version, build configuration, frameworks, dependencies, and migration risk... */}
               </div>
             )}
+
+{/* newchange */}
             {!versionRecommendationLoading && versionRecommendationError && (
               <div style={{ ...styles.warningBox, marginBottom: 12, color: "#92400e", fontSize: 13 }}>
                 Remote recommendation unavailable ({versionRecommendationError}). Showing the frontend compatibility ranking instead.
@@ -3431,6 +3560,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
         </section>
       )}
+{/* // */}
 
       <div style={styles.field}>
         <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
@@ -3451,7 +3581,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
             {migrationApproach === "branch"
               ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-              : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
+              : <>https://github.com/Pavithra-Sorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
           </code> (auto-generated, editable)
         </p>
       </div>
@@ -3985,12 +4115,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     <div style={{ fontWeight: 600, marginBottom: 10, color: "#94a3b8", fontSize: 13 }}>
                       {option.title} Details
                     </div>
+
+{/* newchange */}
                     <div style={{ marginBottom: 8 }}>{option.tooltip}</div>
                     {option.recommended && (
                       <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 600, marginTop: 6 }}>
                         💡 Recommended for most migrations
                       </div>
                     )}
+{/* // */}
+
                     {/* Arrow */}
                     <div style={{
                       position: "absolute",
@@ -4306,7 +4440,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
               {migrationApproach === "branch"
                 ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-                : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
+                : <>https://github.com/Pavithra-Sorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
             </code>
           </p>
         </div>
@@ -5706,7 +5840,7 @@ For questions or issues:
       <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
       <div style={styles.main}>
         {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
-        {step === 1 && renderStep1()}
+        {step === 1 && renderConnectStep()}
         {step === 2 && renderDiscoveryStep()}
         {step === 3 && renderStrategyStep()}
         {step === 4 && renderMigrationStep()}

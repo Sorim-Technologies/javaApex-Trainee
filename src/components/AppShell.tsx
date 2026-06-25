@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import apexLogo from "../assets/logo.jpg";
 import Footer from "./Footer";
+import Support from "./Support";
 import "./AppShell.css";
 
 type MockUser = {
@@ -23,34 +24,16 @@ const readMockUser = (): MockUser | null => {
   }
 };
 
-const supportTopics = [
-  "Repository connection and GitHub access",
-  "Java version recommendation questions",
-  "Migration preview or execution issues",
-  "Build modernization, testing, SonarQube, and FOSSA guidance",
-];
-
 const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showSupportModal, setShowSupportModal] = useState(false);
   const [mockUser, setMockUser] = useState<MockUser | null>(() => readMockUser());
-
-  useEffect(() => {
-    const openSupportModal = () => setShowSupportModal(true);
-    window.addEventListener("open-support-modal", openSupportModal);
-
-    return () => {
-      window.removeEventListener("open-support-modal", openSupportModal);
-    };
-  }, []);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setShowProfileMenu(false);
-        setShowSupportModal(false);
       }
     };
 
@@ -88,6 +71,10 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setShowProfileMenu(false);
   };
 
+  const openSupport = () => {
+    window.dispatchEvent(new Event("open-support-modal"));
+  };
+
   return (
     <div className="app-shell">
       <header className="app-shell__header">
@@ -111,11 +98,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span>Docs</span>
           </button>
 
-          <button
-            type="button"
-            className="app-shell__nav-button"
-            onClick={() => setShowSupportModal(true)}
-          >
+          <button type="button" className="app-shell__nav-button" onClick={openSupport}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
             </svg>
@@ -183,7 +166,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           className="app-shell__menu-action"
                           onClick={() => {
                             setShowProfileMenu(false);
-                            setShowSupportModal(true);
+                            openSupport();
                           }}
                         >
                           Contact support
@@ -226,51 +209,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </main>
 
       <Footer variant="light" fixed />
-
-      {showSupportModal && (
-        <div className="app-shell__modal-backdrop" role="presentation" onMouseDown={() => setShowSupportModal(false)}>
-          <section
-            className="app-shell__support-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="support-modal-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="app-shell__support-header">
-              <div>
-                <div className="app-shell__support-eyebrow">Migration support center</div>
-                <h2 id="support-modal-title">How can we help?</h2>
-              </div>
-              <button type="button" className="app-shell__modal-close" onClick={() => setShowSupportModal(false)} aria-label="Close support modal">
-                ×
-              </button>
-            </div>
-
-            <p className="app-shell__support-copy">
-              This mock support panel is available without backend integration. Pick a topic below or use the sample contact details.
-            </p>
-
-            <div className="app-shell__support-topics">
-              {supportTopics.map((topic) => (
-                <button key={topic} type="button" onClick={() => setShowSupportModal(false)}>
-                  {topic}
-                </button>
-              ))}
-            </div>
-
-            <div className="app-shell__support-contact">
-              <div>
-                <strong>Email</strong>
-                <span>support@sorim.ai</span>
-              </div>
-              <div>
-                <strong>Response time</strong>
-                <span>Mock SLA: within 1 business day</span>
-              </div>
-            </div>
-          </section>
-        </div>
-      )}
+      <Support />
     </div>
   );
 };
