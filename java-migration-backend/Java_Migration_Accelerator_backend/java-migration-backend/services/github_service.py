@@ -420,8 +420,13 @@ class GitHubService:
             # Check the HTTP status code for better error messages
             status_code = getattr(e, 'status', None)
             error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
-            
+
+            # GitHub returns 404 with message "This repository is empty." when repo exists but has no contents
             if status_code == 404:
+                if isinstance(error_msg, str) and "this repository is empty" in error_msg.lower():
+                    # Treat empty repository as no files rather than an error
+                    set_cached(cache_key, [])
+                    return []
                 raise Exception(f"Repository not found. Please check that the repository URL is correct and the repository exists: {repo_url}")
             elif status_code == 403:
                 raise Exception("Access denied. The repository may be private or you may not have permission to access it.")

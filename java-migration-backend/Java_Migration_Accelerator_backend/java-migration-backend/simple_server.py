@@ -635,15 +635,15 @@ class MockHandler(BaseHTTPRequestHandler):
             # Mock migration response
             response = {
                 "job_id": "mock-job-12345",
-                "status": "pending",
+                "status": "cloning",
                 "source_repo": request_data.get('source_repo_url', ''),
                 "target_repo": None,
                 "source_java_version": request_data.get('source_java_version', '7'),
                 "target_java_version": request_data.get('target_java_version', '18'),
                 "conversion_types": request_data.get('conversion_types', []),
                 "started_at": "2024-01-07T12:55:00Z",
-                "progress_percent": 0,
-                "current_step": "Initializing migration...",
+                "progress_percent": 1,
+                "current_step": "Starting migration...",
                 "dependencies": [],
                 "files_modified": 0,
                 "issues_fixed": 0,

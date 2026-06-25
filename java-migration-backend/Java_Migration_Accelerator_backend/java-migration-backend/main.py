@@ -3,7 +3,7 @@ Java Migration Backend - Main FastAPI Application
 Handles Java 7 → Java 18 migration automation using OpenRewrite
 """
 import sys
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Body
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -34,7 +34,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-from services.github_service import GitHubService
+from services.github_service import GitHubService, get_github_client
 from services.gitlab_service import GitLabService
 from services.migration_service import MigrationService
 from services.email_service import EmailService
@@ -54,7 +54,7 @@ app = FastAPI(
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     client_host = request.client.host if request.client else "unknown"
-    method = request.method
+    method = request.method 
     url = str(request.url)
     
     print(f"[HTTP] {method} {url} - From: {client_host}")
@@ -74,6 +74,13 @@ app.include_router(auth_router, prefix="/api")
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 # Hugging Face token for LLM-based recommendations
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
+
+# Debug: Confirm token is loaded
+if DEFAULT_GITHUB_TOKEN:
+    token_preview = DEFAULT_GITHUB_TOKEN[:20] + "..." if len(DEFAULT_GITHUB_TOKEN) > 20 else DEFAULT_GITHUB_TOKEN
+    print(f"[STARTUP] ✓ GITHUB_TOKEN loaded: {token_preview}")
+else:
+    print("[STARTUP] ⚠ GITHUB_TOKEN not found in environment")
 
 # CORS middleware
 app.add_middleware(
@@ -161,6 +168,7 @@ class GitPlatform(str, Enum):
 class MigrationRequest(BaseModel):
     source_repo_url: str = Field(description="Repository URL (GitHub or GitLab)")
     target_repo_name: str = Field(description="Name for the new migrated repository")
+    existing_repo_url: Optional[str] = Field(default=None, description="Optional: existing target repository URL to push branch into when using branch strategy")
     migration_approach: Optional[str] = Field(default="fork", description="Migration destination strategy: fork or branch")
     platform: GitPlatform = Field(default=GitPlatform.GITHUB, description="Git platform (GitHub or GitLab)")
     source_java_version: str = Field(default="7", description="Current Java version")
@@ -172,6 +180,7 @@ class MigrationRequest(BaseModel):
     run_sonar: bool = Field(default=True, description="Run SonarQube analysis")
     run_fossa: bool = Field(default=False, description="Run FOSSA license and dependency scan")
     fix_business_logic: bool = Field(default=True, description="Attempt to fix business logic issues")
+    local_folder_path: Optional[str] = Field(default=None, description="Local folder path to save the migrated ZIP file")
 
 
 def normalize_target_repo_name(target_repo_name: str, fallback_repo_name: str, timestamp: str) -> str:
@@ -400,10 +409,11 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
 
 @app.get("/api/github/repo-visibility", response_model=RepoVisibilityInfo)
 async def get_github_repo_visibility(repo_url: str, token: str = ""):
-    """Check repository visibility without falling back to the server default token."""
+    """Check repository visibility using provided token or default GitHub token."""
     try:
         owner, repo = await github_service.parse_repo_url(repo_url)
-        repo_info = await github_service.get_repo_info(token.strip(), owner, repo)
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_info = await github_service.get_repo_info(effective_token, owner, repo)
 
         return {
             "owner": owner,
@@ -568,6 +578,130 @@ async def update_java_version(repo_url: str, java_version: str, file_path: str, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Branch Management Endpoints
+class CreateBranchRequest(BaseModel):
+    repo_url: str = Field(..., description="Repository URL")
+    branch_name: str = Field(..., description="New branch name")
+    base_branch: str = Field("main", description="Base branch to create from")
+    token: str = Field("", description="GitHub token")
+
+@app.get("/api/github/branches")
+async def list_branches(repo_url: str, token: str = ""):
+    """List all branches in a repository"""
+    try:
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        owner, repo = await github_service.parse_repo_url(repo_url)
+        
+        gh = get_github_client(effective_token, repo_url)
+        repository = gh.get_repo(f"{owner}/{repo}")
+        
+        branches = []
+        for branch in repository.get_branches():
+            branches.append({
+                "name": branch.name,
+                "commit": {
+                    "sha": branch.commit.sha,
+                    "url": branch.commit.url
+                },
+                "protected": branch.protected
+            })
+        
+        return {
+            "repo_url": repo_url,
+            "branches": branches
+        }
+    except Exception as e:
+        import traceback
+        print(f"[list-branches ERROR] {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to list branches: {str(e)}")
+
+
+@app.post("/api/github/create-branch")
+async def create_branch(request: CreateBranchRequest = Body(...)):
+    """Create a new branch in a repository"""
+    try:
+        repo_url = (request.repo_url or "").strip()
+        branch_name = (request.branch_name or "").strip()
+        base_branch = (request.base_branch or "main").strip()
+        token = request.token
+
+        if not repo_url:
+            raise HTTPException(status_code=400, detail="Repository URL is required")
+        if not branch_name:
+            raise HTTPException(status_code=400, detail="Branch name is required")
+
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        owner, repo = await github_service.parse_repo_url(repo_url)
+        
+        gh = get_github_client(effective_token, repo_url)
+        repository = gh.get_repo(f"{owner}/{repo}")
+        
+        # Get the base branch
+        try:
+            base = repository.get_branch(base_branch)
+        except Exception:
+            # Try common alternatives if base_branch doesn't exist
+            for alt_branch in ["main", "master", "develop", "development"]:
+                try:
+                    base = repository.get_branch(alt_branch)
+                    base_branch = alt_branch
+                    break
+                except:
+                    continue
+            else:
+                raise HTTPException(status_code=400, detail=f"Base branch '{base_branch}' not found in repository")
+        
+        # Create new branch from base
+        try:
+            sha_to_use = getattr(base.commit, 'sha', None) or getattr(base.commit, 'sha', None)
+            if not sha_to_use:
+                # Fallback: use latest commit on the base branch
+                commits = repository.get_commits(sha=base_branch)
+                sha_to_use = commits[0].sha if commits.totalCount > 0 else None
+
+            if not sha_to_use:
+                raise HTTPException(status_code=400, detail=f"Unable to determine commit SHA for base branch '{base_branch}'")
+
+            ref = repository.create_git_ref(
+                ref=f"refs/heads/{branch_name}",
+                sha=sha_to_use
+            )
+
+            return {
+                "success": True,
+                "branch_name": branch_name,
+                "commit_sha": sha_to_use,
+                "message": f"Branch '{branch_name}' created successfully from '{base_branch}'"
+            }
+        except GithubException as ghe:
+            # GitHub returns 404 for missing resource or insufficient permissions
+            status = getattr(ghe, 'status', None)
+            error_msg = ghe.data.get('message') if hasattr(ghe, 'data') and isinstance(ghe.data, dict) else str(ghe)
+            print(f"[create-branch GITHUB ERROR] status={status} msg={error_msg}")
+            if status == 404:
+                raise HTTPException(status_code=403, detail=("Failed to create branch: repository not found or token lacks push/write permissions. "
+                                                            "Provide a Personal Access Token with repo access to create branches."))
+            elif status == 422:
+                # Unprocessable - often means reference already exists
+                if 'Reference already exists' in error_msg or 'already exists' in error_msg:
+                    raise HTTPException(status_code=400, detail=f"Branch '{branch_name}' already exists")
+                raise HTTPException(status_code=400, detail=f"Failed to create branch: {error_msg}")
+            else:
+                raise HTTPException(status_code=400, detail=f"Failed to create branch: {error_msg}")
+        except Exception as e:
+            if "already exists" in str(e) or "Reference already exists" in str(e):
+                raise HTTPException(status_code=400, detail=f"Branch '{branch_name}' already exists")
+            else:
+                raise HTTPException(status_code=400, detail=f"Failed to create branch: {str(e)}")
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"[create-branch ERROR] {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 # GitLab Endpoints
 @app.get("/api/gitlab/repos", response_model=List[RepoInfo])
 async def list_gitlab_repos(token: str):
@@ -671,6 +805,28 @@ async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/select-folder")
+def select_folder():
+    """Open a native folder selection dialog and return the selected path"""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        
+        # Initialize tkinter in a windowless state
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)  # Bring the folder dialog to front
+        
+        folder_path = filedialog.askdirectory(title="Select Destination Folder for Migrated ZIP")
+        root.destroy()
+        
+        return {"folder_path": folder_path}
+    except Exception as e:
+        import traceback
+        print(f"[select-folder ERROR] {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to open folder picker: {str(e)}")
+
+
 # Migration Endpoints
 @app.post("/api/migration/start", response_model=MigrationResult)
 async def start_migration(request: MigrationRequest, background_tasks: BackgroundTasks):
@@ -680,13 +836,14 @@ async def start_migration(request: MigrationRequest, background_tasks: Backgroun
     # Create initial job record
     job = MigrationResult(
         job_id=job_id,
-        status=MigrationStatus.PENDING,
+        status=MigrationStatus.CLONING,
         source_repo=request.source_repo_url,
         source_java_version=request.source_java_version,
         target_java_version=request.target_java_version.value,
         conversion_types=request.conversion_types,
         started_at=datetime.now(timezone.utc),
-        current_step="Initializing migration..."
+        progress_percent=1,
+        current_step="Starting migration..."
     )
     
     migration_jobs[job_id] = job
@@ -756,6 +913,26 @@ async def get_migration_logs(job_id: str):
     return {"job_id": job_id, "logs": migration_jobs[job_id].migration_log}
 
 
+
+@app.get("/api/select-folder")
+async def select_folder():
+    """Open a native OS folder picker dialog and return the selected folder path"""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.wm_attributes('-topmost', 1)
+        folder_path = filedialog.askdirectory(title="Select Destination Folder for Migrated ZIP")
+        root.destroy()
+        if folder_path:
+            return {"folder_path": folder_path}
+        else:
+            return {"folder_path": ""}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not open folder dialog: {str(e)}")
+
+
 @app.get("/api/migration/{job_id}/download-zip")
 async def download_migration_zip(job_id: str):
     """Download the migrated project as a ZIP file"""
@@ -790,7 +967,16 @@ async def download_migration_zip(job_id: str):
     if not os.path.exists(clone_path):
         raise HTTPException(status_code=404, detail=f"Migration directory not found: {clone_path}")
     
-    # Create a ZIP file
+    # If clone_path already points to a .zip file (pre-built into user's chosen folder), serve it directly
+    if clone_path.endswith('.zip') and os.path.isfile(clone_path):
+        zip_filename = os.path.basename(clone_path)
+        return FileResponse(
+            clone_path,
+            media_type='application/zip',
+            filename=zip_filename
+        )
+    
+    # Otherwise create a ZIP from the directory
     zip_filename = f"migration-{job_id}"
     zip_path = os.path.join(tempfile.gettempdir(), zip_filename)
     
@@ -1834,9 +2020,11 @@ async def run_migration(job_id: str, request: MigrationRequest):
             add_log(job_id, f"Target branch name: {target_branch_name}")
             update_job(job_id, MigrationStatus.PUSHING, 90, "Pushing migrated code to a new branch...")
             try:
+                # If user provided an existing target repository URL, push there; otherwise push to the source repo
+                push_target_repo = (request.existing_repo_url or request.source_repo_url)
                 branch_url = await repo_service.push_to_branch(
                     github_token,
-                    request.source_repo_url,
+                    push_target_repo,
                     clone_path,
                     target_branch_name,
                 )
@@ -1846,6 +2034,37 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 add_log(job_id, f"?? Branch push failed: {str(push_error)}")
                 add_log(job_id, f"?? Migrated code saved locally at: {clone_path}")
                 raise Exception(f"Git push to target branch failed: {str(push_error)}")
+        elif migration_approach == "local":
+            target_repo_name = normalize_target_repo_name(
+                request.target_repo_name,
+                source_repo_name,
+                now,
+            )
+            add_log(job_id, f"Local migration output name: {target_repo_name}")
+            update_job(job_id, MigrationStatus.PUSHING, 90, "Preparing local migration output...")
+            
+            local_folder = getattr(request, 'local_folder_path', None)
+            if local_folder and local_folder.strip():
+                import shutil
+                import tempfile
+                
+                local_dir_path = local_folder.strip()
+                os.makedirs(local_dir_path, exist_ok=True)
+                
+                # Create a zip directly in the target folder
+                zip_base_name = os.path.join(local_dir_path, target_repo_name)
+                try:
+                    shutil.make_archive(zip_base_name, 'zip', clone_path)
+                    zip_file_path = f"{zip_base_name}.zip"
+                    add_log(job_id, f"Saved ZIP file to: {zip_file_path}")
+                    job.target_repo = f"local://{zip_file_path}"
+                except Exception as zip_err:
+                    add_log(job_id, f"Failed to save ZIP to chosen folder: {str(zip_err)}")
+                    # Fallback to local clone path
+                    job.target_repo = f"local://{clone_path}"
+            else:
+                job.target_repo = f"local://{clone_path}"
+                add_log(job_id, f"Local migration output stored at: {clone_path}")
         else:
             target_repo_name = normalize_target_repo_name(
                 request.target_repo_name,

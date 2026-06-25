@@ -181,6 +181,7 @@ export interface MigrationPreview {
 export interface MigrationRequest {
   source_repo_url: string;
   target_repo_name: string;
+  existing_repo_url?: string;
   migration_approach?: string;
   platform?: string;
   source_java_version: string;
@@ -192,6 +193,7 @@ export interface MigrationRequest {
   run_sonar: boolean;
   run_fossa?: boolean;
   fix_business_logic: boolean;
+  local_folder_path?: string;
 }
 
 export interface MigrationResult {
@@ -238,6 +240,8 @@ export interface RepoAnalysis {
   language: string | null;
   build_tool: string | null;
   java_version: string | null;
+  java_version_from_build?: string | null;
+  java_version_detected_from_build?: boolean;
   // List of discovered Java source file paths
   java_files?: string[];
   has_tests: boolean;
@@ -477,6 +481,12 @@ export async function downloadMigratedProject(jobId: string): Promise<Blob> {
   return response.blob();
 }
 
+// Open native folder picker on the backend machine and return the selected folder path
+export async function selectLocalFolder(): Promise<{ folder_path: string }> {
+  const response = await fetch(`${API_BASE_URL}/select-folder`);
+  return parseJsonResponse<{ folder_path: string }>(response, 'Failed to open folder picker');
+}
+
 // Download migration report
 export async function downloadMigrationReport(jobId: string): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}/migration/${jobId}/report`);
@@ -552,4 +562,59 @@ export async function updateJavaVersion(
     throw new Error(error.detail || 'Failed to update Java version');
   }
   return response.json();
+}
+
+// Branch Management API Functions
+export interface BranchInfo {
+  name: string;
+  commit: {
+    sha: string;
+    url: string;
+  };
+  protected: boolean;
+}
+
+export interface ListBranchesResponse {
+  repo_url: string;
+  branches: BranchInfo[];
+}
+
+// Fetch all branches from a repository
+export async function listRepoBranches(repoUrl: string, token: string = ""): Promise<ListBranchesResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/github/branches?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
+  );
+  return parseJsonResponse<ListBranchesResponse>(response, 'Failed to fetch repository branches');
+}
+
+// Create a new branch in a repository
+export interface CreateBranchResponse {
+  success: boolean;
+  branch_name: string;
+  commit_sha: string;
+  message: string;
+}
+
+export async function createRepoBranch(
+  repoUrl: string,
+  branchName: string,
+  baseBranch: string = "main",
+  token: string = ""
+): Promise<CreateBranchResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/github/create-branch`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        repo_url: repoUrl,
+        branch_name: branchName,
+        base_branch: baseBranch,
+        token: token,
+      }),
+    }
+  );
+  return parseJsonResponse<CreateBranchResponse>(response, 'Failed to create new branch');
 }

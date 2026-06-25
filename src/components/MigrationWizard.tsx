@@ -16,6 +16,9 @@ import {
   getMigrationStatus,
   getMigrationLogs,
   getMigrationFossa,
+  listRepoBranches,
+  createRepoBranch,
+  selectLocalFolder,
   // Import API_BASE_URL for dynamic URL construction
 } from "../services/api";
 import { API_BASE_URL } from "../services/api";
@@ -28,6 +31,7 @@ import type {
   MigrationPreview,
   PreviewFileDiff,
   JavaVersionRecommendationResponse,
+  BranchInfo,
 } from "../services/api";
 
 interface JavaVersionOption {
@@ -61,6 +65,7 @@ interface PersistedWizardFormState {
   userSelectedVersion: string | null;
   sourceVersionStatus: "detected" | "not_selected" | "unknown";
   updateSourceVersion: boolean;
+  selectedLocalFolder: string;
 }
 
 interface CodeChangeEntry {
@@ -115,11 +120,15 @@ const MIGRATION_STEPS = [
 const STEP_ROUTES: Record<number, string> = {
   1: "/",
   2: "/discovery",
-  3: "/strategy",
-  4: "/migration",
-  5: "/migrating",
-  6: "/progress",
-  7: "/report",
+  3: "/discovery-review",
+  4: "/assessment",
+  5: "/strategy",
+  6: "/planning",
+  7: "/dependencies",
+  8: "/build",
+  9: "/migrating",
+  10: "/progress",
+  11: "/report",
 };
 
 const getStepFromPath = (pathname: string) => {
@@ -178,11 +187,38 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     ].join("");
   };
 
-  const buildTargetRepoUrl = (repoName: string, timestamp: string) =>
-    `https://github.com/SrikkanthSorim/${repoName || "repo"}-Migrated${timestamp}`;
+  const extractGitHubOwner = (repoUrlOrFullName: string | undefined): string => {
+    if (!repoUrlOrFullName) return "user_name";
+
+    const normalized = repoUrlOrFullName
+      .replace(/\.git$/i, "")
+      .replace(/\/tree\/.*$/i, "")
+      .replace(/\/blob\/.*$/i, "")
+      .replace(/\/src\/.*$/i, "")
+      .replace(/\/+$/, "");
+
+    const parts = normalized.split("/").filter(Boolean);
+    if (parts.length >= 2) {
+      return parts[parts.length - 2];
+    }
+
+    if (parts.length === 1 && parts[0].includes("/")) {
+      return parts[0].split("/")[0];
+    }
+
+    return "user_name";
+  };
+
+  const buildTargetRepoUrl = (repoName: string, timestamp: string) => {
+    const owner = extractGitHubOwner(selectedRepo?.full_name || selectedRepo?.url || repoUrl);
+    return `https://github.com/${owner}/${repoName || "repo"}-Migrated${timestamp}`;
+  };
 
   const buildTargetBranchName = (repoName: string, timestamp: string) =>
     `migration/${repoName || "repo"}-Migrated${timestamp}`;
+
+  const buildLocalZipName = (repoName: string, timestamp: string) =>
+    `${repoName || "repo"}-Migrated-${timestamp}`;
 
   const getRepositoryLink = (repoValue: string | null) => {
     if (!repoValue) return null;
@@ -321,7 +357,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [pathHistory, setPathHistory] = useState<string[]>(
     persistedFormState?.pathHistory?.length ? persistedFormState.pathHistory : [""]
   );
-  const [showFileExplorer, setShowFileExplorer] = useState(true);
+  const [showFileExplorer, setShowFileExplorer] = useState(false);
   
   // High-risk project states (no pom.xml/build.gradle or unknown Java version)
   const [isHighRiskProject, setIsHighRiskProject] = useState(
@@ -355,6 +391,25 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [versionRecommendation, setVersionRecommendation] = useState<JavaVersionRecommendationResponse | null>(null);
   const [versionRecommendationLoading, setVersionRecommendationLoading] = useState(false);
   const [versionRecommendationError, setVersionRecommendationError] = useState("");
+
+  // Branch management states for "Existing Repository (New Branch)" approach
+  const [existingRepoUrl, setExistingRepoUrl] = useState<string>("");
+  const [availableBranches, setAvailableBranches] = useState<BranchInfo[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
+  const [newBranchName, setNewBranchName] = useState<string>("");
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [creatingBranch, setCreatingBranch] = useState(false);
+  const [branchError, setBranchError] = useState<string>("");
+
+  // Local repository states for "Local Repository" approach
+  const [localZipSaving, setLocalZipSaving] = useState(false);
+  const [localZipSavedPath, setLocalZipSavedPath] = useState<string>("");
+  const [localZipError, setLocalZipError] = useState<string>("");
+  const [selectedLocalFolder, setSelectedLocalFolder] = useState<string>(
+    persistedFormState?.selectedLocalFolder ?? ""
+  );
+  const [browsingFolder, setBrowsingFolder] = useState(false);
+
   const currentIndicatorStep = getIndicatorStep(step);
 
   const migrationApproachOptions = [
@@ -373,6 +428,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       tooltip: "Keeps the existing repository and publishes the migrated code on a separate branch for review and merge.",
       icon: "🌿",
       color: "#22c55e",
+    },
+    {
+      value: "local",
+      label: "Local Repository",
+      desc: "Save migrated code as a ZIP file to your machine",
+      tooltip: "Generate a ZIP archive of the migrated project and download it locally.",
+      icon: "📁",
+      color: "#0f766e",
     },
   ];
 
@@ -787,6 +850,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       userSelectedVersion,
       sourceVersionStatus,
       updateSourceVersion,
+      selectedLocalFolder,
     } satisfies PersistedWizardFormState);
   }, [
     maxVisitedIndicatorStep,
@@ -814,6 +878,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     userSelectedVersion,
     sourceVersionStatus,
     updateSourceVersion,
+    selectedLocalFolder,
   ]);
 
   // Fetch FOSSA results for the migration job when requested or when job already has results
@@ -951,7 +1016,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   // Animation effect - starts immediately and progresses smoothly
   useEffect(() => {
-    if (step === 5 && migrationJob) {
+    if (step === 9 && migrationJob) {
       // Start animation immediately at 10%
       setAnimationProgress(10);
       
@@ -978,7 +1043,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       }, 500);
       
       return () => clearInterval(animationInterval);
-    } else if (step !== 5) {
+    } else if (step !== 9) {
       setAnimationProgress(0);
     }
   }, [step, migrationJob?.progress_percent, migrationJob?.status]);
@@ -1021,9 +1086,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setVersionRecommendationLoading(true);
     setVersionRecommendationError("");
 
+    const recommendationSourceVersion = detectedJavaVersion || selectedSourceVersion;
+
     getJavaVersionRecommendation({
-      source_java_version: selectedSourceVersion,
-      detected_java_version: repoAnalysis.java_version,
+      source_java_version: recommendationSourceVersion,
+      detected_java_version: recommendationSourceVersion,
       build_tool: repoAnalysis.build_tool,
       dependencies: repoAnalysis.dependencies || [],
       has_tests: repoAnalysis.has_tests,
@@ -1032,6 +1099,41 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     })
       .then((recommendation) => {
         if (cancelled) return;
+
+        const sourceVersionNumber = parseJavaVersion(recommendationSourceVersion);
+        const recommendedVersionNumber = parseJavaVersion(recommendation.recommended_target_version);
+
+        if (
+          sourceVersionNumber !== null &&
+          recommendedVersionNumber !== null &&
+          recommendedVersionNumber <= sourceVersionNumber
+        ) {
+          const fallbackTarget =
+            availableTargetVersions.find((version) => version.value === "25") ||
+            availableTargetVersions.find((version) => version.value === "23") ||
+            availableTargetVersions[0];
+
+          if (!fallbackTarget) {
+            setVersionRecommendation(null);
+            setVersionRecommendationError("No newer Java target version is available for this source version.");
+            return;
+          }
+
+          setVersionRecommendation({
+            ...recommendation,
+            recommended_target_version: fallbackTarget.value,
+            rationale: [
+              `Java ${recommendation.recommended_target_version} was ignored because the detected source version is Java ${recommendationSourceVersion}. Target Java must be newer than the source version.`,
+              ...recommendation.rationale,
+            ],
+            alternatives: recommendation.alternatives.filter((version) => {
+              const alternativeVersionNumber = parseJavaVersion(version);
+              return alternativeVersionNumber !== null && alternativeVersionNumber > sourceVersionNumber;
+            }),
+          });
+          return;
+        }
+
         setVersionRecommendation(recommendation);
       })
       .catch((err) => {
@@ -1048,7 +1150,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     return () => {
       cancelled = true;
     };
-  }, [step, repoAnalysis, selectedSourceVersion, riskLevel]);
+  }, [step, repoAnalysis, selectedSourceVersion, detectedJavaVersion, availableTargetVersions, riskLevel]);
 
   useEffect(() => {
     if (step !== 1 || !urlValidation.valid || showEnterpriseToken || patToken.trim()) {
@@ -1114,10 +1216,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       setTargetRepoName(
         migrationApproach === "branch"
           ? buildTargetBranchName(sourceRepoName, targetRepoTimestamp)
-          : buildTargetRepoUrl(sourceRepoName, targetRepoTimestamp)
+          : migrationApproach === "local"
+            ? buildLocalZipName(sourceRepoName, targetRepoTimestamp)
+            : buildTargetRepoUrl(sourceRepoName, targetRepoTimestamp)
       );
     }
   }, [selectedRepo, selectedTargetVersion, targetRepoTimestamp, migrationApproach]);
+
+  useEffect(() => {
+    if (migrationApproach === "branch" && !existingRepoUrl.trim()) {
+      setExistingRepoUrl(selectedRepo?.url || repoUrl || "");
+    }
+  }, [migrationApproach, selectedRepo, repoUrl, existingRepoUrl]);
+
+  useEffect(() => {
+    if (step === 3 && migrationApproach === "branch" && existingRepoUrl.trim() && availableBranches.length === 0 && !branchesLoading) {
+      void handleFetchBranches();
+    }
+  }, [step, migrationApproach, existingRepoUrl, availableBranches.length, branchesLoading]);
 
   useEffect(() => {
     if (!selectedTargetVersion || targetVersions.length === 0) {
@@ -1143,7 +1259,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             lastUpdateTime = Date.now();
             // Auto-advance to report when completed
             if (job.status === "completed") {
-              setStep(7);
+              setStep(11);
               // Fetch detailed logs
               getMigrationLogs(job.job_id).then((logs) => setMigrationLogs(logs.logs));
             }
@@ -1186,8 +1302,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const repoName = selectedRepo?.name || repoUrl.split("/").pop()?.replace(".git", "") || "repo";
     const finalTargetRepoName = targetRepoName || (
       migrationApproach === "branch"
-        ? buildTargetBranchName(repoName, targetRepoTimestamp)
-        : buildTargetRepoUrl(repoName, targetRepoTimestamp)
+        ? selectedBranch || buildTargetBranchName(repoName, targetRepoTimestamp)
+        : migrationApproach === "local"
+          ? buildLocalZipName(repoName, targetRepoTimestamp)
+          : buildTargetRepoUrl(repoName, targetRepoTimestamp)
     );
 
     const detectPlatform = (url: string) => {
@@ -1198,6 +1316,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
     return {
       source_repo_url: selectedRepo?.url || repoUrl,
+      existing_repo_url: existingRepoUrl || undefined,
       target_repo_name: finalTargetRepoName,
       platform: detectPlatform(selectedRepo?.url || repoUrl),
       source_java_version: userSelectedVersion || selectedSourceVersion,
@@ -1209,6 +1328,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       run_sonar: runSonar,
       run_fossa: runFossa,
       fix_business_logic: fixBusinessLogic,
+      ...(migrationApproach === "local" && selectedLocalFolder ? { local_folder_path: selectedLocalFolder } : {}),
     };
   };
 
@@ -1280,6 +1400,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       return;
     }
 
+    // Require a destination folder for local migrations
+    if (migrationApproach === "local" && !selectedLocalFolder.trim()) {
+      setError("Please select a destination folder for the migrated ZIP file before starting migration.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -1288,7 +1414,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     startMigration(migrationRequest)
       .then((job) => {
         setMigrationJob(job);
-        setStep(5); // Go to Migration Progress step
+        setStep(9); // Go to Migration Animation step
       })
       .catch((err) => {
         console.error("Migration error:", err);
@@ -1332,14 +1458,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setEditedContent("");
     setIsEditing(false);
     setPathHistory([""]);
-    setShowFileExplorer(true);
+    setShowFileExplorer(false);
+    setSelectedLocalFolder("");
     // Reset high-risk project states
     setIsHighRiskProject(false);
     setHighRiskConfirmed(false);
     setSuggestedJavaVersion("17");
     setDetectedFrameworks([]);
     setViewingFrameworkFile(null);
-    setCreateStandardStructure(true);
+    // setCreateStandardStructure(true);
     // Reset code diff states
     setCodeChanges([]);
     setSelectedDiffFile(null);
@@ -1353,6 +1480,100 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       window.localStorage.removeItem(WIZARD_REPO_URL_KEY);
       window.localStorage.removeItem(WIZARD_SELECTED_REPO_KEY);
       window.localStorage.removeItem(WIZARD_REPO_ANALYSIS_KEY);
+    }
+  };
+
+  // Fetch branches from existing repository
+  const handleFetchBranches = async () => {
+    if (!existingRepoUrl.trim()) {
+      setBranchError("Please enter a repository URL");
+      return;
+    }
+
+    // Validate and normalize the URL (accept owner/repo or full URL)
+    const validation = normalizeGithubUrl(existingRepoUrl);
+    if (!validation.valid) {
+      setBranchError(validation.message || "Invalid repository URL format");
+      return;
+    }
+
+    const repoToQuery = validation.normalizedUrl || existingRepoUrl.trim();
+
+    setBranchesLoading(true);
+    setBranchError("");
+    setAvailableBranches([]);
+    setSelectedBranch("");
+
+    try {
+      const result = await listRepoBranches(repoToQuery, currentToken);
+      setAvailableBranches(result.branches || []);
+      if ((result.branches || []).length > 0) {
+        setSelectedBranch(result.branches[0].name);
+      } else {
+        setBranchError("No branches found for this repository.");
+      }
+    } catch (err: any) {
+      setBranchError(err?.message || "Failed to fetch branches. Check the repository URL and token.");
+    } finally {
+      setBranchesLoading(false);
+    }
+  };
+
+  // Create a new branch in the repository
+  const handleCreateBranch = async () => {
+    if (!existingRepoUrl.trim()) {
+      setBranchError("Please enter a repository URL");
+      return;
+    }
+
+    const validation = normalizeGithubUrl(existingRepoUrl);
+    if (!validation.valid) {
+      setBranchError(validation.message || "Invalid repository URL format");
+      return;
+    }
+
+    if (!newBranchName.trim()) {
+      setBranchError("Please enter a branch name");
+      return;
+    }
+
+    if (!selectedBranch) {
+      setBranchError("Please select a base branch");
+      return;
+    }
+
+    setCreatingBranch(true);
+    setBranchError("");
+
+    try {
+      const repoToCreate = validation.normalizedUrl || existingRepoUrl.trim();
+      const result = await createRepoBranch(repoToCreate, newBranchName.trim(), selectedBranch, currentToken);
+      if (result.success) {
+        // Re-fetch branches to include the newly created one
+        await handleFetchBranches();
+        setTargetRepoName(newBranchName.trim());
+        setNewBranchName("");
+        setSelectedBranch(newBranchName.trim());
+      }
+    } catch (err: any) {
+      setBranchError(err.message || "Failed to create branch. Make sure you have push access to the repository.");
+    } finally {
+      setCreatingBranch(false);
+    }
+  };
+
+  // Browse for a local folder to save the migrated ZIP
+  const handleBrowseFolder = async () => {
+    setBrowsingFolder(true);
+    try {
+      const result = await selectLocalFolder();
+      if (result.folder_path) {
+        setSelectedLocalFolder(result.folder_path);
+      }
+    } catch (err: any) {
+      console.error("Folder picker error:", err);
+    } finally {
+      setBrowsingFolder(false);
     }
   };
 
@@ -1510,7 +1731,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </label>
           <input
             type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
+            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : '#ef4444' }}
             value={repoUrl}
             onChange={(e) => {
               setRepoUrl(e.target.value);
@@ -1571,6 +1792,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
         <div style={styles.btnRow}>
           <button
+            className="animated-continue-btn"
             style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
             disabled={!urlValidation.valid}
             onClick={() => void handleRepositoryContinue()}
@@ -2990,7 +3212,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
 
       <div style={styles.field}>
-        <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
+        <label style={styles.label}>
+          {migrationApproach === "branch"
+            ? "Target Branch Name"
+            : migrationApproach === "local"
+              ? "Local ZIP File Name"
+              : "Target Repository Name"}
+        </label>
         <div style={{ display: "flex", gap: 8 }}>
           <input 
             type="text" 
@@ -3000,18 +3228,268 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             placeholder={
               migrationApproach === "branch"
                 ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
-                : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
+                : migrationApproach === "local"
+                  ? buildLocalZipName(selectedRepo?.name || "repo", targetRepoTimestamp)
+                  : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
             }
           />
         </div>
         <p style={styles.helpText}>
-          Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
-            {migrationApproach === "branch"
-              ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-              : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
-          </code> (auto-generated, editable)
+          {migrationApproach === "branch" ? (
+            <>Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{"migration/{source-repo}-Migrated{timestamp}"}</code></>
+          ) : migrationApproach === "local" ? (
+            <>Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{"{project-name}-Migrated-{timestamp}"}</code></>
+          ) : (
+            <>Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{`https://github.com/${extractGitHubOwner(selectedRepo?.full_name || selectedRepo?.url || repoUrl)}/{source-repo}-Migrated{timestamp}`}</code></>
+          )} (auto-generated, editable)
         </p>
       </div>
+
+      {/* Destination Folder Picker - Only shown when Local Repository approach is selected */}
+      {migrationApproach === "local" && (
+        <div style={styles.field}>
+          <label style={styles.label}>
+            📁 Destination Folder <span style={{ color: "#ef4444", fontSize: 11 }}>*</span>
+          </label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="text"
+              readOnly
+              style={{
+                ...styles.input,
+                flex: 1,
+                backgroundColor: selectedLocalFolder ? "#f0fdf4" : "#f8fafc",
+                borderColor: selectedLocalFolder ? "#22c55e" : "#d1d5db",
+                color: selectedLocalFolder ? "#166534" : "#94a3b8",
+                cursor: "default",
+              }}
+              value={selectedLocalFolder || "No folder selected — click Browse to choose"}
+              placeholder="No folder selected"
+            />
+            <button
+              type="button"
+              onClick={handleBrowseFolder}
+              disabled={browsingFolder}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "11px 18px",
+                backgroundColor: browsingFolder ? "#94a3b8" : "#0f766e",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: browsingFolder ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.2s ease",
+                boxShadow: browsingFolder ? "none" : "0 2px 6px rgba(15,118,110,0.25)",
+              }}
+              onMouseEnter={(e) => {
+                if (!browsingFolder) {
+                  e.currentTarget.style.backgroundColor = "#0d6460";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,118,110,0.35)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!browsingFolder) {
+                  e.currentTarget.style.backgroundColor = "#0f766e";
+                  e.currentTarget.style.boxShadow = "0 2px 6px rgba(15,118,110,0.25)";
+                }
+              }}
+            >
+              {browsingFolder ? (
+                <>⏳ Opening…</>
+              ) : (
+                <>📂 Browse…</>
+              )}
+            </button>
+          </div>
+          <p style={styles.helpText}>
+            {selectedLocalFolder ? (
+              <span style={{ color: "#166534", fontWeight: 500 }}>
+                ✓ ZIP will be saved to: <code style={{ backgroundColor: "#dcfce7", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{selectedLocalFolder}</code>
+              </span>
+            ) : (
+              <>Choose the folder where the migrated ZIP file will be saved on your machine.</>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Existing Repository Section - Only show when "branch" approach is selected */}
+      {migrationApproach === "branch" && (
+        <div style={{
+          border: "2px solid #10b981",
+          borderRadius: 12,
+          padding: 24,
+          backgroundColor: "#f0fdf4",
+          marginBottom: 24
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#166534", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            🌿 Existing Repository Configuration
+          </div>
+
+          {/* Repository URL Input */}
+          <div style={styles.field}>
+            <label style={styles.label}>Repository URL</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                style={{
+                  ...styles.input,
+                  flex: 1,
+                  borderColor: existingRepoUrl && !branchError ? "#10b981" : existingRepoUrl && branchError ? "#ef4444" : "#d1d5db"
+                }}
+                value={existingRepoUrl}
+                onChange={(e) => {
+                  setExistingRepoUrl(e.target.value);
+                }}
+                placeholder="https://github.com/owner/your-repo"
+              />
+              <button
+                onClick={handleFetchBranches}
+                disabled={branchesLoading || !existingRepoUrl.trim()}
+                style={{
+                  backgroundColor: branchesLoading ? "#d1d5db" : "#10b981",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "12px 20px",
+                  fontWeight: 600,
+                  cursor: branchesLoading || !existingRepoUrl.trim() ? "not-allowed" : "pointer",
+                  fontSize: 14,
+                  transition: "all 0.2s ease",
+                  opacity: branchesLoading || !existingRepoUrl.trim() ? 0.6 : 1
+                }}
+              >
+                {branchesLoading ? "🔄 Fetching..." : "📂 Load Branches"}
+              </button>
+            </div>
+            <p style={styles.helpText}>
+              Enter the URL of an existing repository where you want to push the migrated code as a new branch
+            </p>
+            {branchError && (
+              <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8, padding: 8, backgroundColor: "#fee2e2", borderRadius: 6 }}>
+                ⚠️ {branchError}
+              </div>
+            )}
+          </div>
+
+          {/* Available Branches Section */}
+          {availableBranches.length > 0 && (
+            <div style={styles.field}>
+              <label style={styles.label}>Base Branch</label>
+              <p style={styles.helpText}>
+                The new migration branch will be created from the selected base branch
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
+                {availableBranches.map((branch) => (
+                  <div
+                    key={branch.name}
+                    onClick={() => setSelectedBranch(branch.name)}
+                    style={{
+                      padding: 12,
+                      borderRadius: 8,
+                      border: `2px solid ${selectedBranch === branch.name ? "#10b981" : "#e5e7eb"}`,
+                      backgroundColor: selectedBranch === branch.name ? "#f0fdf4" : "#fff",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedBranch !== branch.name) {
+                        e.currentTarget.style.borderColor = "#10b981";
+                        e.currentTarget.style.backgroundColor = "#f9fafb";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedBranch !== branch.name) {
+                        e.currentTarget.style.borderColor = "#e5e7eb";
+                        e.currentTarget.style.backgroundColor = "#fff";
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>🌳</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{branch.name}</div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>{branch.commit.sha.substring(0, 7)}</div>
+                    </div>
+                    {selectedBranch === branch.name && (
+                      <div style={{ fontSize: 18, color: "#10b981" }}>✓</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Create New Branch Section */}
+          <div style={styles.field}>
+            <label style={styles.label}>Create New Migration Branch</label>
+            <p style={styles.helpText}>
+              Optionally create a new branch for the migration. If not specified, the selected base branch will be used.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                style={{ ...styles.input, flex: 1 }}
+                value={newBranchName}
+                onChange={(e) => setNewBranchName(e.target.value)}
+                placeholder={`migration/java21-migration-${new Date().toISOString().split('T')[0]}`}
+              />
+              <button
+                onClick={handleCreateBranch}
+                disabled={creatingBranch || !newBranchName.trim() || !selectedBranch}
+                style={{
+                  backgroundColor: creatingBranch || !newBranchName.trim() ? "#d1d5db" : "#059669",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "12px 20px",
+                  fontWeight: 600,
+                  cursor: creatingBranch || !newBranchName.trim() ? "not-allowed" : "pointer",
+                  fontSize: 14,
+                  transition: "all 0.2s ease",
+                  opacity: creatingBranch || !newBranchName.trim() ? 0.6 : 1
+                }}
+              >
+                {creatingBranch ? "⏳ Creating..." : "+ Create Branch"}
+              </button>
+            </div>
+            <p style={{ fontSize: 11, color: "#475569", marginTop: 8 }}>
+              Branch name should follow Git conventions (e.g., migration/java21-migration-2024-01-15)
+            </p>
+          </div>
+
+          {/* Selected Branch for Migration */}
+          {selectedBranch && (
+            <div style={{
+              backgroundColor: "#fff",
+              border: "1px solid #10b981",
+              borderRadius: 8,
+              padding: 12,
+              marginTop: 16,
+              display: "flex",
+              alignItems: "center",
+              gap: 12
+            }}>
+              <span style={{ fontSize: 20 }}>🎯</span>
+              <div>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>Migration Target</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#166534" }}>
+                  {newBranchName || selectedBranch}
+                </div>
+              </div>
+              <div style={{ flex: 1 }} />
+              <span style={{ fontSize: 20 }}>✓</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={styles.btnRow}>
         <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
@@ -3840,7 +4318,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
         </div>
         <div style={styles.field}>
-          <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
+          <label style={styles.label}>
+            {migrationApproach === "branch"
+              ? "Target Branch Name"
+              : migrationApproach === "local"
+                ? "Local ZIP File Name"
+                : "Target Repository Name"}
+          </label>
           <div style={{ display: "flex", gap: 8 }}>
             <input 
               type="text" 
@@ -3850,18 +4334,91 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               placeholder={
                 migrationApproach === "branch"
                   ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
-                  : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
+                  : migrationApproach === "local"
+                    ? buildLocalZipName(selectedRepo?.name || "repo", targetRepoTimestamp)
+                    : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
               }
             />
           </div>
           <p style={styles.helpText}>
-            Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
-              {migrationApproach === "branch"
-                ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-                : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
-            </code>
+            {migrationApproach === "branch" ? (
+              <>Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{"migration/{source-repo}-Migrated{timestamp}"}</code></>
+            ) : migrationApproach === "local" ? (
+              <>Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{"{project-name}-Migrated-{timestamp}"}</code></>
+            ) : (
+              <>Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{`https://github.com/${extractGitHubOwner(selectedRepo?.full_name || selectedRepo?.url || repoUrl)}/{source-repo}-Migrated{timestamp}`}</code></>
+            )} (auto-generated, editable)
           </p>
         </div>
+        {migrationApproach === "local" && (
+          <>
+            <div style={styles.field}>
+              <label style={styles.label}>
+                📁 Destination Folder <span style={{ color: "#ef4444", fontSize: 11 }}>*</span>
+              </label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="text"
+                  readOnly
+                  style={{
+                    ...styles.input,
+                    flex: 1,
+                    backgroundColor: selectedLocalFolder ? "#f0fdf4" : "#f8fafc",
+                    borderColor: selectedLocalFolder ? "#22c55e" : "#d1d5db",
+                    color: selectedLocalFolder ? "#166534" : "#94a3b8",
+                    cursor: "default",
+                  }}
+                  value={selectedLocalFolder || "No folder selected — click Browse to choose"}
+                  placeholder="No folder selected"
+                />
+                <button
+                  type="button"
+                  onClick={handleBrowseFolder}
+                  disabled={browsingFolder}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "11px 18px",
+                    backgroundColor: browsingFolder ? "#94a3b8" : "#0f766e",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: browsingFolder ? "not-allowed" : "pointer",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s ease",
+                    boxShadow: browsingFolder ? "none" : "0 2px 6px rgba(15,118,110,0.25)",
+                  }}
+                >
+                  {browsingFolder ? <>⏳ Opening…</> : <>📂 Browse…</>}
+                </button>
+              </div>
+              <p style={styles.helpText}>
+                {selectedLocalFolder ? (
+                  <span style={{ color: "#166534", fontWeight: 500 }}>
+                    ✓ ZIP will be saved to: <code style={{ backgroundColor: "#dcfce7", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{selectedLocalFolder}</code>
+                  </span>
+                ) : (
+                  <>Choose the folder where the migrated ZIP file will be saved on your machine.</>
+                )}
+              </p>
+            </div>
+            <div style={{ ...styles.infoBox, backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46" }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>📦 ZIP File Download</div>
+              This will package your migrated project as a ZIP file and save it directly to the chosen folder.
+              <div style={{ marginTop: 8, fontSize: 13, color: "#065f46" }}>
+                No GitHub push will occur; the migration result will be stored and saved as a ZIP file on your machine.
+              </div>
+              {selectedLocalFolder && (
+                <div style={{ marginTop: 8, fontSize: 13, backgroundColor: "#d1fae5", padding: 8, borderRadius: 6, color: "#047857", fontWeight: 500 }}>
+                  ✓ Destination: <strong>{selectedLocalFolder}</strong>
+                </div>
+              )}
+            </div>
+          </>
+        )}
         <div style={styles.btnRow}>
           <button style={styles.secondaryBtn} onClick={() => setStep(5)}>← Back</button>
           <button style={styles.primaryBtn} onClick={() => setStep(7)}>Continue to Dependencies →</button>
@@ -5261,9 +5818,13 @@ For questions or issues:
         {step === 2 && renderDiscoveryStep()}
         {step === 3 && renderStrategyStep()}
         {step === 4 && renderMigrationStep()}
-        {step === 5 && renderMigrationAnimation()}
-        {step === 6 && renderMigrationProgress()}
-        {step === 7 && renderStep11()}
+        {step === 5 && renderStep5()}
+        {step === 6 && renderStep6()}
+        {step === 7 && renderStep7()}
+        {step === 8 && renderStep8()}
+        {step === 9 && renderMigrationAnimation()}
+        {step === 10 && renderMigrationProgress()}
+        {step === 11 && renderStep11()}
       </div>
     </div>
   );
@@ -5392,10 +5953,10 @@ const styles: { [key: string]: React.CSSProperties } = {
   reportContainer: { display: "flex", flexDirection: "column", gap: 20 },
   reportSection: { background: "#fff", borderRadius: 12, padding: 22, border: "1px solid #e2e8f0" },
   reportTitle: { fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 18, paddingBottom: 12, borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 10 },
-  reportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
-  reportItem: { display: "flex", flexDirection: "column", gap: 6 },
+  reportGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 },
+  reportItem: { display: "flex", flexDirection: "column", gap: 6, minWidth: 0 },
   reportLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600 },
+  reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600, wordBreak: "break-all", overflowWrap: "anywhere" },
   testResults: { display: "flex", flexDirection: "column", gap: 10 },
   testItem: { display: "flex", justifyContent: "space-between", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
   sonarqubeResults: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
