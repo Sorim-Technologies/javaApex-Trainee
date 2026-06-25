@@ -458,7 +458,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const buildTargetRepoUrl = (repoName: string, timestamp: string) =>
-    `https://github.com/SrikkanthSorim/${repoName || "repo"}-Migrated${timestamp}`;
+    `https://github.com/sahana-2924/${repoName || "repo"}-Migrated${timestamp}`;
 
   const buildTargetBranchName = (repoName: string, timestamp: string) =>
     `migration/${repoName || "repo"}-Migrated${timestamp}`;
@@ -1758,7 +1758,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 fontWeight: 700,
                 transform: "translateX(8px)"
               }}>
-                →
+                
               </span>
             </div>
           )}
@@ -1852,7 +1852,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </label>
           <input
             type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? 'var(--success-border)' : repoUrl ? 'var(--danger-border)' : 'var(--input-border)' }}
+            style={{ ...styles.input,width: 1070 , borderColor: urlValidation.valid ? 'var(--success-border)' : repoUrl ? 'var(--danger-border)' : 'var(--input-border)' }}
             value={repoUrl}
             onChange={(e) => {
               setRepoUrl(e.target.value);
@@ -3350,7 +3350,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
             {migrationApproach === "branch"
               ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-              : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
+              : <>https://github.com/sahana-2924/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
           </code> (auto-generated, editable)
         </p>
       </div>
@@ -4200,7 +4200,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
               {migrationApproach === "branch"
                 ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-                : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
+                : <>https://github.com/sahana-2924/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
             </code>
           </p>
         </div>

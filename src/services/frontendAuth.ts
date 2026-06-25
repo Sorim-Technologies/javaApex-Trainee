@@ -21,10 +21,10 @@ export const FRONTEND_AUTH_USER: FrontendAuthUser = {
 };
 
 function readJson<T>(key: string): T | null {
-  if (typeof window === "undefined") return null;
+  if (typeof globalThis.window === "undefined") return null;
 
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = globalThis.window.localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -36,20 +36,20 @@ export function isFrontendAuthBypassEnabled() {
 }
 
 export function enableFrontendAuthBypass(): FrontendAuthUser | null {
-  if (!FRONTEND_AUTH_BYPASS_ENABLED || typeof window === "undefined") {
+  if (!FRONTEND_AUTH_BYPASS_ENABLED || typeof globalThis.window === "undefined") {
     return null;
   }
 
-  window.localStorage.setItem(FRONTEND_AUTH_SESSION_KEY, "true");
-  window.localStorage.setItem(FRONTEND_AUTH_USER_KEY, JSON.stringify(FRONTEND_AUTH_USER));
+  globalThis.window.localStorage.setItem(FRONTEND_AUTH_SESSION_KEY, "true");
+  globalThis.window.localStorage.setItem(FRONTEND_AUTH_USER_KEY, JSON.stringify(FRONTEND_AUTH_USER));
   return FRONTEND_AUTH_USER;
 }
 
 export function disableFrontendAuthBypass() {
-  if (typeof window === "undefined") return;
+  if (typeof globalThis.window === "undefined") return;
 
-  window.localStorage.removeItem(FRONTEND_AUTH_SESSION_KEY);
-  window.localStorage.removeItem(FRONTEND_AUTH_USER_KEY);
+  globalThis.window.localStorage.removeItem(FRONTEND_AUTH_SESSION_KEY);
+  globalThis.window.localStorage.removeItem(FRONTEND_AUTH_USER_KEY);
 }
 
 export function ensureFrontendAuthBypass() {
@@ -59,11 +59,11 @@ export function ensureFrontendAuthBypass() {
 }
 
 export function getFrontendAuthUser(): FrontendAuthUser | null {
-  if (!FRONTEND_AUTH_BYPASS_ENABLED || typeof window === "undefined") {
+  if (typeof globalThis.window === "undefined") {
     return null;
   }
 
-  const active = window.localStorage.getItem(FRONTEND_AUTH_SESSION_KEY) === "true";
+  const active = globalThis.window.localStorage.getItem(FRONTEND_AUTH_SESSION_KEY) === "true";
   if (!active) return null;
 
   return readJson<FrontendAuthUser>(FRONTEND_AUTH_USER_KEY) ?? FRONTEND_AUTH_USER;
@@ -71,4 +71,21 @@ export function getFrontendAuthUser(): FrontendAuthUser | null {
 
 export function getActiveProfileUser(): FrontendAuthUser | null {
   return getFrontendAuthUser();
+}
+
+export function isAuthenticated(): boolean {
+  if (typeof globalThis.window === "undefined") return false;
+  return globalThis.window.localStorage.getItem(FRONTEND_AUTH_SESSION_KEY) === "true";
+}
+
+export function loginWithGoogle(): FrontendAuthUser | null {
+  if (typeof globalThis.window === "undefined") return null;
+
+  globalThis.window.localStorage.setItem(FRONTEND_AUTH_SESSION_KEY, "true");
+  globalThis.window.localStorage.setItem(FRONTEND_AUTH_USER_KEY, JSON.stringify(FRONTEND_AUTH_USER));
+  return FRONTEND_AUTH_USER;
+}
+
+export function logout(): void {
+  disableFrontendAuthBypass();
 }

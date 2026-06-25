@@ -339,10 +339,10 @@ class GitHubService:
         raise Exception("Invalid GitHub repository URL. Use format: owner/repo, https://github.com/owner/repo, or https://github.<enterprise>.com/owner/repo")
     
     async def get_repo_info(self, token: str, owner: str, repo: str) -> Dict[str, Any]:
-        """Get repository information (works with or without token for public repos)"""
+        """Get repository information (works with or without token for public repos)."""
         try:
-            if token:
-                g = Github(token)
+            if token and token.strip():
+                g = get_github_client(token.strip(), f"https://github.com/{owner}/{repo}")
             else:
                 g = Github()
             
