@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./MigrationWizard.css";
 import apexLogo from "../assets/apexlogo.png";
+import javaApexLogo from "../assets/javapexfinal.png";
 import {
   fetchRepositories,
   analyzeRepository,
@@ -1502,51 +1503,29 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const connectionBadgeStyle = isRepositoryConnected
       ? styles.statusBadgeConnected
       : styles.statusBadge;
-
+  const isStartEnabled = urlValidation.valid || Boolean(selectedRepo);
     return (
-      <div className="connect-grid" style={{ background: "linear-gradient(135deg, #081625 0%, #0d2635 25%, #103239 50%, #1b5b59 100%)", borderRadius: 28, padding: 28, display: "grid", gridTemplateColumns: "minmax(320px, 1fr) 440px", gap: 28, alignItems: "stretch" }}>
+      <div className="connect-grid" style={styles.connectPageGrid}>
         <div style={styles.connectHeroCard}>
-          <div style={styles.heroBadge}>DISCOVERY START</div>
-          <h1 style={styles.connectHeroTitle}>Connect your source repository</h1>
-          <p style={styles.connectHeroSubtitle}>
-            Add a repository URL to begin access checks, Java discovery, and dependency mapping.
-          </p>
-
-          <div style={{ ...styles.connectFeatureList, display: "none" }}>
-            <div style={styles.connectFeatureItem}>
-              <span style={styles.connectFeatureIcon}>🔗</span>
-              <div>
-                <div style={styles.connectFeatureLabel}>Connect to GitHub</div>
-                <div style={styles.connectFeatureText}>Authenticate and authorize the repository scan.</div>
-              </div>
-            </div>
-            <div style={styles.connectFeatureItem}>
-              <span style={styles.connectFeatureIcon}>🔍</span>
-              <div>
-                <div style={styles.connectFeatureLabel}>Discovery start</div>
-                <div style={styles.connectFeatureText}>Scan repository structure, language, and dependencies.</div>
-              </div>
-            </div>
-            <div style={styles.connectFeatureItem}>
-              <span style={styles.connectFeatureIcon}>📦</span>
-              <div>
-                <div style={styles.connectFeatureLabel}>Dependency mapping</div>
-                <div style={styles.connectFeatureText}>Detect build files, Java versions, and framework details.</div>
-              </div>
-            </div>
+          <div>
+            <div style={styles.heroBadge}>DISCOVERY START</div>
+            <h1 style={styles.connectHeroTitle}>Connect your source repository</h1>
+            <p style={styles.connectHeroSubtitle}>
+              Add a repository URL to begin access checks, Java discovery, and dependency mapping.
+            </p>
           </div>
 
           <div style={styles.connectCallouts}>
-            <button className="connect-button" style={styles.connectActionBtn}>Connect</button>
-            <button className="connect-button" style={styles.connectSecondaryBtn}>Scan</button>
-            <button className="connect-button" style={styles.connectSecondaryBtn}>Recommend</button>
+            <button type="button" className="connect-button" style={styles.connectActionBtn}>Connect</button>
+            <button type="button" className="connect-button" style={styles.connectSecondaryBtn}>Scan</button>
+            <button type="button" className="connect-button" style={styles.connectSecondaryBtn}>Recommend</button>
           </div>
 
           <div style={styles.connectStatusCard}>
             <div style={styles.statusBarControls}>
-              <span style={styles.statusDot} />
-              <span style={styles.statusDot} />
-              <span style={styles.statusDot} />
+              <span style={{ ...styles.statusDot, background: "#ef4444" }} />
+              <span style={{ ...styles.statusDot, background: "#f59e0b" }} />
+              <span style={{ ...styles.statusDot, background: "#22c55e" }} />
             </div>
             <div style={styles.statusRow}>
               <span style={styles.statusKey}>repo</span>
@@ -1560,92 +1539,104 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
 
         <div style={styles.connectPanel}>
-          <div style={styles.panelHeader}>
-            <div>
-              <div style={styles.panelLabel}>REPOSITORY INPUT</div>
-              <h2 style={styles.panelTitle}>Source details</h2>
-            </div>
-            <div style={connectionBadgeStyle}>{connectionState}</div>
-          </div>
-
-          <div style={styles.field}>
-            <label style={{ ...styles.label, marginBottom: 12 }}>Repository URL</label>
-            <div style={styles.urlInputWrapper}>
-              <input
-                type="text"
-                style={{
-                  ...styles.input,
-                  borderColor: urlValidation.valid ? "#22c55e" : repoUrl ? "#cbd5e1" : "#d1d5db",
-                  width: "100%",
-                  margin: 0,
-                }}
-                value={repoUrl}
-                onChange={(e) => {
-                  setRepoUrl(e.target.value);
-                  setSelectedRepo(null);
-                  setRepoAnalysis(null);
-                  setIsPrivateRepo(false);
-                  setPatToken("");
-                  setError("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && urlValidation.valid) {
-                    void handleRepositoryContinue();
-                  }
-                }}
-                placeholder="https://github.com/owner/repository"
-              />
-              <span style={styles.urlSuffix}>URL</span>
-            </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 14 }}>
-              Public repositories can be scanned without a token. Private repositories will ask for a PAT.
-            </div>
-            {repoUrl && !urlValidation.valid && (
-              <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>⚠️ {urlValidation.message}</div>
-            )}
-            {urlValidation.valid && (
-              <div style={{ fontSize: 12, color: "#22c55e", marginTop: 8 }}>✓ Valid repository URL</div>
-            )}
-          </div>
-
-          {shouldShowPatInput && (
-            <div style={{ ...styles.field, marginTop: 8 }}>
-              <label style={{ ...styles.label, fontWeight: 500 }}>
-                GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
-              </label>
-              <input
-                type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? "#22c55e" : "#e2e8f0" }}
-                value={showEnterpriseToken ? githubToken : patToken}
-                onChange={(e) => (showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value))}
-                placeholder="Paste your GitHub PAT here"
-                autoComplete="off"
-              />
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                {showEnterpriseToken ? (
-                  <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={styles.link}>How to create a PAT?</a></>
-                ) : (
-                  <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={styles.link}>How to create a PAT?</a></>
-                )}
+          <div>
+            <div style={styles.panelHeader}>
+              <div>
+                <div style={styles.panelLabel}>REPOSITORY INPUT</div>
+                <h2 style={styles.panelTitle}>Source details</h2>
               </div>
+              <div style={connectionBadgeStyle}>{connectionState}</div>
             </div>
-          )}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 24 }}>
-            <button
-              style={{ ...styles.primaryBtn, width: "100%", opacity: !urlValidation.valid ? 0.6 : 1 }}
-              disabled={!urlValidation.valid}
-              onClick={() => void handleRepositoryContinue()}
-            >
-              Start discovery
-            </button>
-            <button
-              style={{ ...styles.secondaryBtn, width: "100%", background: "#f1f5f9", color: "#1f2937", borderColor: "#d1d5db" }}
-              onClick={() => setRepoUrl("")}
-            >
-              Clear
-            </button>
+            <div style={styles.field}>
+              <label style={{ ...styles.label, marginBottom: 10, color: "#243247" }}>
+                Repository URL <span style={styles.inlineInfoBadge}>i</span>
+              </label>
+              <div style={styles.urlInputWrapper}>
+                <input
+                  type="text"
+                  style={{
+                    ...styles.input,
+                    border: "none",
+                    boxShadow: "none",
+                    backgroundColor: "transparent",
+                    color: "#0f172a",
+                    width: "100%",
+                    margin: 0,
+                    padding: "12px 8px",
+                    outline: "none"
+                  }}
+                  value={repoUrl}
+                  onChange={(e) => {
+                    setRepoUrl(e.target.value);
+                    setSelectedRepo(null);
+                    setRepoAnalysis(null);
+                    setIsPrivateRepo(false);
+                    setPatToken("");
+                    setError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && urlValidation.valid) {
+                      void handleRepositoryContinue();
+                    }
+                  }}
+                  placeholder="https://github.com/owner/repository"
+                />
+                <span style={styles.urlSuffix}>URL</span>
+              </div>
+              <div style={styles.connectHelpText}>
+                Public repositories can be scanned without a token. Private repositories will ask for a PAT.
+              </div>
+              {repoUrl && !urlValidation.valid && (
+                <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{urlValidation.message}</div>
+              )}
+              {urlValidation.valid && (
+                <div style={{ fontSize: 12, color: "#059669", marginTop: 8 }}>Valid repository URL</div>
+              )}
+            </div>
+
+            {shouldShowPatInput && (
+              <div style={{ ...styles.field, marginTop: 8 }}>
+                <label style={{ ...styles.label, fontWeight: 600, color: "#243247" }}>
+                  GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                </label>
+                <input
+                  type="password"
+                  style={{ ...styles.input, backgroundColor: "#fff", color: "#0f172a", borderColor: (showEnterpriseToken ? githubToken : patToken) ? "#22c55e" : "#d8e1ea" }}
+                  value={showEnterpriseToken ? githubToken : patToken}
+                  onChange={(e) => (showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value))}
+                  placeholder="Paste your GitHub PAT here"
+                  autoComplete="off"
+                />
+                <div style={styles.connectHelpText}>
+                  {showEnterpriseToken ? (
+                    <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={styles.link}>How to create a PAT?</a></>
+                  ) : (
+                    <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer" style={styles.link}>How to create a PAT?</a></>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div style={styles.platformPill}>GitHub</div>
           </div>
+        
+          <button
+            // style={{ ...styles.connectStartButton, opacity: !urlValidation.valid ? 0.72 : 1 }}
+            //  style={{ ...styles.connectStartButton, opacity: isStartEnabled ? 1 : 0.72 }}
+            // disabled={!urlValidation.valid}
+          
+             style={{
+            ...styles.connectStartButton,
+            background: isStartEnabled ? "#0F8F8B" : "#94c9c3",
+            opacity: isStartEnabled ? 1 : 0.72,
+            cursor: isStartEnabled ? "pointer" : "not-allowed",
+          }}
+            disabled={!isStartEnabled}
+            onClick={() => void handleRepositoryContinue()}
+          >
+            Start discovery
+          </button>
         </div>
       </div>
     );
@@ -2326,31 +2317,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     )}
                   </div>
 
-                  {/* Discovery Info */}
-                  <div style={styles.discoveryContent}>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>📊</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Repository Analysis</div>
-                        <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>🔧</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis?.build_tool || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>☕</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Current Java version detected in the project</div>
-                      </div>
-                    </div>
-                  </div>
-
                   {(detectedJavaVersion || detectedBuildType) && (
                     <div style={styles.detectedConfigCard}>
                       <div style={styles.detectedConfigHeader}>
@@ -2921,118 +2887,66 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       </div>
 
         <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>Source Java Version</label>
-              <div style={{
-                padding: "12px 14px",
-                fontSize: 14,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                backgroundColor: "#f9fafb",
-                color: userSelectedVersion ? "#1e293b" : "#6b7280",
-                fontWeight: userSelectedVersion ? 600 : 500
-              }}>
-                {userSelectedVersion
-                  ? `Java ${selectedSourceVersion} (manually selected)`
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? `Java ${repoAnalysis.java_version} (detected)`
-                      : "Source don't have a java version")
-                }
-              </div>
-              <p style={styles.helpText}>
-                {userSelectedVersion
-                  ? "Source version manually selected in discovery step"
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? "Java version detected from build configuration"
-                      : "No Java version found - please select a source version below")
-                }
-              </p>
-              {/* Show version selector when not detected */}
-              {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                <div style={{ marginTop: 12 }}>
-                  <select
-                    value={selectedSourceVersion}
-                    onChange={(e) => {
-                      setSelectedSourceVersion(e.target.value);
-                      setUserSelectedVersion(e.target.value); // Mark as user-selected
-                    }}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 6,
-                      border: "1px solid #d97706",
-                      fontSize: 14,
-                      backgroundColor: "#fff",
-                      cursor: "pointer",
-                      width: "100%"
-                    }}
-                  >
-                    <option value="7">Java 7 (Legacy)</option>
-                    <option value="8">Java 8 (LTS)</option>
-                    <option value="11">Java 11 (LTS)</option>
-                    <option value="17">Java 17 (LTS)</option>
-                    <option value="21">Java 21 (LTS)</option>
-                  </select>
-                  <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                    💡 Select the correct Java version for your project. This will be used as the source version for migration.
-                  </div>
-                </div>
-              )}
+          <div style={styles.field}>
+            <label style={styles.label}>Source Java Version</label>
+            <div style={{
+              padding: "12px 14px",
+              fontSize: 14,
+              borderRadius: 8,
+              border: "1px solid #cbd5e1",
+              backgroundColor: "#f8fafc",
+              color: "#0f172a",
+              fontWeight: 600
+            }}>
+              {userSelectedVersion
+                ? `Java ${selectedSourceVersion} (manually selected)`
+                : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
+                    ? `Java ${repoAnalysis.java_version} (detected)`
+                    : "Source don't have a java version")
+              }
             </div>
+            <p style={styles.helpText}>
+              {userSelectedVersion
+                ? "Source version manually selected in discovery step"
+                : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
+                    ? "Java version detected from build configuration"
+                    : "No Java version found - please select a source version below")
+              }
+            </p>
+            {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
+              <div style={{ marginTop: 12 }}>
+                <select
+                  value={selectedSourceVersion}
+                  onChange={(e) => {
+                    setSelectedSourceVersion(e.target.value);
+                    setUserSelectedVersion(e.target.value);
+                  }}
+                  style={{
+                    ...styles.select,
+                    backgroundColor: "#fff",
+                    color: "#0f172a",
+                    border: "1px solid #d97706"
+                  }}
+                >
+                  <option value="7">Java 7 (Legacy)</option>
+                  <option value="8">Java 8 (LTS)</option>
+                  <option value="11">Java 11 (LTS)</option>
+                  <option value="17">Java 17 (LTS)</option>
+                  <option value="21">Java 21 (LTS)</option>
+                </select>
+                <div style={{ fontSize: 12, color: "#92400e", marginTop: 6 }}>
+                  Select the correct Java version for your project. This will be used as the source version for migration.
+                </div>
+              </div>
+            )}
+          </div>
           <div style={styles.field}>
             <label style={styles.label}>Target Java Version</label>
-            {versionRecommendationLoading && (
-              <div style={{ ...styles.infoBox, marginBottom: 12 }}>
-                Fetching recommended target Java version from Hugging Face...
-              </div>
-            )}
-            {!versionRecommendationLoading && versionRecommendationError && (
-              <div style={{ ...styles.errorBox, marginBottom: 12 }}>
-                {versionRecommendationError}
-              </div>
-            )}
-            {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 16,
-                  borderRadius: 10,
-                  border: "1px solid #bfdbfe",
-                  background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                      Hugging Face Recommendation
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginTop: 4 }}>
-                      Target Java {versionRecommendation.recommended_target_version}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    style={{ ...styles.secondaryBtn, padding: "8px 14px" }}
-                    onClick={() => setSelectedTargetVersion(versionRecommendation.recommended_target_version)}
-                  >
-                    Use recommendation
-                  </button>
-                </div>
-                <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
-                  Confidence: <span style={{ fontWeight: 700, color: "#0f172a" }}>{versionRecommendation.confidence}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
-                  {versionRecommendation.rationale.map((reason, index) => (
-                    <div key={index}>{index + 1}. {reason}</div>
-                  ))}
-                </div>
-                {versionRecommendation.alternatives.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 10 }}>
-                    Alternatives: {versionRecommendation.alternatives.map((value) => `Java ${value}`).join(", ")}
-                  </div>
-                )}
-              </div>
-            )}
-            <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
+            <select
+              style={{ ...styles.select, backgroundColor: "#fff", color: "#0f172a", border: "1px solid #334155" }}
+              value={selectedTargetVersion}
+              onChange={(e) => setSelectedTargetVersion(e.target.value)}
+            >
               <option value="" disabled>Select Java Version</option>
               {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
             </select>
@@ -3040,12 +2954,65 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
         </div>
 
+        <div style={{ ...styles.field, marginTop: -4 }}>
+          {versionRecommendationLoading && (
+            <div style={{ ...styles.infoBox, marginBottom: 12 }}>
+              Fetching recommended target Java version from Hugging Face...
+            </div>
+          )}
+          {!versionRecommendationLoading && versionRecommendationError && (
+            <div style={{ ...styles.errorBox, marginBottom: 12 }}>
+              {versionRecommendationError}
+            </div>
+          )}
+          {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
+            <div
+              style={{
+                padding: 18,
+                borderRadius: 10,
+                border: "1px solid #bfdbfe",
+                background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 8, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                    Hugging Face Recommendation
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginTop: 4 }}>
+                    Target Java {versionRecommendation.recommended_target_version}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={{ ...styles.secondaryBtn, padding: "8px 14px" }}
+                  onClick={() => setSelectedTargetVersion(versionRecommendation.recommended_target_version)}
+                >
+                  Use recommendation
+                </button>
+              </div>
+              <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
+                Confidence: <span style={{ fontWeight: 700, color: "#0f172a" }}>{versionRecommendation.confidence}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
+                {versionRecommendation.rationale.map((reason, index) => (
+                  <div key={index}>{index + 1}. {reason}</div>
+                ))}
+              </div>
+              {versionRecommendation.alternatives.length > 0 && (
+                <div style={{ fontSize: 12, color: "#475569", marginTop: 10 }}>
+                  Alternatives: {versionRecommendation.alternatives.map((value) => `Java ${value}`).join(", ")}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       <div style={styles.field}>
         <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
         <div style={{ display: "flex", gap: 8 }}>
           <input 
             type="text" 
-            style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }} 
+            style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e", color: "#0f172a" }} 
             value={targetRepoName} 
             onChange={(e) => setTargetRepoName(normalizeTargetRepoOwner(e.target.value))} 
             placeholder={
@@ -3086,14 +3053,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       </div>
 
-      {/* Show what we plan to modernize */}
-      <div style={styles.sectionTitle}>🎯 Migration Configuration</div>
-
-      {/* What we'll modernize - Card Design */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-          ✨ What we'll modernize
-        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           {[
             {
@@ -3290,19 +3250,25 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           Preview code changes
         </div>
         <div style={{ padding: 16, border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#fff" }}>
-          {migrationPreviewLoading && (
+          {!selectedTargetVersion && (
+            <div style={{ fontSize: 14, color: "#475569" }}>
+              Select a target Java version above to generate the migration preview.
+            </div>
+          )}
+
+          {selectedTargetVersion && migrationPreviewLoading && (
             <div style={{ fontSize: 14, color: "#475569" }}>
               Analyzing the connected repository and building a real migration preview...
             </div>
           )}
 
-          {!migrationPreviewLoading && migrationPreviewError && (
+          {selectedTargetVersion && !migrationPreviewLoading && migrationPreviewError && (
             <div style={{ fontSize: 14, color: "#b91c1c" }}>
               {migrationPreviewError}
             </div>
           )}
 
-          {!migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
+          {selectedTargetVersion && !migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
             <>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
                 <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#eff6ff", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
@@ -3620,31 +3586,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <p style={styles.subtitle}>Analyzing the application structure and components.</p>
         </div>
       </div>
-      {selectedRepo && (
-        <div style={styles.discoveryContent}>
-          <div style={styles.discoveryItem}>
-            <span style={styles.discoveryIcon}>📊</span>
-            <div>
-              <div style={styles.discoveryTitle}>Repository Analysis</div>
-              <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
-            </div>
-          </div>
-          <div style={styles.discoveryItem}>
-            <span style={styles.discoveryIcon}>🔧</span>
-            <div>
-              <div style={styles.discoveryTitle}>Build Tools Detection</div>
-              <div style={styles.discoveryDesc}>Identifying Maven, Gradle, or other build systems</div>
-            </div>
-          </div>
-          <div style={styles.discoveryItem}>
-            <span style={styles.discoveryIcon}>📦</span>
-            <div>
-              <div style={styles.discoveryTitle}>Dependencies Scan</div>
-              <div style={styles.discoveryDesc}>Analyzing project dependencies and versions</div>
-            </div>
-          </div>
-        </div>
-      )}
       <div style={styles.btnRow}>
         <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
         <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Assessment →</button>
@@ -3881,7 +3822,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={{ display: "flex", gap: 8 }}>
             <input 
               type="text" 
-              style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }} 
+              style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e", color: "#0f172a" }} 
               value={targetRepoName} 
               onChange={(e) => setTargetRepoName(normalizeTargetRepoOwner(e.target.value))} 
               placeholder={
@@ -5272,8 +5213,22 @@ For questions or issues:
 
   return (
     <div style={styles.container}>
+      {/* {step === 1 && (
+        <header style={styles.frontHeader}>
+          <div style={styles.frontBrand}>
+            <img src={javaApexLogo} alt="JavaAPEX" style={styles.frontLogo} />
+            <span style={styles.frontTitle}>Full Migration</span>
+          </div>
+          <nav style={styles.frontNav}>
+            <button type="button" style={styles.frontNavButton}>Docs</button>
+            <button type="button" style={styles.frontNavButton}>Support</button>
+            <span style={styles.frontNavDivider} />
+            <button type="button" style={styles.frontUserButton} aria-label="User profile">U</button>
+          </nav>
+        </header>
+      )} */}
       <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
-      <div style={styles.main}>
+      <div style={step === 1 ? { ...styles.main, padding: "18px 48px 48px" } : styles.main}>
         {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
         {step === 1 && renderStep1()}
         {step === 2 && renderDiscoveryStep()}
@@ -5340,33 +5295,61 @@ For questions or issues:
 const styles: { [key: string]: React.CSSProperties } = {
   container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "linear-gradient(135deg, #081625 0%, #0d2635 25%, #103239 50%, #1b5b59 100%)", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
+  frontHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 48px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
+  frontBrand: { display: "flex", alignItems: "center", gap: 18, minWidth: 0 },
+  frontLogo: { height: 38, width: "auto", objectFit: "contain" },
+  frontTitle: { fontSize: 22, fontWeight: 900, color: "#0f172a", whiteSpace: "nowrap" },
+  frontNav: { display: "flex", alignItems: "center", gap: 20, color: "#cbd5e1" },
+  frontNavButton: { background: "transparent", border: "none", color: "#cbd5e1", fontWeight: 800, fontSize: 14, cursor: "pointer" },
+  frontNavDivider: { width: 1, height: 26, background: "#e2e8f0", display: "inline-block" },
+  frontUserButton: { width: 42, height: 42, borderRadius: "50%", border: "1px solid #cbd5e1", background: "#fff", color: "#64748b", fontSize: 18, cursor: "pointer" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
-  stepIndicatorContainer: { background: "linear-gradient(180deg, #091323 0%, #04101e 100%)", borderBottom: "1px solid rgba(125, 211, 252, 0.16)", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto", boxShadow: "0 12px 42px rgba(56, 189, 248, 0.14)" },
+  stepIndicatorContainer: { background: "linear-gradient(180deg, #091323 0%, #062332 100%)", borderBottom: "1px solid rgba(125, 211, 252, 0.16)", padding: "16px 46px 14px", width: "100%", boxSizing: "border-box", overflowX: "auto", boxShadow: "0 12px 42px rgba(56, 189, 248, 0.14)" },
   stepIndicator: { display: "flex", gap: 0, justifyContent: "center", alignItems: "flex-start", minWidth: "fit-content", flexWrap: "nowrap" },
   stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "opacity 0.25s ease, transform 0.25s ease", cursor: "pointer", whiteSpace: "nowrap" },
   stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "transform 0.25s ease, filter 0.25s ease, text-shadow 0.25s ease" },
   stepLabel: { display: "flex", flexDirection: "column" },
-  connectHeroCard: { background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)", color: "#f8fafc", borderRadius: 24, padding: 36, boxShadow: "0 0 0 1px rgba(125, 211, 252, 0.16), 0 28px 80px rgba(15, 23, 42, 0.38), 0 0 42px rgba(56, 189, 248, 0.16)", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 520 },
-  heroBadge: { alignSelf: "flex-start", textTransform: "uppercase", letterSpacing: "1px", fontSize: 12, fontWeight: 700, color: "#93c5fd", background: "rgba(59, 130, 246, 0.12)", padding: "10px 14px", borderRadius: 999, marginBottom: 30 },
-  connectHeroTitle: { fontSize: 42, fontWeight: 800, lineHeight: 1.05, maxWidth: 560, marginBottom: 20 },
-  connectHeroSubtitle: { fontSize: 16, color: "#cbd5e1", lineHeight: 1.8, maxWidth: 520, marginBottom: 32 },
+  connectPageGrid: { background: "linear-gradient(135deg, #07111f 0%, #0a2632 42%, #0e4b48 100%)", padding: "20px 0 42px", display: "grid", gridTemplateColumns: "minmax(320px, 0.9fr) minmax(480px, 1.1fr)", gap: 26, alignItems: "stretch", maxWidth: 1236, margin: "0 auto" },
+  inlineInfoBadge: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "#dff3fb", color: "#3082a3", fontSize: 12, fontWeight: 800, marginLeft: 4 },
+  connectHelpText: { fontSize: 13, color: "#71839b", marginTop: 12, lineHeight: 1.45 },
+  // platformPill: { display: "flex", alignItems: "center", justifyContent: "center", width: "48%", minWidth: 220, height: 44, borderRadius: 8, border: "1px solid #d8e1ea", background: "#f8fafc", color: "#243247", fontSize: 13, fontWeight: 800, marginTop: 26 },
+  platformPill: {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "100%",
+  minWidth: 0,
+  height: 44,
+  borderRadius: 8,
+  border: "1px solid #d8e1ea",
+  background: "#f8fafc",
+  color: "#243247",
+  fontSize: 13,
+  fontWeight: 800,
+  marginTop: 26,
+},
+  connectStartButton: { width: "100%", border: "none", borderRadius: 8, padding: "18px 24px", background: "#94c9c3", color: "#ffffff", fontSize: 17, fontWeight: 900, cursor: "pointer", marginTop: 24, boxShadow: "none" },
+  connectHeroCard: { background: "rgba(13, 31, 50, 0.84)", color: "#f8fafc", borderRadius: 8, padding: 38, border: "1px solid rgba(203, 213, 225, 0.78)", boxShadow: "0 22px 58px rgba(0, 0, 0, 0.22)", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 520 },
+  heroBadge: { alignSelf: "flex-start", textTransform: "uppercase", letterSpacing: "1.6px", fontSize: 12, fontWeight: 800, color: "#5eead4", marginBottom: 22 },
+  connectHeroTitle: { fontSize: 54, fontWeight: 900, lineHeight: 1.08, maxWidth: 520, margin: "0 0 18px", letterSpacing: 0, color: "#f8fafc" },
+  connectHeroSubtitle: { fontSize: 17, color: "#dbeafe", lineHeight: 1.65, maxWidth: 500, margin: "0 0 32px" },
   connectFeatureList: { display: "grid", gap: 18, marginBottom: 32 },
   connectFeatureItem: { display: "flex", gap: 14, alignItems: "flex-start", padding: 18, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: 16 },
   connectFeatureIcon: { fontSize: 24, marginTop: 4 },
   connectFeatureLabel: { fontSize: 15, fontWeight: 700, marginBottom: 4, color: "#ffffff" },
   connectFeatureText: { fontSize: 13, color: "#cbd5e1", lineHeight: 1.6 },
-  connectCallouts: { display: "flex", gap: 12, flexWrap: "wrap" },
-  connectActionBtn: { background: "#3b82f6", color: "#fff", border: "none", borderRadius: 12, padding: "14px 26px", fontWeight: 700, cursor: "pointer", boxShadow: "0 16px 40px rgba(59, 130, 246, 0.22)" },
-  connectSecondaryBtn: { background: "rgba(255,255,255,0.08)", color: "#cbd5e1", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: 12, padding: "14px 26px", fontWeight: 600, cursor: "pointer" },
-  connectPanel: { background: "#0b1525", borderRadius: 24, padding: 32, boxShadow: "0 0 0 1px rgba(125, 211, 252, 0.14), 0 24px 70px rgba(0, 0, 0, 0.28), 0 0 38px rgba(34, 211, 238, 0.15)", border: "1px solid rgba(125, 211, 252, 0.12)", minHeight: 520, display: "flex", flexDirection: "column", justifyContent: "space-between" },
+  connectCallouts: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, margin: "4px 0 30px" },
+  connectActionBtn: { background: "rgba(15, 31, 52, 0.72)", color: "#fff", border: "1px solid rgba(148, 163, 184, 0.3)", borderRadius: 8, padding: "13px 18px", fontWeight: 800, cursor: "pointer" },
+  connectSecondaryBtn: { background: "rgba(15, 31, 52, 0.72)", color: "#fff", border: "1px solid rgba(148, 163, 184, 0.3)", borderRadius: 8, padding: "13px 18px", fontWeight: 800, cursor: "pointer" },
+  connectPanel: { background: "#ffffff", borderRadius: 8, padding: 32, boxShadow: "0 24px 70px rgba(0, 0, 0, 0.2)", border: "1px solid rgba(226, 232, 240, 0.92)", minHeight: 520, display: "flex", flexDirection: "column", justifyContent: "space-between" },
   panelHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 24 },
-  panelLabel: { fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" },
-  panelTitle: { fontSize: 24, fontWeight: 700, margin: 0, color: "#f8fafc" },
-  statusBadge: { alignSelf: "flex-start", color: "#f8fafc", background: "rgba(255,255,255,0.08)", padding: "10px 16px", borderRadius: 999, fontWeight: 700, fontSize: 12, letterSpacing: "0.5px", border: "1px solid rgba(255,255,255,0.12)" },
-  statusBadgeConnected: { alignSelf: "flex-start", color: "#dcfce7", background: "rgba(34, 197, 94, 0.16)", padding: "10px 16px", borderRadius: 999, fontWeight: 700, fontSize: 12, letterSpacing: "0.5px", border: "1px solid rgba(34, 197, 94, 0.45)" },
-  urlInputWrapper: { display: "flex", alignItems: "center", gap: 10, border: "1px solid #d1d5db", borderRadius: 12, padding: 4, background: "#f8fafc" },
-  urlSuffix: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 44, background: "#e2e8f0", borderRadius: 10, padding: "10px 12px", color: "#334155", fontSize: 12, fontWeight: 700 },
-  connectStatusCard: { background: "#0f172a", border: "1px solid rgba(125, 211, 252, 0.14)", borderRadius: 20, padding: 22, marginTop: 28, minWidth: 0, boxShadow: "0 18px 44px rgba(0,0,0,0.2), 0 0 26px rgba(56, 189, 248, 0.12)" },
+  panelLabel: { fontSize: 12, fontWeight: 800, color: "#0f8f8b", letterSpacing: "1.6px", textTransform: "uppercase", marginBottom: 14 },
+  panelTitle: { fontSize: 28, fontWeight: 800, margin: 0, color: "#070f1f" },
+  statusBadge: { alignSelf: "flex-start", color: "#64748b", background: "#f1f5f9", padding: "12px 18px", borderRadius: 999, fontWeight: 800, fontSize: 13, border: "none" },
+  statusBadgeConnected: { alignSelf: "flex-start", color: "#047857", background: "#dcfce7", padding: "12px 18px", borderRadius: 999, fontWeight: 800, fontSize: 13, border: "none" },
+  urlInputWrapper: { display: "flex", alignItems: "center", gap: 8, border: "2px solid #67d7e5", borderRadius: 10, padding: 3, background: "#ffffff", boxShadow: "0 0 0 4px rgba(103, 215, 229, 0.16)" },
+  urlSuffix: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 42, borderLeft: "1px solid #e2e8f0", padding: "12px 10px", color: "#64748b", fontSize: 12, fontWeight: 800 },
+  connectStatusCard: { background: "#07101f", border: "1px solid rgba(125, 211, 252, 0.12)", borderRadius: 8, padding: 18, marginTop: 0, minWidth: 0, boxShadow: "0 18px 44px rgba(0,0,0,0.22)" },
   statusBarControls: { display: "flex", gap: 8, marginBottom: 20 },
   statusDot: { width: 10, height: 10, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 0 4px rgba(239,68,68,0.08)" },
   statusRow: { display: "grid", gridTemplateColumns: "80px 1fr", gap: 8, alignItems: "center", marginBottom: 12 },
@@ -5399,10 +5382,10 @@ const styles: { [key: string]: React.CSSProperties } = {
   subtitle: { fontSize: 14, color: "#64748b", margin: 0, lineHeight: 1.5 },
   sectionTitle: { fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 14, marginTop: 20, display: "flex", alignItems: "center", gap: 8 },
   field: { marginBottom: 20, width: "100%", boxSizing: "border-box" },
-  label: { fontWeight: 600, fontSize: 14, marginBottom: 8, display: "block", color: "#e2e8f0" },
+  label: { fontWeight: 700, fontSize: 14, marginBottom: 8, display: "block", color: "#334155" },
   input: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #334155", boxSizing: "border-box", transition: "all 0.2s ease", backgroundColor: "#0f172a", color: "#f8fafc" },
   select: { width: "100%", padding: "12px 14px", fontSize: 14, borderRadius: 8, border: "1px solid #334155", backgroundColor: "#0f172a", color: "#f8fafc", transition: "all 0.2s ease", cursor: "pointer" },
-  helpText: { fontSize: 13, color: "#9ca3af", marginTop: 6, lineHeight: 1.4 },
+  helpText: { fontSize: 13, color: "#64748b", marginTop: 6, lineHeight: 1.4 },
   lightLabel: { fontWeight: 700, fontSize: 14, marginBottom: 8, display: "block", color: "#334155" },
   lightHelpText: { fontSize: 13, color: "#475569", marginTop: 6, lineHeight: 1.4 },
   infoButtonContainer: { position: "relative", display: "inline-block", zIndex: 100 },
