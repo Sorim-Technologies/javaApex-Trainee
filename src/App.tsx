@@ -1,9 +1,9 @@
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import MigrationWizard from './components/MigrationWizard';
-import AppShell from './components/AppShell';
-import AuthCallback from './components/AuthCallback';
-import DocsPage from './components/DocsPage';
+import MigrationWizard from './components/wizard/MigrationWizard';
+import AppShell from './components/layout/AppShell';
+import AuthCallback from './components/pages/AuthCallback';
+import DocsPage from './components/pages/DocsPage';
 import './App.css';
 
 export default function App() {

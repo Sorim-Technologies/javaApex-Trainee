@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import apexLogo from "../assets/logo.jpg";
+import apexLogo from "../../assets/logo.jpg";
 import Footer from "./Footer";
 import Support from "./Support";
 import "./AppShell.css";

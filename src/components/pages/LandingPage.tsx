@@ -1,8 +1,7 @@
 import React from "react";
-import Header from "./Header";
-import Footer from "./Footer";
-import apexLogo from "../assets/apexlogo.png";
-import { GITHUB_AUTH_LOGIN_URL } from "../services/api";
+import Header from "../layout/Header";
+import Footer from "../layout/Footer";
+import { GITHUB_AUTH_LOGIN_URL } from "../../services/api";
 
 export default function LandingPage({ onStart }: { onStart: () => void }) {
   const styles: { [key: string]: React.CSSProperties } = {

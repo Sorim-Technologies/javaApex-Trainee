@@ -1,4 +1,4 @@
-import apexLogo from "../assets/logo.jpg";
+import apexLogo from "../../assets/logo.jpg";
 import "./Footer.css";
 
 type FooterVariant = "light" | "dark";

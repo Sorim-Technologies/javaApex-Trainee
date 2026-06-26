@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import apexLogo from "../assets/apexlogo.png";
+import apexLogo from "../../assets/apexlogo.png";
 
 interface HeaderProps {
   showBackButton?: boolean;

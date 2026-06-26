@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../services/api";
+import { API_BASE_URL } from "../../services/api";
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -37,3 +37,4 @@ const AuthCallback: React.FC = () => {
 };
 
 export default AuthCallback;
+

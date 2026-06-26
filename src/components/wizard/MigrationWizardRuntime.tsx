@@ -1,5 +1,15 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import ConnectPage from "../connect/ConnectPage";
+import DiscoveryPage from "../discovery/DiscoveryPage";
+import MigrationPage from "../migration/MigrationPage";
+import MigrationProgress from "../migration/MigrationProgress";
+import ResultPage from "../result/ResultPage";
+import StrategyPage from "../strategy/StrategyPage";
+import { formatFileSize } from "../../utils/fileUtils";
+import { isEnterpriseGithub, isPrivateRepoAccessError, normalizeGithubUrl } from "../../utils/githubUtils";
+import StepIndicator from "./StepIndicator";
 import "./MigrationWizard.css";
 import {
   fetchRepositories,
@@ -17,8 +27,8 @@ import {
   getMigrationLogs,
   getMigrationFossa,
   // Import API_BASE_URL for dynamic URL construction
-} from "../services/api";
-import { API_BASE_URL } from "../services/api";
+} from "../../services/api";
+import { API_BASE_URL } from "../../services/api";
 import type {
   RepoInfo,
   RepoAnalysis,
@@ -28,7 +38,7 @@ import type {
   MigrationPreview,
   PreviewFileDiff,
   JavaVersionRecommendationResponse,
-} from "../services/api";
+} from "../../services/api";
 
 interface JavaVersionOption {
   value: string;
@@ -249,54 +259,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [showPatModal, setShowPatModal] = useState(false);
   const [showPatToken, setShowPatToken] = useState(false);
   const [patTokenError, setPatTokenError] = useState("");
-  // Show token input only for GitHub Enterprise
-  const isEnterpriseGithub = (url: string) => {
-    // Matches github.<anything>.com but not github.com
-    const match = url.match(/^https?:\/\/(www\.)?github\.([^.]+)\.com\//i);
-    return match && match[2] !== "" && match[2] !== "com";
-  };
-
-  const normalizeGithubUrl = (url: string): { valid: boolean; normalizedUrl: string; message: string } => {
-    if (!url.trim()) {
-      return { valid: false, normalizedUrl: "", message: "URL is required" };
-    }
-
-    let normalized = url.trim();
-
-    // Remove /tree/branch-name and everything after it
-    normalized = normalized.replace(/\/tree\/[^/]+.*$/, '');
-    // Remove /blob/branch-name and everything after it
-    normalized = normalized.replace(/\/blob\/[^/]+.*$/, '');
-    // Remove /src/ paths
-    normalized = normalized.replace(/\/src\/.*$/, '');
-    // Remove trailing slashes
-    normalized = normalized.replace(/\/$/, '');
-    // Remove .git extension
-    normalized = normalized.replace(/\.git$/, '');
-
-    // Accept github.com, gitlab.com, and any github.<custom>.com (enterprise)
-    const isGithubUrl = /^https?:\/\/(www\.)?github(\.[^/]+)?\.com\/[^/]+\/[^/\s]+$/.test(normalized);
-    const isGitlabUrl = /^https?:\/\/(www\.)?gitlab\.com\/[^/]+\/[^/\s]+$/.test(normalized);
-    const isShortFormat = /^[^/]+\/[^/\s]+$/.test(normalized);
-
-    if (isGithubUrl || isGitlabUrl || isShortFormat) {
-      if (url !== normalized) {
-        return { 
-          valid: true, 
-          normalizedUrl: normalized, 
-          message: `✓ URL normalized (removed tree/blob paths)` 
-        };
-      }
-      return { valid: true, normalizedUrl: normalized, message: "" };
-    }
-
-    return { 
-      valid: false, 
-      normalizedUrl: "", 
-      message: "Invalid URL format. Use: https://github.com/owner/repo, https://github.<enterprise>.com/owner/repo, or owner/repo" 
-    };
-  };
-
   const urlValidation = repoUrl ? normalizeGithubUrl(repoUrl) : { valid: false, normalizedUrl: "", message: "" };
   const showEnterpriseToken = Boolean(repoUrl && isEnterpriseGithub(urlValidation.normalizedUrl || repoUrl));
 
@@ -428,16 +390,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   // Animation progress state - starts immediately when migration begins
   const [animationProgress, setAnimationProgress] = useState(0);
-
-  const isPrivateRepoAccessError = (message: string) => {
-    const normalizedMessage = message.toLowerCase();
-    return (
-      normalizedMessage.includes("private repository") ||
-      normalizedMessage.includes("repository not found or is private") ||
-      normalizedMessage.includes("provide a personal access token") ||
-      normalizedMessage.includes("access denied")
-    );
-  };
 
   const detectJavaVersionFromPomContent = (pomContent: string): string | null => {
     const normalize = (version: string) => {
@@ -686,12 +638,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     if (hasTests && hasBuildTool) setRiskLevel("low");
     else if (hasBuildTool) setRiskLevel("medium");
     else setRiskLevel("high");
-  };
-
-  const formatFileSize = (sizeInBytes: number) => {
-    if (sizeInBytes < 1024) return `${sizeInBytes} B`;
-    if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
-    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const uploadZipFileToBackend = async (file: File) => {
@@ -1735,6 +1681,17 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const renderStepIndicator = () => (
+    <StepIndicator
+      styles={styles}
+      steps={MIGRATION_STEPS}
+      step={step}
+      currentIndicatorStep={currentIndicatorStep}
+      maxVisitedIndicatorStep={maxVisitedIndicatorStep}
+      onStepChange={setStep}
+    />
+  );
+
+  const renderLegacyStepIndicator = () => (
     <div style={styles.stepIndicator}>
       {MIGRATION_STEPS.map((s, index) => {
         const isCompleted = currentIndicatorStep > s.id;
@@ -1805,6 +1762,46 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   );
 
   const renderConnectStep = () => {
+    return (
+      <ConnectPage
+        styles={styles}
+        sourceInputType={sourceInputType}
+        isPrivateRepo={isPrivateRepo}
+        repoUrl={repoUrl}
+        urlValidation={urlValidation}
+        repoAccessCheckLoading={repoAccessCheckLoading}
+        currentToken={currentToken}
+        showEnterpriseToken={showEnterpriseToken}
+        githubToken={githubToken}
+        patToken={patToken}
+        showPatModal={showPatModal}
+        showPatToken={showPatToken}
+        patTokenError={patTokenError}
+        selectedZipFile={selectedZipFile}
+        zipUploadStatus={zipUploadStatus}
+        zipDragActive={zipDragActive}
+        zipUploadProgress={zipUploadProgress}
+        zipUploadMessage={zipUploadMessage}
+        onSourceInputTypeChange={setSourceInputType}
+        onPrivateRepoChange={setIsPrivateRepo}
+        onPatModalChange={setShowPatModal}
+        onPatTokenErrorChange={setPatTokenError}
+        onErrorChange={setError}
+        onRepoUrlChange={setRepoUrl}
+        onGithubTokenChange={setGithubToken}
+        onPatTokenChange={setPatToken}
+        onShowPatTokenChange={setShowPatToken}
+        onSelectedRepoReset={() => setSelectedRepo(null)}
+        onRepoAnalysisReset={() => setRepoAnalysis(null)}
+        onZipDragActiveChange={setZipDragActive}
+        onZipFileChange={handleZipFileChange}
+        onZipDrop={handleZipDrop}
+        onRepositoryContinue={() => void handleRepositoryContinue()}
+        onZipContinue={() => void handleZipContinue()}
+        onPatModalContinue={handlePatModalContinue}
+      />
+    );
+
     const repositorySourceMode = sourceInputType === "zip" ? "zip" : isPrivateRepo ? "private" : "public";
     const isGithubSelected = sourceInputType === "github";
     const isZipSelected = sourceInputType === "zip";
@@ -5841,12 +5838,12 @@ For questions or issues:
       <div style={styles.main}>
         {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
         {step === 1 && renderConnectStep()}
-        {step === 2 && renderDiscoveryStep()}
-        {step === 3 && renderStrategyStep()}
-        {step === 4 && renderMigrationStep()}
-        {step === 5 && renderMigrationAnimation()}
-        {step === 6 && renderMigrationProgress()}
-        {step === 7 && renderStep11()}
+        {step === 2 && <DiscoveryPage>{renderDiscoveryStep()}</DiscoveryPage>}
+        {step === 3 && <StrategyPage>{renderStrategyStep()}</StrategyPage>}
+        {step === 4 && <MigrationPage>{renderMigrationStep()}</MigrationPage>}
+        {step === 5 && <MigrationPage>{renderMigrationAnimation()}</MigrationPage>}
+        {step === 6 && <MigrationProgress>{renderMigrationProgress()}</MigrationProgress>}
+        {step === 7 && <ResultPage>{renderStep11()}</ResultPage>}
       </div>
     </div>
   );
