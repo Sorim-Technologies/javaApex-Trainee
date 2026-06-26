@@ -75,7 +75,7 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
 
   const [theme, setTheme] = useState<string>(() => {
     try {
-      return localStorage.getItem("theme") || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      return "light";
     } catch {
       return 'light';
     }
@@ -140,3 +140,4 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
     </nav>
   );
 }
+

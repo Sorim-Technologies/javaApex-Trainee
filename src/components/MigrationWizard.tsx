@@ -80,35 +80,35 @@ const MIGRATION_STEPS = [
   {
     id: 1,
     name: "Connect",
-    icon: "🔗",
+    icon: "\uD83D\uDD17",
     description: "Connect to GitHub Repository",
     summary: "Enter your GitHub repository URL to start the migration process"
   },
   {
     id: 2,
     name: "Discovery",
-    icon: "🔍",
+    icon: "\uD83D\uDD0D",
     description: "Repository Discovery & Dependencies",
     summary: "Explore repository structure and analyze project dependencies"
   },
   {
     id: 3,
     name: "Strategy",
-    icon: "📋",
+    icon: "\uD83D\uDCCB",
     description: "Assessment & Migration Strategy",
     summary: "Review assessment results and define the migration roadmap"
   },
   {
     id: 4,
     name: "Migration",
-    icon: "⚡",
+    icon: "\u21C4",
     description: "Build Modernization & Migration",
     summary: "Execute the upgrade using automation tools and refactor legacy components"
   },
   {
     id: 5,
     name: "Result",
-    icon: "📊",
+    icon: "\uD83D\uDCC8",
     description: "Migration Results",
     summary: "View migration report and download migrated project"
   },
@@ -216,11 +216,11 @@ const writeSessionJson = (key: string, value: unknown) => {
 const getIndicatorStep = (step: number) => Math.min(step, MIGRATION_STEPS.length);
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { padding: 0, width: "100%", minHeight: "100vh", background: "var(--bg)", overflowX: "hidden" },
-  stepIndicatorContainer: { display: "flex", justifyContent: "center", padding: "clamp(16px, 2.5vw, 28px) clamp(12px, 4vw, 48px)", background: "var(--surface)", borderBottom: "1px solid var(--border)", overflowX: "hidden" },
-  stepIndicator: { display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "clamp(10px, 2vw, 22px)", width: "100%", maxWidth: 1240 },
-  stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 28, flexWrap: "wrap" },
-  stepIcon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 42, height: 42, flexShrink: 0, borderRadius: 10, background: "var(--surface-alt)", fontSize: 22 },
+  container: { padding: 0, width: "100%", minHeight: "100vh", background: "transparent", overflowX: "hidden" },
+  stepIndicatorContainer: { width: 248, flex: "0 0 248px", minHeight: "100vh", padding: "76px 0 28px", background: "rgba(248, 252, 255, 0.88)", borderRight: "1px solid rgba(148, 204, 232, 0.35)", boxShadow: "12px 0 28px rgba(74, 116, 145, 0.12)", overflowX: "hidden", position: "relative", zIndex: 2 },
+  stepIndicator: { display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start", gap: 24, width: "100%" },
+  stepHeader: { display: "flex", alignItems: "center", gap: 18, marginBottom: 16, flexWrap: "wrap" },
+  stepIcon: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 74, height: 74, flexShrink: 0, borderRadius: 14, background: "linear-gradient(145deg, rgba(255,255,255,0.98), rgba(226,240,249,0.9))", border: "1px solid rgba(116, 159, 185, 0.34)", fontSize: 34, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95), 0 13px 28px rgba(55, 93, 120, 0.18)" },
   stepCircle: { display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 10, flexShrink: 0 },
   field: { display: "flex", flexDirection: "column", gap: 8, width: "100%" },
   stepDot: { width: 12, height: 12, borderRadius: "50%", background: "var(--border)", cursor: "pointer", transition: "all 0.2s" },
@@ -230,19 +230,19 @@ const styles: { [key: string]: React.CSSProperties } = {
   stepLabelActive: { fontSize: 12, fontWeight: 600, color: "var(--primary)" },
   stepConnector: { position: "relative", flex: "1 1 56px", minWidth: 36, maxWidth: 92, height: 4, display: "flex", alignItems: "center", background: "transparent", transition: "background 0.2s" },
   stepConnectorActive: { width: 40, height: 2, background: "var(--primary)" },
-  main: { padding: "clamp(24px, 4vw, 60px) clamp(16px, 5vw, 90px)", maxWidth: 1920, margin: "0 auto", width: "100%", boxSizing: "border-box" },
-  title: { fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, marginBottom: 10, color: "var(--text)", lineHeight: 1.1 },
-  subtitle: { fontSize: "clamp(15px, 1.5vw, 22px)", color: "var(--muted)", marginBottom: 30, lineHeight: 1.6, maxWidth: 760 },
+  main: { padding: "clamp(24px, 4vw, 46px) clamp(16px, 4vw, 62px)", maxWidth: 980, margin: "0 auto", width: "100%", boxSizing: "border-box", position: "relative", zIndex: 1 },
+  title: { fontSize: "clamp(24px, 3vw, 30px)", fontWeight: 700, marginBottom: 6, color: "#080b12", lineHeight: 1.18, letterSpacing: 0 },
+  subtitle: { fontSize: "clamp(14px, 1.4vw, 16px)", color: "#1f2937", marginBottom: 0, lineHeight: 1.45, maxWidth: 760 },
   form: { display: "flex", flexDirection: "column", gap: 20 },
   formGroup: { display: "flex", flexDirection: "column", gap: 8 },
   label: { fontSize: 14, fontWeight: 600, color: "var(--text)" },
-  input: { width: "min(100%, 560px)", boxSizing: "border-box", padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 16, background: "var(--surface)", color: "var(--text)", outline: "none", transition: "border-color 0.2s" },
+  input: { width: "100%", boxSizing: "border-box", padding: "13px 16px", border: "1px solid rgba(105, 139, 160, 0.45)", borderRadius: 8, fontSize: 15, background: "rgba(255,255,255,0.56)", color: "#0f172a", outline: "none", transition: "border-color 0.2s, box-shadow 0.2s", boxShadow: "inset 0 1px 3px rgba(15, 23, 42, 0.06)" },
   select: { padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, background: "var(--surface)", color: "var(--text)", outline: "none" },
   textarea: { padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14, background: "var(--surface)", color: "var(--text)", outline: "none", fontFamily: "inherit", minHeight: 120, resize: "vertical" },
   button: { padding: "12px 24px", background: "var(--primary)", color: "white", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s" },
   buttonDisabled: { padding: "12px 24px", background: "#d1d5db", color: "#999", border: "none", borderRadius: 8, fontWeight: 600, cursor: "not-allowed", fontSize: 14 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 },
-  card: { width: "100%", boxSizing: "border-box", padding: "clamp(22px, 3vw, 36px)", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)", transition: "all 0.2s" },
+  card: { width: "100%", boxSizing: "border-box", padding: "clamp(18px, 2.2vw, 28px)", border: "1px solid rgba(106, 166, 201, 0.55)", borderRadius: 18, background: "rgba(247, 251, 255, 0.72)", transition: "all 0.2s", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.96), 0 15px 34px rgba(53, 91, 120, 0.18)", backdropFilter: "blur(16px)" },
   cardHover: { padding: 20, border: "1px solid var(--primary)", borderRadius: 12, background: "var(--surface)", boxShadow: "0 4px 12px rgba(37, 99, 235, 0.15)", transition: "all 0.2s", cursor: "pointer" },
   cardTitle: { fontSize: 16, fontWeight: 700, marginBottom: 8, color: "var(--text)" },
   cardDesc: { fontSize: 14, color: "var(--muted)", lineHeight: 1.5 },
@@ -252,8 +252,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   errorClose: { background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "var(--danger-text)" },
   errorBox: { background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, padding: "14px 16px", marginBottom: 20, color: "var(--danger-text)", width: "100%", boxSizing: "border-box" },
   btnRow: { display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end", flexWrap: "wrap" },
-  primaryBtn: { background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease", minHeight: 44 },
-  secondaryBtn: { background: "var(--surface)", color: "var(--text)", border: "1px solid var(--input-border)", borderRadius: 8, padding: "12px 24px", fontWeight: 500, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease", minHeight: 44 },
+  primaryBtn: { background: "linear-gradient(180deg, #d4dde6 0%, #b8c4cf 100%)", color: "#65717c", border: "1px solid rgba(116, 133, 148, 0.42)", borderRadius: 8, padding: "12px 24px", fontWeight: 700, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease", minHeight: 44, boxShadow: "0 8px 18px rgba(69, 87, 103, 0.15)" },
+  secondaryBtn: { background: "rgba(255,255,255,0.68)", color: "#263545", border: "1px solid rgba(105, 139, 160, 0.38)", borderRadius: 8, padding: "12px 24px", fontWeight: 600, cursor: "pointer", fontSize: 14, transition: "all 0.2s ease", minHeight: 44 },
   row: { display: "flex", gap: 20 },
   loadingBox: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 40, color: "var(--primary)", fontWeight: 500, fontSize: 15 },
   spinner: { width: 24, height: 24, border: "3px solid var(--border)", borderTop: "3px solid var(--primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite" },
@@ -295,7 +295,41 @@ const styles: { [key: string]: React.CSSProperties } = {
   conversionIcon: { fontSize: 24 },
   checkMark: { position: "absolute", top: 10, right: 10, color: "#059669", fontWeight: 700, fontSize: 18 },
   optionsGrid: { display: "flex", flexDirection: "column", gap: 14 },
-  optionItem: { display: "flex", alignItems: "flex-start", gap: 14, padding: 18, border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", background: "#fff", transition: "all 0.2s ease" },
+  migrationOptionsList: { display: "flex", flexDirection: "column", gap: 10, width: "100%" },
+  migrationOptionRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    width: "100%",
+    padding: "18px 20px",
+    borderRadius: 16,
+    cursor: "pointer",
+    transition: "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease",
+    position: "relative",
+    minHeight: 100,
+  },
+  migrationOptionAccent: {
+    position: "absolute",
+    left: 0,
+    top: 12,
+    bottom: 12,
+    width: 4,
+    borderRadius: 999,
+    backgroundColor: "transparent",
+  },
+  migrationOptionLeft: { display: "flex", alignItems: "flex-start", gap: 14, flex: 1, minWidth: 0 },
+  migrationOptionIcon: { width: 48, height: 48, borderRadius: 999, display: "grid", placeItems: "center", fontSize: 20, flexShrink: 0 },
+  migrationOptionInfo: { display: "flex", flexDirection: "column", gap: 6, minWidth: 0 },
+  migrationOptionTitleRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  migrationOptionTitle: { fontSize: 16, fontWeight: 700, color: "#0f172a", lineHeight: 1.2, minWidth: 0 },
+  migrationOptionBadge: { fontSize: 11, fontWeight: 700, textTransform: "uppercase", padding: "4px 8px", borderRadius: 999, backgroundColor: "#dcfce7", color: "#166534" },
+  migrationOptionDescription: { fontSize: 13, color: "#6b7280", lineHeight: 1.5, minWidth: 0 },
+  migrationOptionButton: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700, border: "1px solid transparent", transition: "all 0.2s ease" },
+  migrationOptionButtonSelected: { backgroundColor: "#2563eb", color: "#fff", borderColor: "#2563eb" },
+  migrationOptionButtonNeutral: { backgroundColor: "#f8fafc", color: "#334155", borderColor: "#cbd5e1" },
+  migrationOptionRowSelected: { backgroundColor: "rgba(37, 99, 235, 0.08)", borderColor: "rgba(37, 99, 235, 0.15)", boxShadow: "0 12px 30px rgba(37, 99, 235, 0.1)" },
+  migrationOptionRowDefault: { backgroundColor: "#fff", borderColor: "#e2e8f0", boxShadow: "0 1px 2px rgba(15, 23, 42, 0.05)" },
   progressSection: { marginBottom: 24 },
   progressHeader: { display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 14, fontWeight: 600, color: "#1e293b" },
   progressBar: { width: "100%", height: 10, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" },
@@ -477,6 +511,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     if (frontendAuthBypassEnabled) return DEV_SAMPLE_REPO_URL;
     return readPersistedValue(WIZARD_REPO_URL_KEY) || "";
   });
+  const [repositoryProvider, setRepositoryProvider] = useState<"GitHub" | "GitLab">("GitHub");
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<RepoInfo | null>(() =>
     frontendAuthBypassEnabled ? DEV_SAMPLE_REPO : readSessionJson<RepoInfo>(WIZARD_SELECTED_REPO_KEY)
@@ -1686,244 +1721,202 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const renderStepIndicator = () => (
     <div style={styles.stepIndicator}>
-      {MIGRATION_STEPS.map((s, index) => {
+      {MIGRATION_STEPS.map((s) => {
         const isCompleted = currentIndicatorStep > s.id;
         const isActive = currentIndicatorStep === s.id;
         const isUnlocked = s.id <= maxVisitedIndicatorStep;
 
         return (
-        <React.Fragment key={s.id}>
-          <div
-            className="wizard-step-item"
-            style={{ 
-              display: "flex", 
-              flex: "1 1 130px",
-              maxWidth: 180,
-              minWidth: 112,
-              flexDirection: "column", 
-              alignItems: "center", 
-              gap: 8,
-              opacity: 1,
+          <button
+            key={s.id}
+            type="button"
+            className={`wizard-step-item ${isActive ? "is-active" : ""} ${isCompleted ? "is-complete" : ""} ${s.id === MIGRATION_STEPS.length ? "is-last" : ""}`}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "50px 1fr",
+              alignItems: "center",
+              gap: 12,
+              width: "100%",
+              padding: "14px 18px",
+              border: "none",
+              borderLeft: isActive ? "3px solid #62bff0" : "3px solid transparent",
+              background: isActive ? "rgba(255,255,255,0.78)" : isCompleted ? "rgba(223, 244, 255, 0.44)" : "transparent",
+              color: "#0f172a",
+              textAlign: "left",
               cursor: isUnlocked && !isActive ? "pointer" : "default",
-              transition: "all 0.3s ease",
-              justifyContent: "center"
-            }} 
+              boxShadow: isActive ? "0 10px 24px rgba(54, 91, 122, 0.16)" : "none",
+              opacity: isUnlocked ? 1 : 0.68,
+            }}
             onClick={() => isUnlocked && !isActive && setStep(s.id)}
           >
-            <div style={{ 
-              ...styles.stepCircle, 
-              background: isCompleted ? "var(--success-gradient)" : isActive ? "var(--primary-gradient)" : "var(--surface-alt)", 
-              color: currentIndicatorStep >= s.id ? "var(--on-primary)" : "var(--muted)",
-              width: 48,
-              height: 48,
-              fontSize: 20,
-              boxShadow: isActive ? "0 0 0 6px rgba(37, 99, 235, 0.18)" : "none"
-            }}>
-              {step > s.id ? "✓" : s.icon}
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ 
-                fontWeight: isActive ? 700 : 600, 
-                fontSize: 13, 
-                color: isActive ? "var(--text)" : isCompleted ? "var(--success-text)" : "var(--muted)",
-                marginBottom: 2
-              }}>
+            <span
+              style={{
+                ...styles.stepCircle,
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                border: "1px solid rgba(95, 148, 179, 0.42)",
+                background: isCompleted
+                  ? "linear-gradient(145deg, #2db7ec, #0f8fbf)"
+                  : isActive
+                    ? "linear-gradient(145deg, #ffffff, #dff4ff)"
+                    : "rgba(244, 248, 251, 0.78)",
+                color: isCompleted ? "#ffffff" : "#64748b",
+                fontSize: 20,
+                boxShadow: isCompleted ? "0 0 16px rgba(45, 183, 236, 0.34)" : isActive ? "0 7px 16px rgba(39, 150, 207, 0.22)" : "none",
+              }}
+            >
+              {isCompleted ? "\u2713" : s.icon}
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 15,
+                  fontWeight: isActive ? 700 : 600,
+                  color: isActive ? "#0a0d12" : isCompleted ? "#0f5f88" : "#1f2937",
+                  lineHeight: 1.15,
+                }}
+              >
                 {s.name}
-              </div>
-              <div style={{ 
-                fontSize: 10, 
-                color: "var(--muted)",
-                maxWidth: 100,
-                lineHeight: 1.4
-              }}>
-                {s.description}
-              </div>
-            </div>
-          </div>
-          {/* Connector Line */}
-          {index < MIGRATION_STEPS.length - 1 && (
-            <div className="wizard-step-connector" style={styles.stepConnector}>
-              <div style={{
-                width: "100%",
-                height: 4,
-                borderRadius: 999,
-                background: isCompleted ? "var(--success-gradient)" : "var(--border)",
-                transition: "background 0.3s ease"
-              }} />
-              <span style={{
-                position: "absolute",
-                right: 0,
-                fontSize: 18,
-                color: isCompleted ? "var(--success-text)" : "var(--muted)",
-                fontWeight: 700,
-                transform: "translateX(8px)"
-              }}>
-                
               </span>
-            </div>
-          )}
-        </React.Fragment>
+              <span
+                style={{
+                  display: "block",
+                  marginTop: 3,
+                  fontSize: 12,
+                  color: isActive ? "#0f5f88" : "#64748b",
+                  lineHeight: 1.2,
+                }}
+              >
+                Step {s.id} {isActive ? "Active" : isCompleted ? "Complete" : "Disabled"}
+              </span>
+            </span>
+          </button>
         );
       })}
     </div>
   );
-
   const renderStep1 = () => {
     return (
-      <div style={styles.card}>
-        <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🔗</span>
+      <div className="reference-step reference-step-connect">
+        <section className="reference-intro-card">
+          <span style={styles.stepIcon}>{"\uD83D\uDD17"}</span>
           <div>
             <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
+            <p style={styles.subtitle}>Initialize migration by providing a repository endpoint. Analysis is automated.</p>
           </div>
-        </div>
+        </section>
 
-        <div style={styles.field}>
-          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
-            Repository URL
-            {/* Info Button with Tooltip */}
-            <div style={{ position: "relative", display: "inline-block" }}>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  backgroundColor: "var(--surface-alt)",
-                  color: "var(--muted)",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "help",
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--primary)";
-                  e.currentTarget.style.color = "var(--on-primary)";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "block";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--surface-alt)";
-                  e.currentTarget.style.color = "var(--muted)";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "none";
-                }}
+        <section style={styles.card} className="reference-form-card">
+          <div className="reference-panel-title">Repository URL Provider</div>
+
+          <div className="reference-provider-row" aria-label="Repository source provider">
+            <div className="reference-provider-brand" aria-hidden="true">
+              <svg className="reference-provider-logo" viewBox="0 0 24 24" role="img" focusable="false" aria-label="GitHub logo">
+                <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.84 2.82 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
+              </svg>
+            </div>
+            <label className="reference-provider-select-label">
+              <span className="reference-provider-select-text">Repository source</span>
+              <select
+                className="reference-provider-select"
+                value={repositoryProvider}
+                onChange={(e) => setRepositoryProvider(e.target.value as "GitHub" | "GitLab")}
+                aria-label="Repository source provider"
               >
-                i
-              </span>
-              {/* Tooltip */}
-              <div
-                style={{
-                  display: "none",
-                  position: "absolute",
-                  top: 24,
-                  left: 0,
-                  backgroundColor: "var(--tooltip-bg)",
-                  color: "var(--text)",
-                  padding: "12px 16px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  whiteSpace: "nowrap",
-                  zIndex: 1000,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--muted)" }}>Supported formats:</div>
-                <div>• https://github.com/owner/repo</div>
-                <div>• github.com/owner/repo</div>
-                <div>• owner/repo</div>
-                {/* Arrow */}
-                <div style={{
-                  position: "absolute",
-                  top: -6,
-                  left: 9,
-                  width: 0,
-                  height: 0,
-                  borderLeft: "6px solid transparent",
-                  borderRight: "6px solid transparent",
-                  borderBottom: "6px solid #1e293b"
-                }} />
-              </div>
-            </div>
-          </label>
-          <input
-            type="text"
-            style={{ ...styles.input,width: 1070 , borderColor: urlValidation.valid ? 'var(--success-border)' : repoUrl ? 'var(--danger-border)' : 'var(--input-border)' }}
-            value={repoUrl}
-            onChange={(e) => {
-              setRepoUrl(e.target.value);
-              setSelectedRepo(null);
-              setRepoAnalysis(null);
-              setIsPrivateRepo(false);
-              setPatToken("");
-              setError("");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && urlValidation.valid) {
-                void handleRepositoryContinue();
-              }
-            }}
-            placeholder="https://github.com/owner/repository"
-          />
-          {!shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>
-              Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
-            </div>
-          )}
-          {repoAccessCheckLoading && !shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 8 }}>
-              Checking repository access...
-            </div>
-          )}
-          {shouldShowPatInput && (
-            <div style={{ marginTop: 16 }}>
-              <label style={{ ...styles.label, fontWeight: 500 }}>
-                GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                <option value="GitHub">GitHub</option>
+                <option value="GitLab">GitLab</option>
+              </select>
+            </label>
+          </div>
+
+          <div style={styles.field}>
+            <div className="reference-label-row">
+              <label style={styles.label}>Repository URL</label>
+              <label className="reference-token-toggle">
+                <input
+                  type="checkbox"
+                  checked={isPrivateRepo}
+                  onChange={(e) => setIsPrivateRepo(e.target.checked)}
+                />
+                <span>Scan Private Token</span>
               </label>
-              <input
-                type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? 'var(--success-border)' : 'var(--input-border)' }}
-                value={showEnterpriseToken ? githubToken : patToken}
-                onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
-                placeholder="Paste your GitHub PAT here"
-                autoComplete="off"
-              />
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                {showEnterpriseToken
-                  ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                  : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
-              </div>
             </div>
-          )}
-          {repoUrl && !urlValidation.valid && (
-            <div style={{ fontSize: 12, color: 'var(--danger-text)', marginTop: 6 }}>
-              ⚠️ {urlValidation.message}
-            </div>
-          )}
-          {urlValidation.valid && (
-            <div style={{ fontSize: 12, color: 'var(--success-text)', marginTop: 6 }}>
-              ✓ Valid repository URL
-            </div>
-          )}
-        </div>
 
-        <div style={styles.btnRow}>
-          <button
-            style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
-            disabled={!urlValidation.valid}
-            onClick={() => void handleRepositoryContinue()}
-          >
-            Continue →
-          </button>
-        </div>
+            <input
+              type="text"
+              className="reference-url-input"
+              style={{
+                ...styles.input,
+                borderColor: urlValidation.valid ? 'var(--success-border)' : repoUrl ? 'var(--danger-border)' : 'rgba(105, 139, 160, 0.45)',
+              }}
+              value={repoUrl}
+              onChange={(e) => {
+                setRepoUrl(e.target.value);
+                setSelectedRepo(null);
+                setRepoAnalysis(null);
+                setIsPrivateRepo(false);
+                setPatToken("");
+                setError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && urlValidation.valid) {
+                  void handleRepositoryContinue();
+                }
+              }}
+              placeholder="https://github.com/owner/repository"
+            />
+
+            {!shouldShowPatInput && (
+              <div className="reference-help-text">
+                Public GitHub repositories can be analyzed without a token. If the repository is private, we'll ask for a PAT after detection.
+              </div>
+            )}
+            {repoAccessCheckLoading && !shouldShowPatInput && (
+              <div className="reference-status-text">Checking repository access...</div>
+            )}
+            {shouldShowPatInput && (
+              <div className="reference-token-panel">
+                <label style={{ ...styles.label, fontWeight: 600 }}>
+                  GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                </label>
+                <input
+                  type="password"
+                  style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? 'var(--success-border)' : 'rgba(105, 139, 160, 0.45)' }}
+                  value={showEnterpriseToken ? githubToken : patToken}
+                  onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
+                  placeholder="Paste your GitHub PAT here"
+                  autoComplete="off"
+                />
+                <div className="reference-help-text">
+                  {showEnterpriseToken
+                    ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
+                    : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+                </div>
+              </div>
+            )}
+            {repoUrl && !urlValidation.valid && (
+              <div className="reference-validation-text reference-validation-error">Validation Required: {urlValidation.message}</div>
+            )}
+            {urlValidation.valid && (
+              <div className="reference-validation-text reference-validation-success">Valid repository URL</div>
+            )}
+          </div>
+
+          <div style={styles.btnRow}>
+            <button
+              style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.72 : 1 }}
+              disabled={!urlValidation.valid}
+              onClick={() => void handleRepositoryContinue()}
+            >
+              Start Migration Analysis
+            </button>
+          </div>
+        </section>
       </div>
     );
   };
-
   // Consolidated Step 2: Discovery (Repository discovery + Dependencies)
   const renderDiscoveryStep = () => {
     // Helper function to handle file click
@@ -3698,29 +3691,28 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
       <div style={styles.field}>
         <label style={styles.label}>Migration Options</label>
-        <div 
-        style={{display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px", alignItems: 'stretch'}}>
+        <div style={styles.migrationOptionsList}>
           {[
             {
               key: "runTests",
               checked: runTests,
               onChange: (checked: boolean) => setRunTests(checked),
               title: "Run Test Suite",
-              desc: "Execute automated tests after migration",
-              tooltip: "Runs the project's test suite to ensure all functionality works correctly after migration. Includes unit tests, integration tests, and any configured test frameworks. Highly recommended to verify migration success.",
+              desc: "Execute automated tests after migration.",
+              tooltip: "Runs the project's test suite to ensure all functionality works correctly after migration. Includes unit tests, integration tests, and any configured test frameworks.",
               icon: "🧪",
               color: "#22c55e",
               recommended: true
             },
             {
-              key: "runSonar",   
+              key: "runSonar",
               checked: runSonar,
               onChange: (checked: boolean) => setRunSonar(checked),
               title: "SonarQube Analysis",
-              desc: "Run code quality and security analysis",
-              tooltip: "Performs comprehensive code quality analysis using SonarQube. Checks for bugs, vulnerabilities, code smells, test coverage, and maintainability metrics. Provides detailed quality gate status.",
+              desc: "Run code quality and security analysis.",
+              tooltip: "Performs comprehensive code quality analysis using SonarQube. Checks for bugs, vulnerabilities, code smells, test coverage, and maintainability metrics.",
               icon: "🔍",
-              color: "#f59e0b",
+              color: "#2563eb",
               recommended: false
             },
             {
@@ -3728,10 +3720,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               checked: runFossa,
               onChange: (checked: boolean) => setRunFossa(checked),
               title: "FOSSA License & Dependency Scan",
-              desc: "Run open-source dependency and license compliance analysis",
+              desc: "Scan open-source dependencies and license compliance.",
               tooltip: "Scans project dependencies to detect open-source licenses, security risks, policy violations, and supply chain vulnerabilities. Generates a Software Bill of Materials (SBOM) and compliance reports.",
               icon: "📜",
-              color: "#f59e0b",
+              color: "#ef4444",
               recommended: false
             },
             {
@@ -3739,168 +3731,61 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               checked: fixBusinessLogic,
               onChange: (checked: boolean) => setFixBusinessLogic(checked),
               title: "Fix Business Logic Issues",
-              desc: "Automatically improve code quality and patterns",
-              tooltip: "Applies automated code improvements including null safety, performance optimizations, modern API usage, and best practice implementations. Enhances code maintainability and reduces technical debt.",
+              desc: "Automatically improve code quality and patterns.",
+              tooltip: "Applies automated code improvements including null safety, performance optimizations, modern API usage, and best practice implementations.",
               icon: "🛠️",
-              color: "#3b82f6",
+              color: "#7c3aed",
               recommended: true
             }
-          ].map((option) => (
-            <div key={option.key} style={{ position: "relative", height: '100%' }}>
-              <div
-              onClick={() => {
-              if (option.key === "runSonar") {
-                  setRunSonar(!runSonar);
-                  setRunFossa(false);
-                  return;
-                }
-               if (option.key === "runFossa") {
-                  setRunFossa(!runFossa);
-                  setRunSonar(false);
-                  return;
-                }
+          ].map((option, idx, optionsArray) => {
+            const selected = option.checked;
+            const rowStyle = {
+              ...styles.migrationOptionRow,
+              ...(selected ? styles.migrationOptionRowSelected : styles.migrationOptionRowDefault),
+              borderBottom: idx < optionsArray.length - 1 ? "1px solid #e5e7f0" : "none",
+            };
 
-              option.onChange(!option.checked);
-}}
-                style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  border: `2px solid ${option.checked ? option.color : "#e2e8f0"}`,
-                  backgroundColor: option.checked ? `${option.color}08` : "#fff",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: option.checked ? `0 4px 12px ${option.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
-                  position: "relative",
-                  height: "100%",
-                  minHeight: 132,       
-                  display: "flex",              
-                  flexDirection: "column"         
-                }}
-                
-                onMouseEnter={(e) => {
-                  if (!option.checked) {
-                    e.currentTarget.style.borderColor = option.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${option.color}15`;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!option.checked) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
-                  }
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-                  <span style={{ fontSize: 24 }}>{option.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 16, fontWeight: 600, color: "#1e293b" }}>{option.title}</span>
-                      {option.recommended && (
-                        <span style={{
-                          fontSize: 10,
-                          padding: "2px 6px",
-                          backgroundColor: "#dcfce7",
-                          color: "#166534",
-                          borderRadius: 8,
-                          fontWeight: 600,
-                          textTransform: "uppercase"
-                        }}>
-                          Recommended
-                        </span>
-                      )}
+            return (
+              <div key={option.key} style={{ position: "relative" }}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => option.onChange(!option.checked)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") option.onChange(!option.checked); }}
+                  style={rowStyle}
+                >
+                  <div style={{ ...styles.migrationOptionAccent, backgroundColor: selected ? option.color : "transparent" }} />
+                  <div style={styles.migrationOptionLeft}>
+                    <div style={{ ...styles.migrationOptionIcon, backgroundColor: `${option.color}15`, color: option.color }}>
+                      {option.icon}
                     </div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{option.desc}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 64, justifyContent: "flex-end" }}>
-                    <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: option.color, fontSize: 18, fontWeight: 700 }}>
-                      {option.checked ? '✓' : null}
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={option.checked}
-                      onChange={(e) => option.onChange(e.target.checked)}
-                      style={{
-                        width: 18,
-                        height: 18,
-                        accentColor: option.color,
-                        cursor: "pointer"
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Info button for tooltip */}
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </div>
-
-                  {/* Tooltip */}
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 28,
-                      right: 0,
-                      width: 320,
-                      backgroundColor: "#1e293b",
-                      color: "#f1f5f9",
-                      padding: "14px 18px",
-                      borderRadius: 10,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      zIndex: 1000,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      whiteSpace: "normal"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 10, color: "#94a3b8", fontSize: 13 }}>
-                      {option.title} Details
-                    </div>
-                    <div style={{ marginBottom: 8 }}>{option.tooltip}</div>
-                    {option.recommended && (
-                      <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 600, marginTop: 6 }}>
-                        💡 Recommended for most migrations
+                    <div style={styles.migrationOptionInfo}>
+                      <div style={styles.migrationOptionTitleRow}>
+                        <span style={styles.migrationOptionTitle}>{option.title}</span>
+                        {option.recommended && (
+                          <span style={styles.migrationOptionBadge}>Recommended</span>
+                        )}
                       </div>
-                    )}
-                    {/* Arrow */}
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      right: 20,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
+                      <div style={styles.migrationOptionDescription}>{option.desc}</div>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.migrationOptionButton,
+                      ...(selected ? styles.migrationOptionButtonSelected : styles.migrationOptionButtonNeutral),
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      option.onChange(!option.checked);
+                    }}
+                  >
+                    {selected ? "✓ Selected" : "Select"}
+                  </button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -5595,18 +5480,38 @@ For questions or issues:
   );
 
   return (
-    <div style={styles.container}>
-      <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
-      <div style={styles.main}>
-        {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
-        {step === 1 && renderStep1()}
-        {step === 2 && renderDiscoveryStep()}
-        {step === 3 && renderStrategyStep()}
-        {step === 4 && renderMigrationStep()}
-        {step === 5 && renderMigrationAnimation()}
-        {step === 6 && renderMigrationProgress()}
-        {step === 7 && renderStep11()}
+    <div style={styles.container} className="migration-reference-dashboard">
+      <div className="migration-reference-shell">
+        <aside style={styles.stepIndicatorContainer} className="migration-reference-sidebar">
+          {renderStepIndicator()}
+        </aside>
+        <main className="migration-reference-content">
+          <div className="migration-reference-frame">
+            <h1 className="migration-reference-title">Java APEX Full Migration</h1>
+            <div style={styles.main}>
+              {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>�</button></div>}
+              {step === 1 && renderStep1()}
+              {step === 2 && renderDiscoveryStep()}
+              {step === 3 && renderStrategyStep()}
+              {step === 4 && renderMigrationStep()}
+              {step === 5 && renderMigrationAnimation()}
+              {step === 6 && renderMigrationProgress()}
+              {step === 7 && renderStep11()}
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

@@ -123,7 +123,7 @@ const BRDReport: React.FC = () => {
         onClick={() => navigate(-1)}
         style={{ marginBottom: 24, padding: "10px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", cursor: "pointer" }}
       >
-        ← Back to App
+        ← Back to Migration
       </button>
 
       <div style={{ marginBottom: 32 }}>

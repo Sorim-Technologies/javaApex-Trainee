@@ -14,7 +14,7 @@ body {
 
 /* Ensure content is not hidden behind the fixed footer */
 body {
-  padding-bottom: 80px;
+  padding-bottom: 0;
 }
 
 #root {
@@ -73,11 +73,11 @@ button:disabled {
   --text: #1f2937;
   --muted: #64748b;
   --primary: #3b82f6;
-  --nav-bg: rgba(15, 20, 25, 0.95);
-  --nav-border: #1e293b;
-  --icon-border: #374151;
-  --footer-bg: rgba(15, 20, 25, 0.55);
-  --footer-border: rgba(255,255,255,0.06);
+  --nav-bg: rgba(255, 255, 255, 0.96);
+  --nav-border: rgba(226, 232, 240, 0.9);
+  --icon-border: rgba(148, 163, 184, 0.35);
+  --footer-bg: rgba(255, 255, 255, 0.96);
+  --footer-border: rgba(226, 232, 240, 0.9);
 }
 
 .theme-dark {
@@ -97,4 +97,336 @@ body {
   background: var(--bg);
   color: var(--text);
   transition: background 0.2s ease, color 0.2s ease;
+}
+
+
+:root {
+  --app-nav-height: 62px;
+  --apex-nav-bg: #07111d;
+  --apex-nav-text: #f8fafc;
+  --apex-nav-muted: #94a3b8;
+  --apex-nav-border: rgba(148, 163, 184, 0.18);
+  --apex-nav-accent: #38bdf8;
+}
+
+.theme-dark {
+  --apex-nav-bg: #050a12;
+  --apex-nav-text: #f8fafc;
+  --apex-nav-muted: #9ca3af;
+  --apex-nav-border: rgba(148, 163, 184, 0.2);
+  --apex-nav-accent: #67e8f9;
+}
+
+.apex-top-nav {
+  min-height: var(--app-nav-height);
+  padding: 0 clamp(14px, 3vw, 32px);
+  background:
+    linear-gradient(90deg, rgba(5, 12, 22, 0.98), rgba(9, 18, 32, 0.98)),
+    radial-gradient(circle at 14% 50%, rgba(56, 189, 248, 0.18), transparent 30%);
+  border-bottom: 1px solid var(--apex-nav-border);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  box-sizing: border-box;
+}
+
+.apex-top-nav-left,
+.apex-top-nav-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.apex-top-nav-left {
+  gap: clamp(12px, 2vw, 20px);
+}
+
+.apex-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 10px 6px 8px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 24px rgba(14, 116, 144, 0.16);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.apex-brand:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(14, 116, 144, 0.2);
+}
+
+.apex-brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.apex-brand-title {
+  font-size: clamp(18px, 2vw, 28px);
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0;
+  background: linear-gradient(90deg, #0f172a 0%, #2563eb 34%, #0ea5e9 50%, #0f172a 70%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: apexTitleGlow 4.5s ease-in-out infinite;
+  text-shadow: 0 0 18px rgba(14, 165, 233, 0.18);
+}
+
+.apex-product-title {
+  color: var(--apex-nav-text);
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 0 14px rgba(56, 189, 248, 0.18);
+}
+
+.apex-top-nav-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.apex-nav-link,
+.apex-login-button,
+.apex-icon-button {
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--apex-nav-muted);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.apex-nav-link,
+.apex-login-button {
+  padding: 8px 12px;
+}
+
+.apex-nav-link:hover,
+.apex-login-button:hover,
+.apex-icon-button:hover {
+  transform: translateY(-1px);
+  color: #e0f2fe;
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(56, 189, 248, 0.34);
+  box-shadow: 0 8px 18px rgba(8, 47, 73, 0.2);
+}
+
+.apex-nav-divider {
+  width: 1px;
+  height: 32px;
+  margin: 0 4px;
+  background: var(--apex-nav-border);
+}
+
+.apex-icon-button {
+  width: 38px;
+  height: 38px;
+  color: var(--apex-nav-accent);
+  border-color: rgba(56, 189, 248, 0.46);
+  background: rgba(8, 47, 73, 0.22);
+}
+
+.apex-login-menu {
+  position: relative;
+}
+
+.apex-login-button.is-signed-in {
+  color: #d1fae5;
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(6, 78, 59, 0.26);
+}
+
+.apex-login-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 238px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 22px 50px rgba(2, 6, 23, 0.28);
+  animation: apexMenuIn 0.18s ease-out;
+}
+
+.apex-login-dropdown button {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.apex-login-dropdown button:hover {
+  background: #eff6ff;
+  transform: none;
+  box-shadow: none;
+}
+
+@keyframes apexTitleGlow {
+  0%, 100% { background-position: 0% 50%; filter: drop-shadow(0 0 0 rgba(56, 189, 248, 0)); }
+  50% { background-position: 100% 50%; filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.34)); }
+}
+
+@keyframes apexMenuIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --app-nav-height: 124px;
+  }
+
+  .apex-top-nav {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    gap: 12px;
+  }
+
+  .apex-top-nav-actions {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+}
+
+@media (max-width: 560px) {
+  :root {
+    --app-nav-height: 136px;
+  }
+
+  .apex-product-title {
+    display: none;
+  }
+
+  .apex-brand-title {
+    font-size: 20px;
+  }
+
+  .apex-nav-link span,
+  .apex-login-button span {
+    white-space: nowrap;
+  }
+}
+
+/* Fixed bottom application bar */
+:root {
+  --app-footer-height: 68px;
+}
+
+.apex-top-nav {
+  height: var(--app-nav-height, 62px);
+}
+
+.apex-bottom-bar {
+  position: relative;
+  min-height: 56px;
+  padding: 0 18px;
+  background:
+    linear-gradient(90deg, rgba(3, 7, 14, 0.99), rgba(5, 12, 22, 0.99)),
+    radial-gradient(circle at 95% 50%, rgba(37, 99, 235, 0.22), transparent 24%);
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 -8px 24px rgba(2, 6, 23, 0.16);
+  box-sizing: border-box;
+}
+
+.apex-bottom-content {
+  min-height: 56px;
+  gap: 12px;
+}
+
+.apex-bottom-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.apex-bottom-brand:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.16);
+}
+
+.apex-bottom-brand img {
+  display: block;
+  height: 32px;
+  width: auto;
+  max-width: min(140px, 38vw);
+  object-fit: contain;
+}
+
+.apex-bottom-copy {
+  color: #93c5fd;
+  font-size: clamp(13px, 1.2vw, 15px);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --app-nav-height: 98px;
+  }
+}
+
+@media (max-width: 560px) {
+  :root {
+    --app-nav-height: 110px;
+  }
+
+  .apex-bottom-bar {
+    padding: 0 14px;
+  }
+
+  .apex-bottom-copy {
+    font-size: 13px;
+  }
 }
