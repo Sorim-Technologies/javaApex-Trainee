@@ -9,6 +9,10 @@ coverage/
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
+data/oauth_users.json
+java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend/data/oauth_users.json
+java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend/data/guest_usage.json
 
 # Production
 dist/
@@ -18,6 +22,7 @@ dist-ssr/
 # Misc
 .DS_Store
 .env
+*.env
 .env.production
 .env.local
 .env.development.local
@@ -29,6 +34,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.log
 
 # IDE
 .vscode/

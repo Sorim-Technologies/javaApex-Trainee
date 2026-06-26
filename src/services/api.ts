@@ -201,6 +201,9 @@ export interface MigrationResult {
   target_repo: string | null;
   source_java_version: string;
   target_java_version: string;
+  actual_java_version_after_migration?: string | null;
+  java_version_updated?: boolean;
+  changed_files?: string[];
   conversion_types: string[];
   started_at: string;
   completed_at: string | null;
@@ -377,12 +380,18 @@ export async function getConversionTypes(): Promise<ConversionType[]> {
 }
 
 // Start migration
-export async function startMigration(request: MigrationRequest): Promise<MigrationResult> {
+export async function startMigration(request: MigrationRequest, appAuthToken: string | null = null): Promise<MigrationResult> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (appAuthToken) {
+    headers.Authorization = `Bearer ${appAuthToken}`;
+  }
+
   const response = await fetch(`${API_BASE_URL}/migration/start`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(request),
   });
   if (!response.ok) {

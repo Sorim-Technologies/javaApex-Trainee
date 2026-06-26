@@ -3,11 +3,11 @@ Java Migration Backend - Main FastAPI Application
 Handles Java 7 → Java 18 migration automation using OpenRewrite
 """
 import sys
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any
 from enum import Enum
 import uuid
@@ -40,6 +40,13 @@ from services.migration_service import MigrationService
 from services.email_service import EmailService
 from services.sonarqube_service import SonarQubeService
 from services.auth_service import router as auth_router
+from services.social_auth_service import (
+    OAuthUserResponse,
+    get_current_user,
+    increment_guest_usage,
+    router as social_auth_router,
+    validate_guest_migration_limit,
+)
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
 
@@ -69,6 +76,7 @@ async def log_requests(request: Request, call_next):
 
 # Register auth router
 app.include_router(auth_router, prefix="/api")
+app.include_router(social_auth_router)
 
 # Default GitHub token from environment variable (set in Render dashboard)
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -173,6 +181,16 @@ class MigrationRequest(BaseModel):
     run_fossa: bool = Field(default=False, description="Run FOSSA license and dependency scan")
     fix_business_logic: bool = Field(default=True, description="Attempt to fix business logic issues")
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_target_java_version_fields(cls, data):
+        if isinstance(data, dict) and "target_java_version" not in data:
+            for alias in ("targetJavaVersion", "targetVersion"):
+                if alias in data:
+                    data["target_java_version"] = data[alias]
+                    break
+        return data
+
 
 def normalize_target_repo_name(target_repo_name: str, fallback_repo_name: str, timestamp: str) -> str:
     """Accept either a bare repo name or a full URL and return a GitHub-safe repo slug."""
@@ -273,6 +291,9 @@ class MigrationResult(BaseModel):
     target_repo: Optional[str] = None
     source_java_version: str
     target_java_version: str
+    actual_java_version_after_migration: Optional[str] = None
+    java_version_updated: bool = False
+    changed_files: List[str] = []
     conversion_types: List[str] = []
     started_at: datetime
     completed_at: Optional[datetime] = None
@@ -336,6 +357,48 @@ class JavaVersionRecommendationResponse(BaseModel):
     confidence: str
     rationale: List[str]
     alternatives: List[str] = Field(default_factory=list)
+
+
+def get_local_java_version_recommendation(request: JavaVersionRecommendationRequest, reason: str = "") -> Dict[str, Any]:
+    source_version = str(request.detected_java_version or request.source_java_version or "8").strip().lower()
+    risk_level = (request.risk_level or "unknown").lower()
+    dependency_count = len(request.dependencies or [])
+    has_modern_build = request.build_tool in {"maven", "gradle"}
+
+    if risk_level == "low" and request.has_tests and has_modern_build and dependency_count < 25:
+        recommended = "21"
+        confidence = "medium"
+    else:
+        recommended = "17"
+        confidence = "high"
+
+    if source_version in {"7", "8", "1.7", "1.8"} and risk_level in {"medium", "high", "unknown"}:
+        recommended = "17"
+        confidence = "high"
+
+    rationale = [
+        f"Java {recommended} is an LTS target and provides a stable migration path for the detected project profile.",
+        "The recommendation uses local fallback rules because the external AI recommendation service was unavailable.",
+    ]
+
+    if request.has_tests:
+        rationale.append("Detected tests reduce migration risk and make validation easier after upgrading.")
+    else:
+        rationale.append("Limited or missing tests increase migration risk, so a conservative LTS target is preferred.")
+
+    if request.api_endpoint_count:
+        rationale.append(f"{request.api_endpoint_count} API endpoint(s) were detected, so compatibility validation should be included after migration.")
+
+    if reason:
+        logger.warning("Using local Java version recommendation fallback: %s", reason)
+
+    alternatives = [version for version in ["11", "17", "21"] if version != recommended]
+    return {
+        "recommended_target_version": recommended,
+        "confidence": confidence,
+        "rationale": rationale,
+        "alternatives": alternatives,
+    }
 
 
 @app.get("/")
@@ -710,8 +773,17 @@ async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
 
 # Migration Endpoints
 @app.post("/api/migration/start", response_model=MigrationResult)
-async def start_migration(request: MigrationRequest, background_tasks: BackgroundTasks):
+async def start_migration(
+    request: MigrationRequest,
+    background_tasks: BackgroundTasks,
+    current_user: OAuthUserResponse = Depends(get_current_user),
+):
     """Start a new migration job"""
+    validate_guest_migration_limit(current_user)
+    logger.info("Source Java Version: %s", request.source_java_version)
+    logger.info("Target Java Version: %s", request.target_java_version.value)
+    logger.info("Selected Conversion Types: %s", request.conversion_types)
+
     job_id = str(uuid.uuid4())
     
     # Create initial job record
@@ -727,6 +799,9 @@ async def start_migration(request: MigrationRequest, background_tasks: Backgroun
     )
     
     migration_jobs[job_id] = job
+
+    if current_user.role == "guest" and current_user.subject:
+        increment_guest_usage(current_user.subject)
     
     # Start migration in background
     background_tasks.add_task(
@@ -1643,7 +1718,8 @@ async def get_java_version_recommendation(request: JavaVersionRecommendationRequ
         recommendation = await hf_recommendation_service.recommend_target_version(request.model_dump())
         return JavaVersionRecommendationResponse(**recommendation)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get Java version recommendation: {str(e)}")
+        fallback = get_local_java_version_recommendation(request, str(e))
+        return JavaVersionRecommendationResponse(**fallback)
 
 
 @app.get("/api/openrewrite/recipes")
@@ -1791,6 +1867,22 @@ async def run_migration(job_id: str, request: MigrationRequest):
             mark_issues_fixed(job, conv_type, fixed_count)
             
             progress += 10
+
+        if "java_version" in request.conversion_types:
+            target_version = request.target_java_version.value
+            add_log(job_id, f"Source Java Version: {request.source_java_version}")
+            add_log(job_id, f"Target Java Version: {target_version}")
+            add_log(job_id, f"Selected Conversion Types: {request.conversion_types}")
+            update_job(job_id, MigrationStatus.MIGRATING, progress, "Applying target Java version to build files...")
+            java_version_changed_files = migration_service.update_java_version_in_project(clone_path, target_version)
+            actual_version = migration_service.verify_java_version_in_project(clone_path, target_version)
+            job.actual_java_version_after_migration = actual_version
+            job.java_version_updated = actual_version == target_version
+            job.changed_files = sorted(set(job.changed_files + java_version_changed_files))
+            job.files_modified += len(java_version_changed_files)
+            add_log(job_id, f"Java version verification passed: {actual_version}")
+            if java_version_changed_files:
+                add_log(job_id, f"Java version changed files: {', '.join(java_version_changed_files)}")
         
         add_log(job_id, f"Modified {job.files_modified} files, fixed {job.issues_fixed} issues")
         job.errors_fixed = len([i for i in job.issues if i.severity == IssueSeverity.ERROR and i.status == IssueStatus.FIXED])

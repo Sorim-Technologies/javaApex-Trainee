@@ -9,6 +9,8 @@ import shutil
 from typing import Dict, Any, List
 import asyncio
 
+from isort import file
+
 
 class MigrationService:
     def __init__(self):
@@ -1725,6 +1727,253 @@ class ApplicationTest {{
             )
         
         return pom_content
+
+    def update_java_version_in_project(self, project_path: str, target_java_version: str) -> List[str]:
+        """
+        Update Java version in Maven and Gradle build files.
+        Return project-relative paths for changed files.
+        """
+        changed_files: List[str] = []
+        target = str(target_java_version).strip()
+
+        print(f"Updating Java version in project files to {target}")
+
+        for root, dirs, files in os.walk(project_path):
+            dirs[:] = [d for d in dirs if d not in {".git", "target", "build", ".gradle", "node_modules"}]
+
+            for filename in files:
+                path = os.path.join(root, filename)
+                rel_path = os.path.relpath(path, project_path).replace("\\", "/")
+
+                if filename == "pom.xml":
+                    if self._update_pom_java_version_file(path, target):
+                        changed_files.append(rel_path)
+                elif filename == "build.gradle":
+                    if self._update_gradle_java_version_file(path, target, kotlin=False):
+                        changed_files.append(rel_path)
+                elif filename == "build.gradle.kts":
+                    if self._update_gradle_java_version_file(path, target, kotlin=True):
+                        changed_files.append(rel_path)
+                elif filename == "gradle.properties":
+                    if self._update_gradle_properties_java_version(path, target):
+                        changed_files.append(rel_path)
+
+        return changed_files
+
+    def verify_java_version_in_project(self, project_path: str, target_java_version: str) -> str:
+        """Verify target Java version is present in at least one build file."""
+        target = str(target_java_version).strip()
+        build_files: List[str] = []
+
+        for root, dirs, files in os.walk(project_path):
+            dirs[:] = [d for d in dirs if d not in {".git", "target", "build", ".gradle", "node_modules"}]
+            for filename in files:
+                if filename in {"pom.xml", "build.gradle", "build.gradle.kts", "gradle.properties"}:
+                    build_files.append(os.path.join(root, filename))
+
+        for path in build_files:
+            try:
+                with open(path, "r", encoding="utf-8") as file:
+                    content = file.read()
+            except UnicodeDecodeError:
+                with open(path, "r", encoding="latin-1") as file:
+                    content = file.read()
+
+            if self._build_file_contains_java_version(path, content, target):
+                print(f"Java version verification passed: {target}")
+                return target
+
+        pom_files = [path for path in build_files if os.path.basename(path) == "pom.xml"]
+        if pom_files:
+            raise Exception(f"Java version migration failed: target version {target} was not applied to pom.xml")
+
+        if build_files:
+            raise Exception(f"Java version migration failed: target version {target} was not applied to build files")
+
+        raise Exception("Java version migration failed: no Maven or Gradle build file was found after migration")
+
+    def _read_text_file(self, path: str) -> str:
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                return file.read()
+        except UnicodeDecodeError:
+            with open(path, "r", encoding="latin-1") as file:
+                return file.read()
+
+    def _write_text_file(self, path: str, content: str) -> None:
+        with open(path, "w", encoding="utf-8") as file:
+            file.write(content)
+
+    def _update_pom_java_version_file(self, pom_path: str, target: str) -> bool:
+        content = self._read_text_file(pom_path)
+        original = content
+        changed_logs: List[str] = []
+
+        def replace_tag(tag: str, text: str) -> str:
+            pattern = rf"(<{re.escape(tag)}\s*>)([^<]+)(</{re.escape(tag)}>)"
+
+            def repl(match):
+                old_value = match.group(2).strip()
+                if old_value != target:
+                    changed_logs.append(f"Updated <{tag}> to {target}")
+                return f"{match.group(1)}{target}{match.group(3)}"
+
+            return re.sub(pattern, repl, text)
+
+        print(f"Updating Java version in {os.path.basename(pom_path)} -> {target}")
+        for tag in [
+            "java.version",
+            "maven.compiler.source",
+            "maven.compiler.target",
+            "maven.compiler.release",
+            "source",
+            "target",
+            "release",
+        ]:
+            content = replace_tag(tag, content)
+
+        content = self._ensure_maven_java_properties(content, target, changed_logs)
+
+        if content != original:
+            self._write_text_file(pom_path, content)
+            for log in changed_logs:
+                print(log)
+            return True
+
+        return False
+
+    def _ensure_maven_java_properties(self, content: str, target: str, changed_logs: List[str]) -> str:
+        required_tags = ["java.version", "maven.compiler.source", "maven.compiler.target"]
+
+        if "<properties>" in content:
+            def add_missing_properties(match):
+                block = match.group(0)
+                insertions = []
+                for tag in required_tags:
+                    if f"<{tag}>" not in block:
+                        insertions.append(f"        <{tag}>{target}</{tag}>")
+                        changed_logs.append(f"Added <{tag}> with {target}")
+                if not insertions:
+                    return block
+                return block.replace("</properties>", "\n" + "\n".join(insertions) + "\n    </properties>")
+
+            return re.sub(r"<properties>.*?</properties>", add_missing_properties, content, count=1, flags=re.DOTALL)
+
+        properties_section = (
+            "    <properties>\n"
+            f"        <java.version>{target}</java.version>\n"
+            f"        <maven.compiler.source>{target}</maven.compiler.source>\n"
+            f"        <maven.compiler.target>{target}</maven.compiler.target>\n"
+            "    </properties>\n"
+        )
+        changed_logs.extend([
+            f"Added <java.version> with {target}",
+            f"Added <maven.compiler.source> with {target}",
+            f"Added <maven.compiler.target> with {target}",
+        ])
+
+        for marker in ["<dependencies>", "<build>"]:
+            if marker in content:
+                return content.replace(marker, properties_section + marker, 1)
+
+        if "</project>" in content:
+            return content.replace("</project>", properties_section + "</project>", 1)
+
+        return content + "\n" + properties_section
+
+    def _update_gradle_java_version_file(self, gradle_path: str, target: str, kotlin: bool = False) -> bool:
+        content = self._read_text_file(gradle_path)
+        original = content
+
+        replacements = [
+            (
+                r"(sourceCompatibility\s*=\s*)JavaVersion\.VERSION_([0-9_]+)",
+                rf"\1JavaVersion.VERSION_{target}",
+            ),
+            (
+                r"(targetCompatibility\s*=\s*)JavaVersion\.VERSION_([0-9_]+)",
+                rf"\1JavaVersion.VERSION_{target}",
+            ),
+            (
+                r"(sourceCompatibility\s*=\s*)['\"]?(\d+(?:\.\d+)?)['\"]?",
+                rf"\1'{target}'",
+            ),
+            (
+                r"(targetCompatibility\s*=\s*)['\"]?(\d+(?:\.\d+)?)['\"]?",
+                rf"\1'{target}'",
+            ),
+            (
+                r"(JavaLanguageVersion\.of\()\s*\d+\s*(\))",
+                rf"\g<1>{target}\2",
+            ),
+            (
+                r"(languageVersion\.set\(\s*JavaLanguageVersion\.of\()\s*\d+\s*(\)\s*\))",
+                rf"\g<1>{target}\2",
+            ),
+        ]
+
+        for pattern, replacement in replacements:
+            content = re.sub(pattern, replacement, content)
+
+        if content == original:
+            if kotlin:
+                addition = f"\njava {{\n    toolchain {{\n        languageVersion.set(JavaLanguageVersion.of({target}))\n    }}\n}}\n"
+            else:
+                addition = f"\nsourceCompatibility = '{target}'\ntargetCompatibility = '{target}'\n"
+            content = original.rstrip() + "\n" + addition
+
+        if content != original:
+            self._write_text_file(gradle_path, content)
+            print(f"Updated {os.path.basename(gradle_path)} Java version to {target}")
+            return True
+
+        return False
+
+    def _update_gradle_properties_java_version(self, properties_path: str, target: str) -> bool:
+        content = self._read_text_file(properties_path)
+        original = content
+
+        if re.search(r"(?m)^java\.version\s*=", content):
+            content = re.sub(r"(?m)^(java\.version\s*=\s*).*$", rf"\g<1>{target}", content)
+        else:
+            content = content.rstrip() + f"\njava.version={target}\n"
+
+        if content != original:
+            self._write_text_file(properties_path, content)
+            print(f"Updated gradle.properties java.version to {target}")
+            return True
+
+        return False
+
+    def _build_file_contains_java_version(self, path: str, content: str, target: str) -> bool:
+        filename = os.path.basename(path)
+
+        if filename == "pom.xml":
+            return any(
+                f"<{tag}>{target}</{tag}>" in content
+                for tag in [
+                    "java.version",
+                    "maven.compiler.source",
+                    "maven.compiler.target",
+                    "maven.compiler.release",
+                    "source",
+                    "target",
+                    "release",
+                ]
+            )
+
+        if filename in {"build.gradle", "build.gradle.kts"}:
+            return (
+                f"'{target}'" in content
+                or f'"{target}"' in content
+                or f"VERSION_{target}" in content
+                or f"JavaLanguageVersion.of({target})" in content
+            )
+
+        if filename == "gradle.properties":
+            return bool(re.search(rf"(?m)^java\.version\s*=\s*{re.escape(target)}\s*$", content))
+
+        return False
     
     async def _apply_java_migrations(
         self, 

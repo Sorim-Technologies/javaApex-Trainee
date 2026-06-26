@@ -190,6 +190,16 @@
   border-color: #0f172a transparent transparent transparent;
 }
 
+.info-tooltip-container:hover .info-tooltip,
+.info-tooltip-container:focus-within .info-tooltip {
+  display: block !important;
+}
+
+.endpoint-tooltip-container:hover .endpoint-tooltip,
+.endpoint-tooltip-container:focus-within .endpoint-tooltip {
+  display: block !important;
+}
+
 /* Scrollbar Styling */
 .custom-scrollbar::-webkit-scrollbar {
   width: 10px;

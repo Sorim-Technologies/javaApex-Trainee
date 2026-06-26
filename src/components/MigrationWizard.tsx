@@ -19,6 +19,8 @@ import {
   // Import API_BASE_URL for dynamic URL construction
 } from "../services/api";
 import { API_BASE_URL } from "../services/api";
+import { getSocialCurrentUser, getStoredAppToken, startSocialLogin } from "../services/socialAuthApi";
+import type { AuthUser, OAuthProvider } from "../services/socialAuthApi";
 import type {
   RepoInfo,
   RepoAnalysis,
@@ -132,6 +134,11 @@ const WIZARD_REPO_URL_KEY = "migration_wizard_repo_url";
 const WIZARD_SELECTED_REPO_KEY = "migration_wizard_selected_repo";
 const WIZARD_REPO_ANALYSIS_KEY = "migration_wizard_repo_analysis";
 const WIZARD_FORM_STATE_KEY = "migration_wizard_form_state";
+const APP_AUTH_DROPDOWN_EVENT = "javaapex:open-auth-dropdown";
+const APP_AUTH_CHANGED_EVENT = "javaapex:auth-changed";
+const GUEST_MIGRATION_LIMIT_TITLE = "Guest migration limit reached";
+const GUEST_MIGRATION_LIMIT_MESSAGE =
+  "You have used all 3 free guest migrations. Please login with GitHub, GitLab, or Google to continue migrating projects.";
 
 const readPersistedValue = (key: string) => {
   if (typeof window === "undefined") return null;
@@ -198,6 +205,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     return readPersistedValue(WIZARD_REPO_URL_KEY) || "";
   });
   const [repos, setRepos] = useState<RepoInfo[]>([]);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [showAuthDropdown, setShowAuthDropdown] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<RepoInfo | null>(() =>
     readSessionJson<RepoInfo>(WIZARD_SELECTED_REPO_KEY)
   );
@@ -267,6 +278,81 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const currentToken = useMemo(getCurrentToken, [githubToken, patToken, showEnterpriseToken, isPrivateRepo]);
   const shouldShowPatInput = showEnterpriseToken || isPrivateRepo;
+  const requestAppLogin = () => {
+    setShowAuthDropdown(true);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(APP_AUTH_DROPDOWN_EVENT));
+    }
+  };
+
+  const hasAppLogin = () => {
+    if (typeof window === "undefined") return false;
+    return Boolean(authUser || getStoredAppToken());
+  };
+
+  const refreshAuthUser = async () => {
+    const token = getStoredAppToken();
+
+    if (!token) {
+      setAuthUser(null);
+      setAuthError("");
+      return null;
+    }
+
+    try {
+      const user = await getSocialCurrentUser(token);
+      setAuthUser(user);
+      setAuthError("");
+      window.dispatchEvent(new Event(APP_AUTH_CHANGED_EVENT));
+      return user;
+    } catch {
+      setAuthUser(null);
+      setAuthError("Session expired. Please login or continue as guest before starting migration.");
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const syncAuthUser = () => {
+      const token = getStoredAppToken();
+
+      if (!token) {
+        if (mounted) {
+          setAuthUser(null);
+          setAuthError("");
+        }
+        return;
+      }
+
+      refreshAuthUser()
+        .then((user) => {
+          if (!mounted) return;
+          if (!user) setAuthUser(null);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setAuthUser(null);
+          setAuthError("Session expired. Please login or continue as guest before starting migration.");
+        });
+    };
+
+    syncAuthUser();
+    window.addEventListener(APP_AUTH_CHANGED_EVENT, syncAuthUser);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener(APP_AUTH_CHANGED_EVENT, syncAuthUser);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showAuthDropdown || typeof window === "undefined") return;
+    window.dispatchEvent(new Event(APP_AUTH_DROPDOWN_EVENT));
+    setShowAuthDropdown(false);
+  }, [showAuthDropdown]);
+
   const [repoAnalysis, setRepoAnalysis] = useState<RepoAnalysis | null>(() =>
     readSessionJson<RepoAnalysis>(WIZARD_REPO_ANALYSIS_KEY)
   );
@@ -649,6 +735,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const handleRepositoryContinue = async () => {
     if (!urlValidation.valid) return;
 
+    if (!hasAppLogin()) {
+      requestAppLogin();
+      alert("Please login or continue as guest before starting migration.");
+      return;
+    }
+
     const normalizedUrl = urlValidation.normalizedUrl;
     const token = getCurrentToken().trim();
 
@@ -930,6 +1022,84 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     selectedSourceVersion,
     selectedTargetVersion,
   ]);
+
+  const apiEndpointsTooltip = useMemo(() => {
+    const endpoints = repoAnalysis?.api_endpoints ?? [];
+    const methodOrder = ["GET", "POST", "PUT", "DELETE", "PATCH", "OTHER"];
+    const endpointsByMethod = endpoints.reduce<Record<string, typeof endpoints>>((grouped, endpoint) => {
+      const method = endpoint.method?.toUpperCase() || "OTHER";
+      const groupKey = methodOrder.includes(method) ? method : "OTHER";
+      grouped[groupKey] = grouped[groupKey] ?? [];
+      grouped[groupKey].push(endpoint);
+      return grouped;
+    }, {});
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, color: "#0f172a" }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Detected API endpoints</div>
+        {endpoints.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 340, overflowY: "auto", paddingRight: 4 }}>
+            {methodOrder
+              .filter((method) => endpointsByMethod[method]?.length)
+              .map((method) => (
+                <div key={method} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      position: "sticky",
+                      top: 0,
+                      background: "#fff",
+                      padding: "2px 0",
+                      zIndex: 1,
+                    }}
+                  >
+                    <span
+                      style={{
+                        borderRadius: 6,
+                        backgroundColor: "#dcfce7",
+                        color: "#047857",
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: "3px 7px",
+                        minWidth: 54,
+                        textAlign: "center",
+                      }}
+                    >
+                      {method}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+                      {endpointsByMethod[method].length} API{endpointsByMethod[method].length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {endpointsByMethod[method].map((endpoint, index) => (
+                    <div
+                      key={`${method}-${endpoint.path}-${endpoint.file}-${index}`}
+                      style={{
+                        padding: "0 0 8px 0",
+                        borderBottom: index === endpointsByMethod[method].length - 1 ? "none" : "1px solid #e2e8f0",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 700, wordBreak: "break-word" }}>
+                        {endpoint.path || "/"}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 3, wordBreak: "break-word" }}>
+                        {endpoint.file || "Unknown file"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, lineHeight: 1.45, color: "#64748b" }}>
+            No API endpoints were detected for this repository.
+          </div>
+        )}
+      </div>
+    );
+  }, [repoAnalysis?.api_endpoints]);
 
   const formattedAnalysisElapsed = `${Math.floor(analysisElapsedSeconds / 60)
     .toString()
@@ -1264,6 +1434,22 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   ]);
 
   const handleStartMigration = () => {
+    if (!hasAppLogin()) {
+      requestAppLogin();
+      setError("Please login or continue as guest before starting migration.");
+      return;
+    }
+
+    if (
+      authUser?.role === "guest" &&
+      authUser.remaining_migrations !== null &&
+      authUser.remaining_migrations !== undefined &&
+      authUser.remaining_migrations <= 0
+    ) {
+      setShowGuestLimitModal(true);
+      return;
+    }
+
     if (!selectedRepo && !repoUrl) {
       setError("Please select a repository or enter a repository URL");
       return;
@@ -1284,18 +1470,36 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setError("");
 
     const migrationRequest = buildMigrationRequest();
+    console.log("Starting migration with target Java version:", selectedTargetVersion);
+    console.log("Migration request payload:", migrationRequest);
 
-    startMigration(migrationRequest)
+    startMigration(migrationRequest, getStoredAppToken())
       .then((job) => {
         setMigrationJob(job);
         setStep(5); // Go to Migration Progress step
+        refreshAuthUser();
       })
       .catch((err) => {
         console.error("Migration error:", err);
-        setError(err.message || "Failed to start migration.");
+        const message = err.message || "Failed to start migration.";
+        if (message.includes("used all 3 free guest migrations")) {
+          setShowGuestLimitModal(true);
+        } else {
+          setError(message);
+        }
         setLoading(false);
       })
       .finally(() => setLoading(false));
+  };
+
+  const handleGuestLimitSocialLogin = async (provider: OAuthProvider) => {
+    setShowGuestLimitModal(false);
+    setError("");
+    try {
+      await startSocialLogin(provider);
+    } catch (err: any) {
+      setError(err?.message || "Unable to start social login.");
+    }
   };
 
   const resetWizard = () => {
@@ -3274,7 +3478,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               color: "#059669",
               showInfo: true,
               tooltipContent: plannedCodeRefactoringTooltip,
-              detail: codeRefactoringEndpointLabel
+              detail: codeRefactoringEndpointLabel,
+              detailTooltipContent: apiEndpointsTooltip
             },
             {
               icon: "📦",
@@ -3317,7 +3522,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               }}
             >
               {item.showInfo && (
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
+                <div
+                  className="info-tooltip-container"
+                  style={{ position: "absolute", top: 12, right: 12 }}
+                >
                   <button
                     type="button"
                     aria-label={`${item.title} information`}
@@ -3336,18 +3544,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       cursor: "pointer",
                       padding: 0,
                     }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
                   >
                     i
                   </button>
                   <div
+                    className="info-tooltip"
                     style={{
                       ...styles.tooltip,
                       left: "auto",
@@ -3357,12 +3558,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       background: "#fff",
                       border: "1px solid #e2e8f0",
                       boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.display = "none";
                     }}
                   >
                     {item.tooltipContent && (
@@ -3403,6 +3598,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   </div>
                   {item.detail && (
                     <div
+                      className={item.detailTooltipContent ? "endpoint-tooltip-container" : undefined}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -3413,9 +3609,30 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                         color: item.color,
                         fontSize: 12,
                         fontWeight: 700,
+                        position: "relative",
+                        cursor: item.detailTooltipContent ? "help" : "default",
                       }}
                     >
                       {item.detail}
+                      {item.detailTooltipContent && (
+                        <div
+                          className="endpoint-tooltip"
+                          style={{
+                            ...styles.tooltip,
+                            left: 0,
+                            bottom: "calc(100% + 8px)",
+                            width: 360,
+                            maxWidth: "min(360px, 80vw)",
+                            background: "#fff",
+                            border: "1px solid #e2e8f0",
+                            boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                            color: "#0f172a",
+                            fontWeight: 400,
+                          }}
+                        >
+                          {item.detailTooltipContent}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -5468,9 +5685,47 @@ For questions or issues:
 
   return (
     <div style={styles.container}>
+      {showGuestLimitModal && (
+        <div style={styles.guestLimitOverlay}>
+          <div style={styles.guestLimitModal}>
+            <div style={styles.guestLimitIcon}>!</div>
+            <h3 style={styles.guestLimitTitle}>{GUEST_MIGRATION_LIMIT_TITLE}</h3>
+            <p style={styles.guestLimitText}>
+              {GUEST_MIGRATION_LIMIT_MESSAGE}
+            </p>
+            <div style={styles.guestLimitActions}>
+              <button style={styles.guestLimitPrimaryBtn} onClick={() => handleGuestLimitSocialLogin("github")}>
+                Continue with GitHub
+              </button>
+              <button style={styles.guestLimitSecondaryBtn} onClick={() => handleGuestLimitSocialLogin("gitlab")}>
+                Continue with GitLab
+              </button>
+              <button style={styles.guestLimitSecondaryBtn} onClick={() => handleGuestLimitSocialLogin("google")}>
+                Continue with Google
+              </button>
+              <button style={styles.guestLimitCloseBtn} onClick={() => setShowGuestLimitModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
       <div style={styles.main}>
-        {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
+        {(error || authError) && (
+          <div style={styles.errorBanner}>
+            <span>{error || authError}</span>
+            <button
+              style={styles.errorClose}
+              onClick={() => {
+                setError("");
+                setAuthError("");
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
         {step === 1 && renderStep1()}
         {step === 2 && renderDiscoveryStep()}
         {step === 3 && renderStrategyStep()}
@@ -5485,6 +5740,15 @@ For questions or issues:
 
 const styles: { [key: string]: React.CSSProperties } = {
   container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "#f8fafc", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
+  guestLimitOverlay: { position: "fixed", inset: 0, zIndex: 2000, background: "rgba(15, 23, 42, 0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" },
+  guestLimitModal: { width: "min(430px, 100%)", background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)", padding: 24, textAlign: "center", boxSizing: "border-box" },
+  guestLimitIcon: { width: 44, height: 44, borderRadius: 14, background: "#eff6ff", color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 900, margin: "0 auto 14px", border: "1px solid #bfdbfe" },
+  guestLimitTitle: { margin: "0 0 10px", color: "#0f172a", fontSize: 20, fontWeight: 850 },
+  guestLimitText: { margin: "0 0 18px", color: "#475569", fontSize: 14, lineHeight: 1.55 },
+  guestLimitActions: { display: "grid", gridTemplateColumns: "1fr", gap: 10 },
+  guestLimitPrimaryBtn: { width: "100%", border: "none", borderRadius: 10, padding: "12px 14px", background: "#2563eb", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" },
+  guestLimitSecondaryBtn: { width: "100%", border: "1px solid #dbe3ef", borderRadius: 10, padding: "12px 14px", background: "#fff", color: "#1e293b", fontWeight: 800, fontSize: 14, cursor: "pointer" },
+  guestLimitCloseBtn: { width: "100%", border: "none", borderRadius: 10, padding: "11px 14px", background: "#f1f5f9", color: "#475569", fontWeight: 800, fontSize: 14, cursor: "pointer" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "#fff", borderBottom: "1px solid #e2e8f0" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
   stepIndicatorContainer: { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "24px 40px", width: "100%", boxSizing: "border-box", overflowX: "auto" },
