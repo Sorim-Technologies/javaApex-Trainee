@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import "./DocsPage.css";
+import "./Pages.css";
 
 const docsSections = [
   {

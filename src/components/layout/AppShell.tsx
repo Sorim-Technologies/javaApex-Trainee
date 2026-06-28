@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import apexLogo from "../../assets/logo.jpg";
 import Footer from "./Footer";
 import Support from "./Support";
-import "./AppShell.css";
+import "./Layout.css";
 
 type MockUser = {
   name: string;

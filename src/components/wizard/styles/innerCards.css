@@ -1,0 +1,190 @@
+/* =========================================================
+   INNER CARD ONLY HOVER EFFECTS
+   Main page wrapper cards stay fixed. Only inner cards hover.
+   ========================================================= */
+
+/* Stop overall/container cards from moving on hover */
+.premium-card:hover,
+.glass-card:hover,
+.card-hover:hover {
+  transform: none !important;
+}
+
+/* Shared inner card animation */
+.inner-card-hover,
+.file-item,
+.repo-card,
+.metric-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    border-color 0.28s ease,
+    background 0.28s ease;
+}
+
+/* Small colour strip animation for all inner cards */
+.inner-card-hover::before,
+.repo-card::before,
+.metric-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 3px;
+  transition: left 0.35s ease;
+}
+
+.inner-card-hover:hover::before,
+.repo-card:hover::before,
+.metric-card:hover::before {
+  left: 0;
+}
+
+/* Repository/file inner cards - Blue */
+.repo-card:hover,
+.file-item:hover {
+  transform: translateY(-6px);
+  border-color: #3b82f6 !important;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+  box-shadow: 0 16px 34px rgba(59, 130, 246, 0.22) !important;
+}
+
+.repo-card::before,
+.file-item::before {
+  background: #3b82f6;
+}
+
+/* Framework / detected component cards - Cyan */
+.framework-inner-card:hover,
+.info-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #06b6d4 !important;
+  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%) !important;
+  box-shadow: 0 16px 34px rgba(6, 182, 212, 0.22) !important;
+}
+
+.framework-inner-card::before,
+.info-inner-card::before {
+  background: #06b6d4;
+}
+
+/* Dependency inner cards - Indigo */
+.dependency-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #6366f1 !important;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+  box-shadow: 0 16px 34px rgba(99, 102, 241, 0.22) !important;
+}
+
+.dependency-inner-card::before {
+  background: #6366f1;
+}
+
+/* Metric inner cards - Green */
+.metric-card:hover {
+  transform: translateY(-6px);
+  border-color: #10b981 !important;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  box-shadow: 0 16px 34px rgba(16, 185, 129, 0.22) !important;
+}
+
+.metric-card::before {
+  background: #10b981;
+}
+
+/* Warning / risk inner cards - Red */
+.risk-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #ef4444 !important;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+  box-shadow: 0 16px 34px rgba(239, 68, 68, 0.22) !important;
+}
+
+.risk-inner-card::before {
+  background: #ef4444;
+}
+
+/* Buttons inside hovered cards should stay clickable and clean */
+.inner-card-hover button {
+  position: relative;
+  z-index: 2;
+}
+
+/* Respect reduced-motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .inner-card-hover,
+  .file-item,
+  .repo-card,
+  .metric-card {
+    transition: none;
+  }
+
+  .inner-card-hover:hover,
+  .file-item:hover,
+  .repo-card:hover,
+  .metric-card:hover {
+    transform: none;
+  }
+}
+
+
+/* ===================================================
+   INNER CARD HOVER EFFECTS - MIGRATION & RESULT FIX
+   Only inner cards/items hover. Outer page cards stay unchanged.
+   =================================================== */
+
+/* Stop overall page card hover movement */
+.premium-card:hover,
+.card-hover:hover {
+  transform: none !important;
+}
+
+.inner-card-hover {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease !important;
+}
+
+.inner-card-hover:hover {
+  transform: translateY(-6px) scale(1.01) !important;
+  border-color: var(--inner-card-accent, #6366f1) !important;
+  background: linear-gradient(135deg, var(--inner-card-bg, #eef2ff) 0%, #ffffff 100%) !important;
+  box-shadow: 0 16px 34px var(--inner-card-shadow, rgba(99, 102, 241, 0.22)) !important;
+}
+
+.inner-card-hover::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: var(--inner-card-accent, #6366f1);
+  transition: width 0.25s ease;
+}
+
+.inner-card-hover:hover::after {
+  width: 100%;
+}
+
+.risk-inner-card {
+  --inner-card-accent: #ef4444;
+  --inner-card-bg: #fef2f2;
+  --inner-card-shadow: rgba(239, 68, 68, 0.22);
+}
+
+.info-inner-card {
+  --inner-card-accent: #3b82f6;
+  --inner-card-bg: #eff6ff;
+  --inner-card-shadow: rgba(59, 130, 246, 0.2);
+}
+
+.dependency-inner-card {
+  --inner-card-accent: #7c3aed;
+  --inner-card-bg: #f5f3ff;
+  --inner-card-shadow: rgba(124, 58, 237, 0.22);
+}
+

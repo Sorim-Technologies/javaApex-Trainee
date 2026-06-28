@@ -4,11 +4,11 @@ import GitHubRepoInput from "./GitHubRepoInput";
 import PrivateRepoModal from "./PrivateRepoModal";
 import RepoSourceTabs from "./RepoSourceTabs";
 import ZipUploadBox from "./ZipUploadBox";
+import "./Connect.css";
 
 type ZipUploadStatus = "idle" | "ready" | "uploading" | "success" | "error";
 
 interface ConnectPageProps {
-  styles: Record<string, React.CSSProperties>;
   sourceInputType: SourceInputType;
   isPrivateRepo: boolean;
   repoUrl: string;
@@ -46,7 +46,6 @@ interface ConnectPageProps {
 }
 
 export default function ConnectPage({
-  styles,
   sourceInputType,
   isPrivateRepo,
   repoUrl,
@@ -92,12 +91,12 @@ export default function ConnectPage({
     (!isPrivateRepo || Boolean(currentToken.trim()));
 
   return (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>{isZipSelected ? "📦" : isPrivateRepo ? "🔒" : "🔗"}</span>
+    <div className="connect-card">
+      <div className="connect-step-header">
+        <span className="connect-step-icon">{isZipSelected ? "📦" : isPrivateRepo ? "🔒" : "🔗"}</span>
         <div>
-          <h2 style={styles.title}>Connect Repository</h2>
-          <p style={styles.subtitle}>Choose one source and the wizard will handle access automatically.</p>
+          <h2 className="connect-title">Connect Repository</h2>
+          <p className="connect-subtitle">Choose one source and the wizard will handle access automatically.</p>
         </div>
       </div>
 
@@ -128,7 +127,6 @@ export default function ConnectPage({
 
       {isGithubSelected && (
         <GitHubRepoInput
-          styles={styles}
           repoUrl={repoUrl}
           urlValidation={urlValidation}
           repoAccessCheckLoading={repoAccessCheckLoading}
@@ -147,7 +145,6 @@ export default function ConnectPage({
 
       {isZipSelected && (
         <ZipUploadBox
-          styles={styles}
           selectedZipFile={selectedZipFile}
           zipUploadStatus={zipUploadStatus}
           zipDragActive={zipDragActive}
@@ -162,7 +159,6 @@ export default function ConnectPage({
 
       {showPatModal && (
         <PrivateRepoModal
-          styles={styles}
           showEnterpriseToken={showEnterpriseToken}
           showPatToken={showPatToken}
           tokenValue={tokenValue}

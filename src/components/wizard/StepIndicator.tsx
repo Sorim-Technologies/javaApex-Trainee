@@ -1,4 +1,5 @@
 import React from "react";
+import "./styles/stepIndicator.css";
 
 interface WizardStep {
   id: number;
@@ -9,7 +10,6 @@ interface WizardStep {
 }
 
 interface StepIndicatorProps {
-  styles: Record<string, React.CSSProperties>;
   steps: WizardStep[];
   step: number;
   currentIndicatorStep: number;
@@ -18,7 +18,6 @@ interface StepIndicatorProps {
 }
 
 export default function StepIndicator({
-  styles,
   steps,
   step,
   currentIndicatorStep,
@@ -26,74 +25,52 @@ export default function StepIndicator({
   onStepChange,
 }: StepIndicatorProps) {
   return (
-    <div style={styles.stepIndicator}>
+    <div className="wizard-step-indicator">
       {steps.map((s, index) => {
         const isCompleted = currentIndicatorStep > s.id;
         const isActive = currentIndicatorStep === s.id;
         const isUnlocked = s.id <= maxVisitedIndicatorStep;
+        const itemClassName = [
+          "wizard-step-indicator__item",
+          isUnlocked && !isActive ? "wizard-step-indicator__item--clickable" : "",
+        ].filter(Boolean).join(" ");
+        const circleClassName = [
+          "wizard-step-indicator__circle",
+          isCompleted ? "wizard-step-indicator__circle--completed" : "",
+          isActive ? "wizard-step-indicator__circle--active" : "",
+          !isCompleted && !isActive ? "wizard-step-indicator__circle--locked" : "",
+        ].filter(Boolean).join(" ");
+        const nameClassName = [
+          "wizard-step-indicator__name",
+          isCompleted ? "wizard-step-indicator__name--completed" : "",
+          isActive ? "wizard-step-indicator__name--active" : "",
+        ].filter(Boolean).join(" ");
+        const descriptionClassName = [
+          "wizard-step-indicator__description",
+          isActive ? "wizard-step-indicator__description--active" : "",
+        ].filter(Boolean).join(" ");
 
         return (
           <React.Fragment key={s.id}>
             <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 8,
-                opacity: 1,
-                cursor: isUnlocked && !isActive ? "pointer" : "default",
-                transition: "all 0.3s ease",
-              }}
+              className={itemClassName}
               onClick={() => isUnlocked && !isActive && onStepChange(s.id)}
             >
-              <div
-                style={{
-                  ...styles.stepCircle,
-                  backgroundColor: isCompleted ? "#22c55e" : isActive ? "#3b82f6" : "#e5e7eb",
-                  color: currentIndicatorStep >= s.id ? "#fff" : "#6b7280",
-                  width: 44,
-                  height: 44,
-                  fontSize: 18,
-                  boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none",
-                }}
-              >
+              <div className={circleClassName}>
                 {step > s.id ? "✓" : s.icon}
               </div>
-              <div style={{ textAlign: "center" }}>
-                <div
-                  style={{
-                    fontWeight: isActive ? 700 : 500,
-                    fontSize: 13,
-                    color: isActive ? "#3b82f6" : isCompleted ? "#22c55e" : "#64748b",
-                    marginBottom: 2,
-                  }}
-                >
+              <div className="wizard-step-indicator__copy">
+                <div className={nameClassName}>
                   {s.name}
                 </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: isActive ? "#64748b" : "#94a3b8",
-                    maxWidth: 100,
-                    lineHeight: 1.3,
-                  }}
-                >
+                <div className={descriptionClassName}>
                   {s.description}
                 </div>
               </div>
             </div>
             {index < steps.length - 1 && (
               <div
-                style={{
-                  flex: 1,
-                  height: 3,
-                  backgroundColor: currentIndicatorStep > s.id ? "#22c55e" : "#e5e7eb",
-                  marginTop: -50,
-                  marginLeft: -10,
-                  marginRight: -10,
-                  borderRadius: 2,
-                  transition: "background-color 0.3s ease",
-                }}
+                className={`wizard-step-indicator__connector${currentIndicatorStep > s.id ? " wizard-step-indicator__connector--completed" : ""}`}
               />
             )}
           </React.Fragment>

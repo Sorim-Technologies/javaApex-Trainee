@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import "./Support.css";
+import "./Layout.css";
 
 const supportTopics = [
   "Repository connection and GitHub access",

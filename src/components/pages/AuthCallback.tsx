@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../services/api";
+import "./Pages.css";
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ const AuthCallback: React.FC = () => {
     }
   }, [navigate]);
 
-  return <div>Logging in with GitHub...</div>;
+  return <div className="auth-callback">Logging in with GitHub...</div>;
 };
 
 export default AuthCallback;

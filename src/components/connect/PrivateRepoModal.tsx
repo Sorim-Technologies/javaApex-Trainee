@@ -1,7 +1,4 @@
-import type React from "react";
-
 interface PrivateRepoModalProps {
-  styles: Record<string, React.CSSProperties>;
   showEnterpriseToken: boolean;
   showPatToken: boolean;
   tokenValue: string;
@@ -17,7 +14,6 @@ interface PrivateRepoModalProps {
 }
 
 export default function PrivateRepoModal({
-  styles,
   showEnterpriseToken,
   showPatToken,
   tokenValue,
@@ -36,26 +32,17 @@ export default function PrivateRepoModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="pat-modal-title"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        zIndex: 2000,
-      }}
+      className="connect-modal-overlay"
     >
-      <div style={{ width: "min(460px, 100%)", background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 24px 60px rgba(15,23,42,0.25)" }}>
-        <h3 id="pat-modal-title" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#0f172a" }}>
+      <div className="connect-modal">
+        <h3 id="pat-modal-title" className="connect-modal-title">
           GitHub Personal Access Token
         </h3>
-        <p style={{ margin: "8px 0 18px", fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+        <p className="connect-modal-description">
           This repository needs authenticated access. Paste a PAT with repository read access to continue.
         </p>
-        <label style={styles.label}>Personal Access Token</label>
-        <div style={{ display: "flex", gap: 8 }}>
+        <label className="connect-label">Personal Access Token</label>
+        <div className="connect-token-row">
           <input
             type={showPatToken ? "text" : "password"}
             value={tokenValue}
@@ -69,30 +56,22 @@ export default function PrivateRepoModal({
             }}
             placeholder="Paste your GitHub PAT"
             autoComplete="off"
-            style={{ ...styles.input, flex: 1, borderColor: patTokenError ? "#ef4444" : "#e2e8f0" }}
+            className={`connect-input connect-input--token ${patTokenError ? "connect-input--error" : "connect-input--neutral"}`}
           />
           <button
             type="button"
             onClick={() => onShowPatTokenChange((value) => !value)}
-            style={{
-              minWidth: 76,
-              border: "1px solid #dbe3ef",
-              borderRadius: 8,
-              background: "#fff",
-              color: "#334155",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
+            className="connect-token-toggle"
           >
             {showPatToken ? "Hide" : "Show"}
           </button>
         </div>
         {patTokenError && (
-          <div style={{ marginTop: 8, color: "#dc2626", fontSize: 12, fontWeight: 700 }}>
+          <div className="connect-modal-error">
             {patTokenError}
           </div>
         )}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+        <div className="connect-modal-actions">
           <button
             type="button"
             onClick={() => {
@@ -102,7 +81,7 @@ export default function PrivateRepoModal({
                 onPrivateRepoChange(false);
               }
             }}
-            style={{ ...styles.secondaryBtn, padding: "11px 18px" }}
+            className="connect-button connect-button--secondary connect-button--compact"
           >
             Cancel
           </button>
@@ -110,7 +89,7 @@ export default function PrivateRepoModal({
             type="button"
             onClick={onContinue}
             disabled={!tokenValue.trim()}
-            style={{ ...styles.primaryBtn, padding: "11px 18px", opacity: tokenValue.trim() ? 1 : 0.5 }}
+            className={`connect-button connect-button--primary connect-button--compact ${tokenValue.trim() ? "" : "connect-button--disabled"}`}
           >
             Continue
           </button>
@@ -119,4 +98,3 @@ export default function PrivateRepoModal({
     </div>
   );
 }
-

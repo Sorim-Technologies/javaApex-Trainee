@@ -1,0 +1,100 @@
+/* Migration Page Shell */
+.migration-page,
+.migration-progress-page {
+  display: contents;
+}
+
+/* Migration Card Hover Accents */
+.migration-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #f59e0b !important;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+  box-shadow: 0 16px 34px rgba(245, 158, 11, 0.24) !important;
+}
+
+.migration-inner-card::before {
+  background: #f59e0b;
+}
+
+.migration-modernize-card {
+  --inner-card-accent: #f59e0b;
+  --inner-card-bg: #fffbeb;
+  --inner-card-shadow: rgba(245, 158, 11, 0.24);
+}
+
+.migration-option-card {
+  --inner-card-accent: #f97316;
+  --inner-card-bg: #fff7ed;
+  --inner-card-shadow: rgba(249, 115, 22, 0.24);
+}
+
+.migration-preview-card,
+.migration-diff-card {
+  --inner-card-accent: #0891b2;
+  --inner-card-bg: #ecfeff;
+  --inner-card-shadow: rgba(8, 145, 178, 0.22);
+}
+
+.migration-conversion-card {
+  --inner-card-accent: #2563eb;
+  --inner-card-bg: #eff6ff;
+  --inner-card-shadow: rgba(37, 99, 235, 0.22);
+}
+
+.migration-chip-card--files {
+  --inner-card-accent: #2563eb;
+  --inner-card-bg: #eff6ff;
+  --inner-card-shadow: rgba(37, 99, 235, 0.2);
+}
+
+.migration-chip-card--changes {
+  --inner-card-accent: #10b981;
+  --inner-card-bg: #ecfdf5;
+  --inner-card-shadow: rgba(16, 185, 129, 0.2);
+}
+
+.migration-chip-card--diffs {
+  --inner-card-accent: #8b5cf6;
+  --inner-card-bg: #f5f3ff;
+  --inner-card-shadow: rgba(139, 92, 246, 0.2);
+}
+
+.migration-diff-card:hover {
+  background: #ffffff !important;
+}
+
+/* Modernization Cards */
+.migration-modernization-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* Preview Panels */
+.migration-preview-panel {
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background-color: #ffffff;
+}
+
+/* Dependency Upgrade Preview */
+.migration-dependency-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Code Diff Viewer */
+.migration-code-diff {
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Migration Progress */
+.migration-progress-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}

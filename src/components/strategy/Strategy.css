@@ -1,0 +1,295 @@
+/* Strategy Page */
+.strategy-page {
+  display: contents;
+}
+
+/* AssessmentCard */
+.assessment-inner-card {
+  --inner-card-accent: #06b6d4;
+  --inner-card-bg: #ecfeff;
+  --inner-card-shadow: rgba(6, 182, 212, 0.22);
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    border-color 0.28s ease,
+    background 0.28s ease;
+}
+
+.assessment-inner-card:hover {
+  transform: translateY(-6px);
+  border-color: #8b5cf6 !important;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+  box-shadow: 0 16px 34px rgba(139, 92, 246, 0.22) !important;
+}
+
+.assessment-inner-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 3px;
+  background: #8b5cf6;
+  transition: left 0.35s ease;
+}
+
+.assessment-inner-card:hover::before {
+  left: 0;
+}
+
+/* ConversionSelector */
+
+/* JavaRecommendationList */
+.java-recommendations {
+  margin: 8px 0 20px;
+  padding: 16px;
+  border: 1px solid #c7d2fe;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #eef2ff 0%, #f8fafc 48%, #ffffff 100%);
+}
+
+.java-recommendations__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.java-recommendations__eyebrow {
+  margin-bottom: 5px;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.java-recommendations__header h3 {
+  margin: 0;
+  color: #172554;
+  font-size: 19px;
+}
+
+.java-recommendations__header p {
+  max-width: 760px;
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.java-recommendations__count {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.java-recommendations__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* JavaRecommendationCard */
+.strategy-inner-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    border-color 0.28s ease,
+    background 0.28s ease;
+}
+
+.strategy-inner-card:hover,
+.java-recommendation-card:hover {
+  transform: translateY(-6px);
+  border-color: #8b5cf6 !important;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+  box-shadow: 0 16px 34px rgba(139, 92, 246, 0.22) !important;
+}
+
+.strategy-inner-card::before,
+.java-recommendation-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 3px;
+  background: #8b5cf6;
+  transition: left 0.35s ease;
+}
+
+.strategy-inner-card:hover::before,
+.java-recommendation-card:hover::before {
+  left: 0;
+}
+
+.java-recommendation-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    border-color 0.28s ease,
+    background 0.28s ease;
+}
+
+.java-recommendation-card--selected {
+  border-color: #4f46e5;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.14);
+}
+
+.java-recommendation-card--selected:hover {
+  border-color: #4f46e5 !important;
+  background: linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%) !important;
+  box-shadow: 0 18px 38px rgba(79, 70, 229, 0.28) !important;
+}
+
+.java-recommendation-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.java-recommendation-card__rank {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 9px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.java-recommendation-card__title {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.java-recommendation-card__level {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.java-recommendation-card__level--highly-recommended {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.java-recommendation-card__level--recommended {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.java-recommendation-card__level--alternative {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.java-recommendation-card__select {
+  padding: 7px 12px;
+  border: 1px solid #4f46e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #4338ca;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.java-recommendation-card__select--selected {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.java-recommendation-card__description {
+  display: -webkit-box;
+  margin: 9px 0 6px;
+  overflow: hidden;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.java-recommendation-card__benefits {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.java-recommendation-card__benefits li + li {
+  margin-top: 2px;
+}
+
+.java-recommendation-card button {
+  position: relative;
+  z-index: 2;
+}
+
+/* MigrationApproachSelector */
+
+/* MigrationOptions */
+
+@media (max-width: 720px) {
+  .java-recommendations {
+    padding: 16px;
+  }
+
+  .java-recommendations__header,
+  .java-recommendation-card__top {
+    flex-wrap: wrap;
+  }
+
+  .java-recommendations__count {
+    order: -1;
+  }
+
+  .java-recommendations__list {
+    grid-template-columns: 1fr;
+  }
+
+  .java-recommendation-card__select {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .java-recommendation-card,
+  .java-recommendation-card:hover {
+    transform: none;
+    transition: none;
+  }
+}

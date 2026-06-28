@@ -1,4 +1,3 @@
-import type React from "react";
 import type { SourceInputType } from "../../types/wizard";
 
 type RepositorySourceMode = SourceInputType | "public" | "private";
@@ -16,69 +15,50 @@ export default function RepoSourceTabs({
   onSelectPrivate,
   onSelectZip,
 }: RepoSourceTabsProps) {
-  const sourceOptionStyle = (active: boolean, accent = "#3b82f6"): React.CSSProperties => ({
-    padding: "16px",
-    borderRadius: 12,
-    border: active ? `2px solid ${accent}` : "1px solid #dbe3ef",
-    background: active ? "#eff6ff" : "#ffffff",
-    cursor: "pointer",
-    textAlign: "left",
-    transition: "all 0.2s ease",
-    minHeight: 104,
-  });
-
-  const sourceTitleStyle = (active: boolean, color = "#1d4ed8"): React.CSSProperties => ({
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    fontWeight: 800,
-    color: active ? color : "#0f172a",
-    fontSize: 15,
-  });
+  const publicActive = repositorySourceMode === "public";
+  const privateActive = repositorySourceMode === "private";
+  const zipActive = repositorySourceMode === "zip";
 
   return (
-    <div className="source-option-tabs" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 24 }}>
+    <div className="connect-source-tabs">
       <button
         type="button"
-        className={`source-option-tab ${repositorySourceMode === "public" ? "source-option-tab--active" : ""}`}
+        className={`connect-source-tab ${publicActive ? "connect-source-tab--public-active" : ""}`}
         onClick={onSelectPublic}
-        style={sourceOptionStyle(repositorySourceMode === "public")}
       >
-        <div style={sourceTitleStyle(repositorySourceMode === "public")}>
+        <div className={`connect-source-title ${publicActive ? "connect-source-title--active" : ""}`}>
           <span>🔗</span>
           Public GitHub Repository
         </div>
-        <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+        <div className="connect-source-description">
           Paste a repository URL and continue without a token.
         </div>
       </button>
 
       <button
         type="button"
-        className={`source-option-tab ${repositorySourceMode === "private" ? "source-option-tab--active" : ""}`}
+        className={`connect-source-tab ${privateActive ? "connect-source-tab--private-active" : ""}`}
         onClick={onSelectPrivate}
-        style={sourceOptionStyle(repositorySourceMode === "private")}
       >
-        <div style={sourceTitleStyle(repositorySourceMode === "private")}>
+        <div className={`connect-source-title ${privateActive ? "connect-source-title--active" : ""}`}>
           <span>🔒</span>
           Private GitHub Repository
         </div>
-        <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+        <div className="connect-source-description">
           Use a GitHub PAT only when private access is required.
         </div>
       </button>
 
       <button
         type="button"
-        className={`source-option-tab ${repositorySourceMode === "zip" ? "source-option-tab--active" : ""}`}
+        className={`connect-source-tab ${zipActive ? "connect-source-tab--zip-active" : ""}`}
         onClick={onSelectZip}
-        style={sourceOptionStyle(repositorySourceMode === "zip", "#f59e0b")}
       >
-        <div style={sourceTitleStyle(repositorySourceMode === "zip", "#b45309")}>
+        <div className={`connect-source-title ${zipActive ? "connect-source-title--zip-active" : ""}`}>
           <span>📦</span>
           Upload Local ZIP
         </div>
-        <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+        <div className="connect-source-description">
           Drop or browse for a local .zip project.
         </div>
       </button>

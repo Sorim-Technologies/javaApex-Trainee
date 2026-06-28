@@ -1,5 +1,5 @@
-import MigrationWizardRuntime from "./MigrationWizardRuntime";
+import MigrationWizardController from "./MigrationWizardController";
 
 export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () => void }) {
-  return <MigrationWizardRuntime onBackToHome={onBackToHome} />;
+  return <MigrationWizardController onBackToHome={onBackToHome} />;
 }
