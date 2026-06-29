@@ -3,6 +3,7 @@ Java Migration Backend - Main FastAPI Application
 Handles Java 7 → Java 18 migration automation using OpenRewrite
 """
 import sys
+import json
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,7 @@ import re
 import logging
 from datetime import datetime, timezone
 from github import GithubException
+from sqlalchemy.orm import Session
 
 # Force unbuffered output for immediate logging
 sys.stdout.reconfigure(line_buffering=True)
@@ -41,14 +43,16 @@ from services.email_service import EmailService
 from services.sonarqube_service import SonarQubeService
 from services.auth_service import router as auth_router
 from services.social_auth_service import (
-    OAuthUserResponse,
-    get_current_user,
+    get_current_app_user,
+    get_optional_app_user,
     increment_guest_usage,
     router as social_auth_router,
     validate_guest_migration_limit,
 )
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
+from database.db import Base, app_now, engine, ensure_database_exists, get_db
+from database import models as db_models
 
 
 app = FastAPI(
@@ -77,6 +81,12 @@ async def log_requests(request: Request, call_next):
 # Register auth router
 app.include_router(auth_router, prefix="/api")
 app.include_router(social_auth_router)
+
+
+@app.on_event("startup")
+def create_database_tables():
+    ensure_database_exists()
+    Base.metadata.create_all(bind=engine)
 
 # Default GitHub token from environment variable (set in Render dashboard)
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -413,6 +423,108 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
+def get_repo_name_from_url(repo_url: str) -> str:
+    return (repo_url or "").rstrip("/").split("/")[-1].replace(".git", "")
+
+
+def read_value(source: Any, key: str, default: Any = None) -> Any:
+    if isinstance(source, dict):
+        return source.get(key, default)
+    return getattr(source, key, default)
+
+
+def count_total_files_from_analysis(analysis: Any) -> int:
+    structure = read_value(analysis, "structure")
+    if isinstance(structure, dict):
+        return len(structure.get("files", []) or [])
+    return len(read_value(analysis, "java_files", []) or [])
+
+
+def store_repository_analysis_record(
+    db: Session,
+    repo_url: str,
+    analysis: Any,
+    current_user: Optional[Dict[str, Any]] = None,
+) -> None:
+    endpoints = read_value(analysis, "api_endpoints", []) or []
+    dependencies = read_value(analysis, "dependencies", []) or []
+    java_files = read_value(analysis, "java_files", []) or []
+    record = db_models.RepositoryAnalysis(
+        user_id=current_user["user_id"] if current_user else None,
+        session_id=current_user["session_db_id"] if current_user else None,
+        repository_url=repo_url,
+        repository_name=read_value(analysis, "name") or get_repo_name_from_url(repo_url),
+        branch_name=read_value(analysis, "default_branch"),
+        total_files=count_total_files_from_analysis(analysis),
+        java_files=len(java_files),
+        build_tool=read_value(analysis, "build_tool"),
+        detected_java_version=read_value(analysis, "java_version") or read_value(analysis, "java_version_from_build"),
+        detected_spring_boot_version=None,
+        api_endpoint_count=len(endpoints),
+        dependency_count=len(dependencies),
+        analysis_status="completed",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+def create_migration_history_record(
+    db: Session,
+    request: MigrationRequest,
+    current_user: Dict[str, Any],
+) -> int:
+    now = app_now()
+    record = db_models.MigrationHistory(
+        user_id=current_user["user_id"],
+        session_id=current_user["session_db_id"],
+        repository_url=request.source_repo_url,
+        repository_name=get_repo_name_from_url(request.source_repo_url),
+        source_java_version=request.source_java_version,
+        target_java_version=request.target_java_version.value,
+        conversion_types=json.dumps(request.conversion_types or []),
+        status="started",
+        started_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record.id
+
+
+def update_migration_history_record(
+    migration_history_id: Optional[int],
+    status_value: str,
+    migrated_repo_url: Optional[str] = None,
+    migrated_branch_name: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    if not migration_history_id:
+        return
+
+    db = next(get_db())
+    try:
+        record = db.get(db_models.MigrationHistory, migration_history_id)
+        if not record:
+            return
+        record.status = status_value
+        record.updated_at = app_now()
+        if status_value in {"completed", "failed", "blocked"}:
+            record.completed_at = app_now()
+        if migrated_repo_url:
+            record.migrated_repo_url = migrated_repo_url
+            if "/tree/" in migrated_repo_url:
+                record.migrated_branch_name = migrated_repo_url.rstrip("/").split("/tree/")[-1]
+        if migrated_branch_name:
+            record.migrated_branch_name = migrated_branch_name
+        if error_message:
+            record.error_message = error_message
+        db.commit()
+    finally:
+        db.close()
+
+
 # GitHub Endpoints
 @app.get("/api/github/repos", response_model=List[RepoInfo])
 async def list_github_repos(token: str):
@@ -463,12 +575,18 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
 # New endpoints for direct repo URL input
 
 @app.get("/api/github/analyze-url", response_model=RepoUrlAnalysisInfo)
-async def analyze_repo_url(repo_url: str, token: str = ""):
+async def analyze_repo_url(
+    repo_url: str,
+    token: str = "",
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_app_user),
+    db: Session = Depends(get_db),
+):
     """Analyze a repository directly by URL (token only needed for private repos or higher rate limits)"""
     try:
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         owner, repo = await github_service.parse_repo_url(repo_url)
         analysis = await github_service.analyze_repository(effective_token, owner, repo, repo_url, include_deep_analysis=False)
+        store_repository_analysis_record(db, repo_url, analysis, current_user)
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -690,11 +808,17 @@ async def analyze_gitlab_repository(owner: str, repo: str, token: str = ""):
 
 
 @app.get("/api/gitlab/analyze-url")
-async def analyze_gitlab_repo_url(repo_url: str, token: str = ""):
+async def analyze_gitlab_repo_url(
+    repo_url: str,
+    token: str = "",
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_app_user),
+    db: Session = Depends(get_db),
+):
     """Analyze a GitLab repository directly by URL"""
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
         analysis = await gitlab_service.analyze_repository(token, owner, repo)
+        store_repository_analysis_record(db, repo_url, analysis, current_user)
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -776,10 +900,11 @@ async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
 async def start_migration(
     request: MigrationRequest,
     background_tasks: BackgroundTasks,
-    current_user: OAuthUserResponse = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_app_user),
+    db: Session = Depends(get_db),
 ):
     """Start a new migration job"""
-    validate_guest_migration_limit(current_user)
+    validate_guest_migration_limit(current_user, db)
     logger.info("Source Java Version: %s", request.source_java_version)
     logger.info("Target Java Version: %s", request.target_java_version.value)
     logger.info("Selected Conversion Types: %s", request.conversion_types)
@@ -800,14 +925,17 @@ async def start_migration(
     
     migration_jobs[job_id] = job
 
-    if current_user.role == "guest" and current_user.subject:
-        increment_guest_usage(current_user.subject)
+    migration_history_id = create_migration_history_record(db, request, current_user)
+
+    if current_user["role"] == "guest":
+        increment_guest_usage(current_user, db)
     
     # Start migration in background
     background_tasks.add_task(
         run_migration,
         job_id,
-        request
+        request,
+        migration_history_id
     )
     
     return job
@@ -926,6 +1054,68 @@ async def download_migration_zip(job_id: str):
 async def list_migrations():
     """List all migration jobs"""
     return list(migration_jobs.values())
+
+
+@app.get("/api/migrations/history")
+async def list_current_user_migration_history(
+    current_user: Dict[str, Any] = Depends(get_current_app_user),
+    db: Session = Depends(get_db),
+):
+    records = (
+        db.query(db_models.MigrationHistory)
+        .filter(db_models.MigrationHistory.user_id == current_user["user_id"])
+        .order_by(db_models.MigrationHistory.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": record.id,
+            "repository_url": record.repository_url,
+            "repository_name": record.repository_name,
+            "source_java_version": record.source_java_version,
+            "target_java_version": record.target_java_version,
+            "conversion_types": record.conversion_types,
+            "status": record.status,
+            "migrated_repo_url": record.migrated_repo_url,
+            "migrated_branch_name": record.migrated_branch_name,
+            "error_message": record.error_message,
+            "started_at": record.started_at,
+            "completed_at": record.completed_at,
+            "created_at": record.created_at,
+        }
+        for record in records
+    ]
+
+
+@app.get("/api/repository/analysis/history")
+async def list_current_user_repository_analysis_history(
+    current_user: Dict[str, Any] = Depends(get_current_app_user),
+    db: Session = Depends(get_db),
+):
+    records = (
+        db.query(db_models.RepositoryAnalysis)
+        .filter(db_models.RepositoryAnalysis.user_id == current_user["user_id"])
+        .order_by(db_models.RepositoryAnalysis.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": record.id,
+            "repository_url": record.repository_url,
+            "repository_name": record.repository_name,
+            "branch_name": record.branch_name,
+            "total_files": record.total_files,
+            "java_files": record.java_files,
+            "build_tool": record.build_tool,
+            "detected_java_version": record.detected_java_version,
+            "detected_spring_boot_version": record.detected_spring_boot_version,
+            "api_endpoint_count": record.api_endpoint_count,
+            "dependency_count": record.dependency_count,
+            "analysis_status": record.analysis_status,
+            "created_at": record.created_at,
+        }
+        for record in records
+    ]
 
 
 @app.get("/api/migration/{job_id}/report")
@@ -1791,9 +1981,10 @@ async def get_conversion_types():
     ]
 
 
-async def run_migration(job_id: str, request: MigrationRequest):
+async def run_migration(job_id: str, request: MigrationRequest, migration_history_id: Optional[int] = None):
     """Background task to run the full migration pipeline"""
     job = migration_jobs[job_id]
+    update_migration_history_record(migration_history_id, "running")
 
     try:
         # Determine which service to use based on platform
@@ -2008,11 +2199,17 @@ async def run_migration(job_id: str, request: MigrationRequest):
         # Complete
         update_job(job_id, MigrationStatus.COMPLETED, 100, "Migration completed successfully!")
         job.completed_at = datetime.now(timezone.utc)
+        update_migration_history_record(
+            migration_history_id,
+            "completed",
+            migrated_repo_url=job.target_repo,
+        )
         
     except Exception as e:
         job.status = MigrationStatus.FAILED
         job.error_message = str(e)
         add_log(job_id, f"ERROR: {str(e)}")
+        update_migration_history_record(migration_history_id, "failed", error_message=str(e))
 
 
 def generate_migration_issues(

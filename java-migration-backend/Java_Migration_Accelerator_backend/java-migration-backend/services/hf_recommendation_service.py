@@ -37,7 +37,7 @@ class HFRecommendationService:
             "confidence": str(recommendation.get("confidence", "medium")).lower(),
             "rationale": rationale,
             "alternatives": self._normalize_alternatives(alternatives),
-        }
+        }  
 
     async def _call_hugging_face(self, analysis_payload: Dict[str, Any]) -> Dict[str, Any]:
         prompt_payload = self._build_prompt_payload(analysis_payload)

@@ -16,4 +16,6 @@ pylint==3.0.3
 bandit==1.7.6
 radon==6.0.1
 python-jose[cryptography]==3.3.0
+sqlalchemy==2.0.31
+pymysql==1.1.1
 

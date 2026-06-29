@@ -313,9 +313,16 @@ export async function analyzeRepository(token: string, owner: string, repo: stri
 }
 
 // NEW: Analyze repository directly by URL (works for public repos without token)
-export async function analyzeRepoUrl(repoUrl: string, token: string = ""): Promise<RepoUrlAnalysis> {
+export async function analyzeRepoUrl(repoUrl: string, token: string = "", appAuthToken: string | null = null): Promise<RepoUrlAnalysis> {
+  const headers: Record<string, string> = {};
+
+  if (appAuthToken) {
+    headers.Authorization = `Bearer ${appAuthToken}`;
+  }
+
   const response = await fetch(
-    `${API_BASE_URL}/github/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/github/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`,
+    { headers }
   );
   return parseJsonResponse<RepoUrlAnalysis>(response, 'Failed to analyze repository');
 }

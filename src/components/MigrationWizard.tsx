@@ -1158,7 +1158,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       setAnalysisLoading(true);
       setError("");
 
-      const analyzePromise = analyzeRepoUrl(selectedRepo.url, getCurrentToken())
+      const analyzePromise = analyzeRepoUrl(selectedRepo.url, getCurrentToken(), getStoredAppToken())
         .then(async (result) => enrichAnalysisWithPomVersion(result.analysis, selectedRepo.url, getCurrentToken()));
 
       analyzePromise
@@ -1434,6 +1434,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   ]);
 
   const handleStartMigration = () => {
+    console.log("Migration started manually");
+
     if (!hasAppLogin()) {
       requestAppLogin();
       setError("Please login or continue as guest before starting migration.");
@@ -4627,7 +4629,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 <span style={styles.reportLabel}>Source Repository</span>
                 <span style={styles.reportValue}>
                   {migrationJob.source_repo && migrationJob.source_repo.startsWith('http') ? (
-                    <a href={migrationJob.source_repo} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>
+                    <a href={migrationJob.source_repo} target="_blank" rel="noopener noreferrer" style={{ ...styles.reportLink, color: '#2563eb' }}>
                       {migrationJob.source_repo}
                     </a>
                   ) : (
@@ -4639,7 +4641,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 <span style={styles.reportLabel}>Target Repository</span>
                 <span style={styles.reportValue}>
                   {migrationJob.target_repo && migrationJob.target_repo.startsWith('http') ? (
-                    <a href={migrationJob.target_repo} target="_blank" rel="noopener noreferrer" style={{ color: '#22c55e', textDecoration: 'none' }}>
+                    <a href={migrationJob.target_repo} target="_blank" rel="noopener noreferrer" style={{ ...styles.reportLink, color: '#16a34a' }}>
                       {migrationJob.target_repo}
                     </a>
                   ) : (
@@ -5870,10 +5872,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   reportContainer: { display: "flex", flexDirection: "column", gap: 20 },
   reportSection: { background: "#fff", borderRadius: 12, padding: 22, border: "1px solid #e2e8f0" },
   reportTitle: { fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 18, paddingBottom: 12, borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 10 },
-  reportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 },
-  reportItem: { display: "flex", flexDirection: "column", gap: 6 },
+  reportGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, alignItems: "stretch" },
+  reportItem: { display: "flex", flexDirection: "column", gap: 8, minWidth: 0, padding: "14px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8 },
   reportLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
-  reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600 },
+  reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600, lineHeight: 1.45, minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" },
+  reportLink: { display: "block", maxWidth: "100%", textDecoration: "none", lineHeight: 1.45, overflowWrap: "anywhere", wordBreak: "break-word" },
   testResults: { display: "flex", flexDirection: "column", gap: 10 },
   testItem: { display: "flex", justifyContent: "space-between", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
   sonarqubeResults: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },

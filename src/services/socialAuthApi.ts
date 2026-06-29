@@ -4,8 +4,9 @@ export type SocialProvider = "github" | "gitlab" | "google" | "guest";
 export type OAuthProvider = Exclude<SocialProvider, "guest">;
 
 export type AuthUser = {
+  id?: number;
   name: string;
-  email: string;
+  email: string | null;
   provider: SocialProvider;
   role: "guest" | "user";
   migration_limit?: number | null;
@@ -85,6 +86,17 @@ export async function getSocialCurrentUser(token: string): Promise<AuthUser> {
   });
 
   return parseAuthResponse<AuthUser>(response, "Failed to load current user");
+}
+
+export async function logoutCurrentUser(token: string): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/oauth/logout`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return parseAuthResponse<{ message: string }>(response, "Failed to logout current user");
 }
 
 export function getStoredAppToken() {

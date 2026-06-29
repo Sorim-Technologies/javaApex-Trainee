@@ -5,6 +5,7 @@ import {
   getSocialCurrentUser,
   getStoredAppToken,
   guestLogin,
+  logoutCurrentUser,
   setStoredAppToken,
   startSocialLogin,
 } from "../services/socialAuthApi";
@@ -139,27 +140,39 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const handleGuestLogin = async () => {
+    console.log("Guest login clicked");
     setAuthError("");
     setGuestLoginLoading(true);
     try {
       const response = await guestLogin();
-      setStoredAppToken(response.access_token);
-      const currentUser = await getSocialCurrentUser(response.access_token);
-      setAuthUser(currentUser);
+      localStorage.setItem("app_auth_token", response.access_token);
+      setAuthUser(response.user);
       setShowProfileMenu(false);
       window.dispatchEvent(new Event(APP_AUTH_CHANGED_EVENT));
+      console.log("Guest login success");
     } catch (err: any) {
-      setAuthError(err?.message || "Unable to continue as guest.");
+      setAuthError("Guest login failed. Please try again.");
     } finally {
       setGuestLoginLoading(false);
     }
   };
 
-  const handleAppLogout = () => {
-    clearStoredAppToken();
-    setAuthUser(null);
-    setAuthError("");
-    window.dispatchEvent(new Event(APP_AUTH_CHANGED_EVENT));
+  const handleAppLogout = async () => {
+    const token = getStoredAppToken();
+
+    try {
+      if (token) {
+        await logoutCurrentUser(token);
+      }
+    } catch (error) {
+      console.error("Logout API failed", error);
+    } finally {
+      clearStoredAppToken();
+      setAuthUser(null);
+      setAuthError("");
+      setShowProfileMenu(false);
+      window.dispatchEvent(new Event(APP_AUTH_CHANGED_EVENT));
+    }
   };
 
   const providerLabel = (provider: string) =>
