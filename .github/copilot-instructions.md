@@ -21,7 +21,7 @@
     - `/api/migration/{job_id}/report`: Download HTML report
 - **Frontend:**
   - Start with `npm run dev` in `java-migration-frontend/`
-  - Connects to backend at `localhost:8001` (API)
+  - Connects to backend at `localhost:8000` (API)
   - Main UI: Migration wizard, dashboard, logs, reports
 
 ## Patterns & Conventions

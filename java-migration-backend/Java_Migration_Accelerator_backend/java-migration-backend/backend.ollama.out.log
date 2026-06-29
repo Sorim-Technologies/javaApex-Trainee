@@ -1,0 +1,2 @@
+[AUTH_SERVICE] GITHUB_REDIRECT_URI override: [auto]
+[HTTP] POST http://127.0.0.1:8000/api/chat - From: 127.0.0.1

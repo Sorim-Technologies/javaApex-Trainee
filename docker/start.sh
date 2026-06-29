@@ -62,7 +62,7 @@ health_check() {
     echo "🏥 Running health checks..."
 
     while [ $attempt -le $max_attempts ]; do
-        if curl -f http://localhost:8001/health > /dev/null 2>&1; then
+        if curl -f http://localhost:8000/health > /dev/null 2>&1; then
             echo "✅ Backend health check passed"
             return 0
         fi
@@ -79,9 +79,9 @@ health_check() {
 # Run health check
 if health_check; then
     echo "🎉 Java Migration Accelerator is ready!"
-    echo "📍 Backend API: http://localhost:8001"
+    echo "📍 Backend API: http://localhost:8000"
     echo "🌐 Frontend UI: http://localhost:5173"
-    echo "📖 API Docs: http://localhost:8001/docs"
+    echo "📖 API Docs: http://localhost:8000/docs"
 else
     echo "❌ Health check failed, shutting down..."
     cleanup
@@ -93,8 +93,8 @@ echo "=================================================="
 echo "🚀 Java Migration Accelerator is LIVE!"
 echo "=================================================="
 echo "🌐 Frontend: http://localhost:5173"
-echo "🔧 Backend:  http://localhost:8001"
-echo "📖 API Docs: http://localhost:8001/docs"
+echo "🔧 Backend:  http://localhost:8000"
+echo "📖 API Docs: http://localhost:8000/docs"
 echo "=================================================="
 echo ""
 

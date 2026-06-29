@@ -15,10 +15,16 @@ import os
 import re
 import logging
 from datetime import datetime, timezone
+from time import perf_counter
 from github import GithubException
+import httpx
 
-# Force unbuffered output for immediate logging
-sys.stdout.reconfigure(line_buffering=True)
+# Force line-buffered output when stdout supports it.
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
 
 # Configure verbose logging
 logging.basicConfig(
@@ -31,7 +37,11 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
-load_dotenv()
+from pathlib import Path
+
+# Prefer .env located in the repository root, not just the current working directory.
+dotenv_path = Path(__file__).resolve().parents[3] / ".env"
+load_dotenv(dotenv_path=dotenv_path)
 
 
 from services.github_service import GitHubService
@@ -42,6 +52,7 @@ from services.sonarqube_service import SonarQubeService
 from services.auth_service import router as auth_router
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
+from services.chat_service import ChatService
 
 
 app = FastAPI(
@@ -53,18 +64,23 @@ app = FastAPI(
 # Custom middleware to log all HTTP requests
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    request_id = (request.headers.get("x-request-id") or str(uuid.uuid4())[:8]).strip()
+    request.state.request_id = request_id
     client_host = request.client.host if request.client else "unknown"
     method = request.method
     url = str(request.url)
-    
-    print(f"[HTTP] {method} {url} - From: {client_host}")
+    started_at = perf_counter()
+
+    print(f"[HTTP] id={request_id} {method} {url} - From: {client_host}")
     sys.stdout.flush()
-    
+
     response = await call_next(request)
-    
-    print(f"[HTTP] {method} {url} - Status: {response.status_code}")
+    response.headers["x-request-id"] = request_id
+    elapsed_ms = int((perf_counter() - started_at) * 1000)
+
+    print(f"[HTTP] id={request_id} {method} {url} - Status: {response.status_code} - {elapsed_ms}ms")
     sys.stdout.flush()
-    
+
     return response
 
 # Register auth router
@@ -74,6 +90,8 @@ app.include_router(auth_router, prefix="/api")
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 # Hugging Face token for LLM-based recommendations
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
+# Optional simple API key for protecting lightweight endpoints (set to enable)
+SIMPLE_API_KEY = os.environ.get("SIMPLE_API_KEY", "").strip()
 
 # CORS middleware
 app.add_middleware(
@@ -98,6 +116,7 @@ sonarqube_service = SonarQubeService()
 # FOSSA service (provides simulated/dummy data when the CLI/API is unavailable)
 fossa_service = FossaService()
 hf_recommendation_service = HFRecommendationService()
+chat_service = ChatService()
 
 # In-memory storage for migration jobs (use Redis/DB in production)
 migration_jobs = {}
@@ -396,6 +415,145 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
         import traceback
         print(f"[analyze-url ERROR] repo_url={repo_url} token_provided={bool(token and token.strip())} error={str(e)}\nTRACE:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)} (see backend logs for details)")
+
+
+class ChatRequest(BaseModel):
+    message: str
+    context: Optional[Dict[str, Any]] = None
+
+
+class ChatWithTokenRequest(BaseModel):
+    message: str
+    token: str
+    model: Optional[str] = None
+    api_base: Optional[str] = None
+
+
+def _chat_attempts_summary(attempts) -> str:
+    if not attempts:
+        return "none"
+    parts = []
+    for attempt in attempts:
+        status = "ok" if getattr(attempt, "success", False) else "fail"
+        provider = getattr(attempt, "provider", "unknown")
+        model = getattr(attempt, "model", "unknown")
+        latency_ms = getattr(attempt, "latency_ms", 0)
+        parts.append(f"{provider}:{status}:{model}:{latency_ms}ms")
+    return " -> ".join(parts)
+
+
+def _log_chat_trace(request: Request, req: ChatRequest, trace) -> None:
+    context = req.context or {}
+    page = context.get("page") or context.get("assistantMode") or context.get("assistant_mode") or "unknown"
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(
+        "[CHAT_TRACE] id=%s route=%s intent=%s provider=%s model=%s fallback=%s failed=%s latency_ms=%s page=%s msg_chars=%s attempts=%s",
+        request_id,
+        request.url.path,
+        getattr(trace, "intent", "unknown"),
+        getattr(trace, "provider", "unknown"),
+        getattr(trace, "model", "unknown"),
+        getattr(trace, "used_fallback", False),
+        getattr(trace, "failed", False),
+        getattr(trace, "total_latency_ms", 0),
+        page,
+        len((req.message or "").strip()),
+        _chat_attempts_summary(getattr(trace, "attempts", [])),
+    )
+
+
+@app.post("/chat")
+async def chat_endpoint(req: ChatRequest, request: Request):
+    """Simple chat proxy endpoint. Reads GROK_TOKEN or HF_TOKEN from environment.
+
+    When `SIMPLE_API_KEY` is set in the environment, requests must include
+    an `x-api-key` header matching its value.
+    """
+    # Enforce simple API key when configured
+    try:
+        if SIMPLE_API_KEY:
+            provided_key = (request.headers.get("x-api-key") or request.headers.get("X-API-Key") or "").strip()
+            if provided_key != SIMPLE_API_KEY:
+                raise HTTPException(status_code=401, detail="Invalid API key")
+
+        trace = await chat_service.ask_with_trace(req.message, req.context)
+        _log_chat_trace(request, req, trace)
+        return {"reply": trace.reply}
+    except httpx.HTTPStatusError as he:
+        # Provider returned non-2xx
+        detail = str(he)
+        raise HTTPException(status_code=502, detail=f"Upstream provider error: {detail}")
+    except RuntimeError as re:
+        raise HTTPException(status_code=400, detail=str(re))
+    except Exception as e:
+        import traceback
+        print(f"[chat ERROR] {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Internal server error while calling chat provider")
+
+
+@app.post("/api/chat")
+async def api_chat_endpoint(req: ChatRequest, request: Request):
+    """Compatibility endpoint at /api/chat so frontend using API_BASE_URL works.
+
+    When `SIMPLE_API_KEY` is set in the environment, requests must include
+    an `x-api-key` header matching its value.
+    """
+    try:
+        if SIMPLE_API_KEY:
+            provided_key = (request.headers.get("x-api-key") or request.headers.get("X-API-Key") or "").strip()
+            if provided_key != SIMPLE_API_KEY:
+                raise HTTPException(status_code=401, detail="Invalid API key")
+
+        trace = await chat_service.ask_with_trace(req.message, req.context)
+        _log_chat_trace(request, req, trace)
+        return {"reply": trace.reply}
+    except httpx.HTTPStatusError as he:
+        detail = str(he)
+        raise HTTPException(status_code=502, detail=f"Upstream provider error: {detail}")
+    except RuntimeError as re:
+        raise HTTPException(status_code=400, detail=str(re))
+    except Exception as e:
+        import traceback
+        print(f"[api_chat ERROR] {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Internal server error while calling chat provider")
+
+
+@app.get("/chat/status")
+@app.get("/api/chat/status")
+async def chat_status_endpoint():
+    """Return lightweight LLM readiness information for the chatbot UI."""
+    try:
+        return await chat_service.get_llm_status()
+    except Exception as e:
+        import traceback
+        print(f"[chat_status ERROR] {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Failed to get chat provider status")
+
+
+@app.post("/api/chat/with-token")
+async def api_chat_with_token(req: ChatWithTokenRequest, request: Request):
+    """Test endpoint to call an OpenAI/Grok-compatible API using a supplied token.
+
+    Useful for validating a GROK_TOKEN or OpenAI API key without changing server env.
+    """
+    try:
+        # If SIMPLE_API_KEY is set, enforce
+        if SIMPLE_API_KEY:
+            provided_key = (request.headers.get("x-api-key") or request.headers.get("X-API-Key") or "").strip()
+            if provided_key != SIMPLE_API_KEY:
+                raise HTTPException(status_code=401, detail="Invalid API key")
+
+        reply = await chat_service.call_openai_with_token(req.token, req.message, model=req.model, api_base=req.api_base)
+        return {"reply": reply}
+    except httpx.HTTPStatusError as he:
+        detail = str(he)
+        raise HTTPException(status_code=502, detail=f"Upstream provider error: {detail}")
+    except RuntimeError as re:
+        raise HTTPException(status_code=400, detail=str(re))
+    except Exception as e:
+        import traceback
+        print(f"[api_chat_with_token ERROR] {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Internal server error while calling provider with token")
 
 
 @app.get("/api/github/repo-visibility", response_model=RepoVisibilityInfo)
@@ -2116,5 +2274,5 @@ def add_log(job_id: str, message: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 

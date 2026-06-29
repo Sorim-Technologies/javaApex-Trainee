@@ -1,0 +1,1108 @@
+11:26:57 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+11:26:57 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+11:26:58 [DEBUG] asyncio: Using proactor: IocpProactor
+INFO:     Started server process [1940]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+11:27:02 [INFO] services.chat_service: Intent=GENERAL
+11:27:02 [INFO] services.chat_service: Calling remote LLM for message
+11:27:02 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+11:27:02 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:27:02 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:27:02 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+11:27:02 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A78DFD0>
+11:27:02 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:27:02 [DEBUG] httpcore.http11: send_request_headers.complete
+11:27:02 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:27:02 [DEBUG] httpcore.http11: send_request_body.complete
+11:27:02 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:27:29 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 05:57:29 GMT'), (b'Content-Length', b'523')])
+11:27:29 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+11:27:29 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:27:29 [DEBUG] httpcore.http11: receive_response_body.complete
+11:27:29 [DEBUG] httpcore.http11: response_closed.started
+11:27:29 [DEBUG] httpcore.http11: response_closed.complete
+11:27:29 [DEBUG] httpcore.connection: close.started
+11:27:29 [DEBUG] httpcore.connection: close.complete
+11:28:27 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+11:28:28 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 1220
+11:28:28 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+11:28:29 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+11:28:30 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+11:28:31 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+11:28:31 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/pom.xml HTTP/1.1" 200 5850
+11:28:32 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+11:28:32 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+11:28:33 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+11:28:33 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+11:28:34 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+11:28:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+11:28:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+11:28:36 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+11:28:36 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+11:28:37 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+11:28:37 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+11:28:38 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+11:28:38 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+11:28:39 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+11:28:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+11:28:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+11:28:41 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+11:28:41 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+11:28:42 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example HTTP/1.1" 200 774
+11:28:42 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+11:28:43 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+11:28:44 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project HTTP/1.1" 200 7468
+11:28:44 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+11:28:45 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+11:28:45 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller HTTP/1.1" 200 1106
+11:28:46 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron HTTP/1.1" 200 1041
+11:28:46 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model HTTP/1.1" 200 3174
+11:28:47 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository HTTP/1.1" 200 1167
+11:28:48 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service HTTP/1.1" 200 4373
+11:28:48 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap HTTP/1.1" 200 1997
+11:28:49 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ui HTTP/1.1" 200 1896
+11:28:49 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util HTTP/1.1" 200 999
+11:28:50 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example HTTP/1.1" 200 774
+11:28:50 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project HTTP/1.1" 200 1059
+11:28:51 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller/AttendanceController.java HTTP/1.1" 200 31411
+11:28:52 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ProjectApplication.java HTTP/1.1" 200 1609
+11:28:52 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron/AttendanceCronPM.java HTTP/1.1" 200 4408
+11:28:53 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceRecord.java HTTP/1.1" 200 3130
+11:28:53 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceReportLog.java HTTP/1.1" 200 3121
+11:28:54 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceSoapData.java HTTP/1.1" 200 2896
+11:28:54 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository/AttendanceReportLogRepository.java HTTP/1.1" 200 1642
+11:28:55 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceReportLogService.java HTTP/1.1" 200 2089
+11:28:55 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceService.java HTTP/1.1" 200 7277
+11:28:56 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/EmailService.java HTTP/1.1" 200 3220
+11:28:57 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/WeeklyAttendanceReportService.java HTTP/1.1" 200 20696
+11:28:57 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapClient.java HTTP/1.1" 200 4210
+11:28:58 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapParser.java HTTP/1.1" 200 10894
+11:28:58 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util/UserMapper.java HTTP/1.1" 200 4152
+11:28:59 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project/ProjectApplicationTests.java HTTP/1.1" 200 1384
+11:28:59 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+11:29:00 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+11:29:01 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+11:29:01 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+11:29:01 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+11:29:02 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 1220
+11:29:06 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:29:06 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:29:07 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+11:29:07 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7AC690>
+11:29:07 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A7ECD40> server_hostname='router.huggingface.co' timeout=45.0
+11:29:07 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A78D190>
+11:29:07 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:29:07 [DEBUG] httpcore.http11: send_request_headers.complete
+11:29:07 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:29:07 [DEBUG] httpcore.http11: send_request_body.complete
+11:29:07 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:29:08 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 05:59:05 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a111be82eeb24160-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a111be82eeb24160-IAD'), (b'inference-id', b'chatcmpl-9856b2a6-01d6-4fd5-97af-1a876e6e0e6d'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=Q4mpWHakO_i2chg.GgrTH81UxOGanZg4rHDjMPY1Q7M-1782367145.4303591-1.0.1.1-mkap79aXKRqnHWdN9kK10kFeMoPaBIR9_lG5CV5FJ9tuStw8yp4k5EzrhPgrwnEAouF31wnAdrqUzsvqLqJ6ONARRrANzItqI1AXJTBS1YPrb3wLkos_4WA4.YFkfEh1; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 06:29:05 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 457b36267487e906b58f06d150a4aa82.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'bXefk80TIHi5jhkv1D2bh4NQBe_vA_Dx8uYg0o1-HK3KapIe_naOnw==')])
+11:29:08 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+11:29:08 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:29:08 [DEBUG] httpcore.http11: receive_response_body.complete
+11:29:08 [DEBUG] httpcore.http11: response_closed.started
+11:29:08 [DEBUG] httpcore.http11: response_closed.complete
+11:29:08 [DEBUG] httpcore.connection: close.started
+11:29:08 [DEBUG] httpcore.connection: close.complete
+11:29:10 [INFO] services.chat_service: Intent=GREETING
+11:29:23 [INFO] services.chat_service: Intent=GENERAL
+11:29:23 [INFO] services.chat_service: Calling remote LLM for message
+11:29:23 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+11:29:23 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:29:23 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:29:23 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+11:29:23 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7C5ED0>
+11:29:23 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:29:23 [DEBUG] httpcore.http11: send_request_headers.complete
+11:29:23 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:29:23 [DEBUG] httpcore.http11: send_request_body.complete
+11:29:23 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:29:39 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 05:59:39 GMT'), (b'Content-Length', b'590')])
+11:29:39 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+11:29:39 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:29:39 [DEBUG] httpcore.http11: receive_response_body.complete
+11:29:39 [DEBUG] httpcore.http11: response_closed.started
+11:29:39 [DEBUG] httpcore.http11: response_closed.complete
+11:29:39 [DEBUG] httpcore.connection: close.started
+11:29:39 [DEBUG] httpcore.connection: close.complete
+11:53:01 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:53:01 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:53:02 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:53:02 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:53:03 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+11:53:03 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+11:53:03 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+11:53:04 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+11:53:04 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+11:53:05 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+11:53:05 [INFO] services.chat_service: Intent=GREETING
+11:53:05 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7F3790>
+11:53:05 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A6DD490> server_hostname='router.huggingface.co' timeout=45.0
+11:53:05 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A641390>
+11:53:05 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A6DE600> server_hostname='router.huggingface.co' timeout=45.0
+11:53:05 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A0A9D50>
+11:53:05 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7D7190>
+11:53:05 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:53:05 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:53:05 [DEBUG] httpcore.http11: send_request_headers.complete
+11:53:05 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:53:05 [DEBUG] httpcore.http11: send_request_headers.complete
+11:53:05 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:53:05 [DEBUG] httpcore.http11: send_request_body.complete
+11:53:05 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:53:05 [DEBUG] httpcore.http11: send_request_body.complete
+11:53:05 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:53:06 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 06:23:03 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a111e19e5ba64944-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a111e19e5ba64944-IAD'), (b'inference-id', b'chatcmpl-860c20e5-fe8d-477c-a0f2-f056780ec57c'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=62xvJe_umVXTEvLspY6UZvyGwtXF8LU2OXLJPhU4cK4-1782368583.414555-1.0.1.1-ceDhupkt6p3bRY4C9crWoRCBagLyAyi9Ko5u8b6v.qT1.tJ5ZaLRpVYX17UI6pUUU9tv_xGGHVweAMImoebm9GKqkENOklvNpBU48LIY0MPFiIy.AP0_Yi5wiW88AFTa; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 06:53:03 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 a3fb484d1976725d16c101a322c16b38.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'XH95qaxI8KnFKbI1DI5j_VQO8ev_Sj_DbsWjT6OrdeEHmF4-wdfcIA==')])
+11:53:06 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+11:53:06 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:53:06 [DEBUG] httpcore.http11: receive_response_body.complete
+11:53:06 [DEBUG] httpcore.http11: response_closed.started
+11:53:06 [DEBUG] httpcore.http11: response_closed.complete
+11:53:06 [DEBUG] httpcore.connection: close.started
+11:53:06 [DEBUG] httpcore.connection: close.complete
+11:53:06 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 06:23:03 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89965986'), (b'x-ratelimit-remaining-tokens-minute', b'1465986'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a111e19e7a871fdf-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a111e19e7a871fdf-IAD'), (b'inference-id', b'chatcmpl-d2381c83-5454-49ed-99cf-01502c015b97'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=UudA1zLMdGGy1NEL_7efrZA9tUDqVDyq1bAdsnxegDk-1782368583.4331887-1.0.1.1-e.rUkenu6xyJEaz0kAwIrRebzrXRLT3a5G3111W.8EDPFJvXgDRPo85O9xHa1nnu6_RpXNDQyNtsC33hdPi9BpJUQ7qoNyZjwiN4RefKhnn6sRwzt3RK3z8hwy1H6I4G; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 06:53:03 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159998'), (b'x-ratelimit-remaining-requests-hour', b'89998'), (b'x-ratelimit-remaining-requests-minute', b'1498'), (b'x-ratelimit-remaining-tokens-day', b'2159965986'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 1c46774b53d343ab0b1ffbd79efd10ac.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'mXZVc191oPQxfI9W9V2hMxApH3lUWFhJGygtz1vM7IS1YCR2Ww622g==')])
+11:53:06 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+11:53:06 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:53:06 [DEBUG] httpcore.http11: receive_response_body.complete
+11:53:06 [DEBUG] httpcore.http11: response_closed.started
+11:53:06 [DEBUG] httpcore.http11: response_closed.complete
+11:53:06 [DEBUG] httpcore.connection: close.started
+11:53:06 [DEBUG] httpcore.connection: close.complete
+11:53:22 [INFO] services.chat_service: Intent=DEPENDENCY
+11:53:22 [INFO] services.chat_service: Calling remote LLM for message
+11:53:22 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+11:53:22 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:53:22 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:53:23 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+11:53:23 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A79FED0>
+11:53:23 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:53:23 [DEBUG] httpcore.http11: send_request_headers.complete
+11:53:23 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:53:23 [DEBUG] httpcore.http11: send_request_body.complete
+11:53:23 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:53:42 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 06:23:42 GMT'), (b'Content-Length', b'610')])
+11:53:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+11:53:42 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:53:42 [DEBUG] httpcore.http11: receive_response_body.complete
+11:53:42 [DEBUG] httpcore.http11: response_closed.started
+11:53:42 [DEBUG] httpcore.http11: response_closed.complete
+11:53:42 [DEBUG] httpcore.connection: close.started
+11:53:42 [DEBUG] httpcore.connection: close.complete
+11:54:12 [INFO] services.chat_service: Intent=GENERAL
+11:54:12 [INFO] services.chat_service: Calling remote LLM for message
+11:54:12 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+11:54:12 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:54:12 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:54:12 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+11:54:12 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A81A8D0>
+11:54:12 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:54:12 [DEBUG] httpcore.http11: send_request_headers.complete
+11:54:12 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:54:12 [DEBUG] httpcore.http11: send_request_body.complete
+11:54:12 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:54:26 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 06:24:26 GMT'), (b'Content-Length', b'645')])
+11:54:26 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+11:54:26 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:54:26 [DEBUG] httpcore.http11: receive_response_body.complete
+11:54:26 [DEBUG] httpcore.http11: response_closed.started
+11:54:26 [DEBUG] httpcore.http11: response_closed.complete
+11:54:26 [DEBUG] httpcore.connection: close.started
+11:54:26 [DEBUG] httpcore.connection: close.complete
+11:56:40 [INFO] services.chat_service: Intent=GENERAL
+11:56:40 [INFO] services.chat_service: Calling remote LLM for message
+11:56:40 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+11:56:40 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:56:40 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:56:40 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+11:56:40 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A8091D0>
+11:56:40 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:56:40 [DEBUG] httpcore.http11: send_request_headers.complete
+11:56:40 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:56:40 [DEBUG] httpcore.http11: send_request_body.complete
+11:56:40 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:57:05 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 06:27:05 GMT'), (b'Content-Length', b'599')])
+11:57:05 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+11:57:05 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:57:05 [DEBUG] httpcore.http11: receive_response_body.complete
+11:57:05 [DEBUG] httpcore.http11: response_closed.started
+11:57:05 [DEBUG] httpcore.http11: response_closed.complete
+11:57:05 [DEBUG] httpcore.connection: close.started
+11:57:05 [DEBUG] httpcore.connection: close.complete
+11:58:46 [INFO] services.chat_service: Intent=GENERAL
+11:58:46 [INFO] services.chat_service: Calling remote LLM for message
+11:58:46 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+11:58:46 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+11:58:46 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+11:58:46 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+11:58:46 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A79C590>
+11:58:46 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+11:58:46 [DEBUG] httpcore.http11: send_request_headers.complete
+11:58:46 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+11:58:46 [DEBUG] httpcore.http11: send_request_body.complete
+11:58:46 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+11:59:04 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 06:29:04 GMT'), (b'Content-Length', b'591')])
+11:59:04 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+11:59:04 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+11:59:04 [DEBUG] httpcore.http11: receive_response_body.complete
+11:59:04 [DEBUG] httpcore.http11: response_closed.started
+11:59:04 [DEBUG] httpcore.http11: response_closed.complete
+11:59:04 [DEBUG] httpcore.connection: close.started
+11:59:04 [DEBUG] httpcore.connection: close.complete
+12:04:52 [INFO] services.chat_service: Intent=STRATEGY
+12:04:52 [INFO] services.chat_service: Calling remote LLM for message
+12:04:52 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+12:04:52 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:04:52 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:04:52 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+12:04:52 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7F3550>
+12:04:52 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:04:52 [DEBUG] httpcore.http11: send_request_headers.complete
+12:04:52 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:04:52 [DEBUG] httpcore.http11: send_request_body.complete
+12:04:52 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:05:15 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 06:35:15 GMT'), (b'Content-Length', b'623')])
+12:05:15 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+12:05:15 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:05:15 [DEBUG] httpcore.http11: receive_response_body.complete
+12:05:15 [DEBUG] httpcore.http11: response_closed.started
+12:05:15 [DEBUG] httpcore.http11: response_closed.complete
+12:05:15 [DEBUG] httpcore.connection: close.started
+12:05:15 [DEBUG] httpcore.connection: close.complete
+12:07:29 [INFO] services.chat_service: Intent=GENERAL
+12:07:29 [INFO] services.chat_service: Calling remote LLM for message
+12:07:29 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+12:07:29 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:07:29 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:07:29 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+12:07:29 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A81B650>
+12:07:29 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:07:29 [DEBUG] httpcore.http11: send_request_headers.complete
+12:07:29 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:07:29 [DEBUG] httpcore.http11: send_request_body.complete
+12:07:29 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:07:44 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 06:37:44 GMT'), (b'Content-Length', b'627')])
+12:07:44 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+12:07:44 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:07:44 [DEBUG] httpcore.http11: receive_response_body.complete
+12:07:44 [DEBUG] httpcore.http11: response_closed.started
+12:07:44 [DEBUG] httpcore.http11: response_closed.complete
+12:07:44 [DEBUG] httpcore.connection: close.started
+12:07:44 [DEBUG] httpcore.connection: close.complete
+12:13:21 [INFO] services.chat_service: Intent=GENERAL
+12:13:21 [INFO] services.chat_service: Calling remote LLM for message
+12:13:21 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+12:13:21 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:13:21 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:13:22 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+12:13:22 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A512210>
+12:13:22 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:13:22 [DEBUG] httpcore.http11: send_request_headers.complete
+12:13:22 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:13:22 [DEBUG] httpcore.http11: send_request_body.complete
+12:13:22 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:13:40 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 06:43:40 GMT'), (b'Content-Length', b'595')])
+12:13:40 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+12:13:40 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:13:40 [DEBUG] httpcore.http11: receive_response_body.complete
+12:13:40 [DEBUG] httpcore.http11: response_closed.started
+12:13:40 [DEBUG] httpcore.http11: response_closed.complete
+12:13:40 [DEBUG] httpcore.connection: close.started
+12:13:40 [DEBUG] httpcore.connection: close.complete
+12:29:59 [INFO] services.chat_service: Intent=GENERAL
+12:29:59 [INFO] services.chat_service: Calling remote LLM for message
+12:29:59 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+12:29:59 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:30:00 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:30:00 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+12:30:00 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A6410D0>
+12:30:00 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:30:00 [DEBUG] httpcore.http11: send_request_headers.complete
+12:30:00 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:30:00 [DEBUG] httpcore.http11: send_request_body.complete
+12:30:00 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:30:20 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 07:00:20 GMT'), (b'Content-Length', b'619')])
+12:30:20 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+12:30:20 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:30:20 [DEBUG] httpcore.http11: receive_response_body.complete
+12:30:20 [DEBUG] httpcore.http11: response_closed.started
+12:30:20 [DEBUG] httpcore.http11: response_closed.complete
+12:30:20 [DEBUG] httpcore.connection: close.started
+12:30:20 [DEBUG] httpcore.connection: close.complete
+12:43:23 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:43:23 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:43:23 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+12:43:23 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:43:23 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:43:24 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+12:43:24 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+12:43:25 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+12:43:25 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+12:43:26 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+12:43:26 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A5119D0>
+12:43:26 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A7ED760> server_hostname='router.huggingface.co' timeout=45.0
+12:43:26 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A4B4A90>
+12:43:26 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A7EE720> server_hostname='router.huggingface.co' timeout=45.0
+12:43:26 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A605810>
+12:43:26 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:43:26 [DEBUG] httpcore.http11: send_request_headers.complete
+12:43:26 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:43:26 [DEBUG] httpcore.http11: send_request_body.complete
+12:43:26 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:43:26 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7CE8D0>
+12:43:26 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:43:26 [DEBUG] httpcore.http11: send_request_headers.complete
+12:43:26 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:43:26 [DEBUG] httpcore.http11: send_request_body.complete
+12:43:26 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:43:27 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 07:13:24 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a1122b5f19eed6f1-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a1122b5f19eed6f1-IAD'), (b'inference-id', b'chatcmpl-2c795e4d-f87d-49a0-bf18-31ed46aa27e9'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=Qra6A8NYr_rU2KWEkyor_Kze9AgM170IayEzyMdCbTo-1782371604.332956-1.0.1.1-XFjb8wCM.hVbtjwc5Pld4lSbo35b._ts8L2N6MPC2t1PkbKLnMGl5AXyxcwqxSVlYHyxVdrYscbfmDiJHEl4NDMfsSEei.OEwNrII387h0Q8ApdQcQVTuMhk7wlquinf; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 07:43:24 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 ef213e23c4cd5d06f69359a5aa13b592.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'S2eCnsNB2Q2-fJZ7Ro29iXkTx-wliB4yrTVq0Dd53cwBckLujhfjDQ==')])
+12:43:27 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+12:43:27 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:43:27 [DEBUG] httpcore.http11: receive_response_body.complete
+12:43:27 [DEBUG] httpcore.http11: response_closed.started
+12:43:27 [DEBUG] httpcore.http11: response_closed.complete
+12:43:27 [DEBUG] httpcore.connection: close.started
+12:43:27 [DEBUG] httpcore.connection: close.complete
+12:43:27 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 07:13:25 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89965986'), (b'x-ratelimit-remaining-tokens-minute', b'1465986'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a1122b611ac1c9b3-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a1122b611ac1c9b3-IAD'), (b'inference-id', b'chatcmpl-00248f24-5b02-4fb8-a1ba-de6fb4941a63'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=ln2RUQLnvjYMeQdOaRNxesaq1nbkdI5wUBgDBd_86yk-1782371604.654454-1.0.1.1-h54RIK0zBf_qj4gqYQA_S69.HmPacg3S8R8IJ1eNO3aJ7kXD3usmfFIb_UG9k9VVK8CtjdzL1r0LqfEwpNw9tzNSjL7ZjeXtcuA8IU_IyKZovZTyRJoZ6naPd.2_ghfh; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 07:43:24 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159998'), (b'x-ratelimit-remaining-requests-hour', b'89998'), (b'x-ratelimit-remaining-requests-minute', b'1498'), (b'x-ratelimit-remaining-tokens-day', b'2159965986'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 45fb905d83f639530aa98885e1a3126a.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'Lm2kt6E_1OkmuhjWdZ3XZwOMmMZLHKHtMovM8hTnuquv9JS6X5nmvQ==')])
+12:43:27 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+12:43:27 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:43:27 [DEBUG] httpcore.http11: receive_response_body.complete
+12:43:27 [DEBUG] httpcore.http11: response_closed.started
+12:43:27 [DEBUG] httpcore.http11: response_closed.complete
+12:43:27 [DEBUG] httpcore.connection: close.started
+12:43:27 [DEBUG] httpcore.connection: close.complete
+12:47:59 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+12:48:00 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /user HTTP/1.1" 200 None
+12:48:01 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/PoojaG26/essl-Migrated20260625112859 HTTP/1.1" 404 None
+12:48:03 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "POST /user/repos HTTP/1.1" 201 6290
+12:48:03 [DEBUG] git.cmd: Popen(['git', 'remote', 'rm', 'origin'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=False)
+12:48:03 [DEBUG] git.cmd: Popen(['git', 'remote', 'add', '--', 'origin', 'https://*****@github.com/PoojaG26/essl-Migrated20260625112859.git'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=False)
+12:48:03 [DEBUG] git.cmd: Popen(['git', 'status', '--porcelain'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=False)
+12:48:03 [DEBUG] git.cmd: Popen(['git', 'add', '-A'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=False)
+12:48:03 [DEBUG] git.cmd: Popen(['git', 'diff', '--cached', '--name-only'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=False)
+12:48:04 [DEBUG] git.cmd: Popen(['git', 'cat-file', '--batch-check'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=<valid stream>, shell=False, universal_newlines=False)
+12:48:04 [DEBUG] git.cmd: Popen(['git', 'cat-file', '--batch'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=<valid stream>, shell=False, universal_newlines=False)
+12:48:04 [DEBUG] git.cmd: Popen(['git', 'diff', '--numstat', '--no-renames', 'af0abeec7c78318f811c94f29ee4ec2f5f70efa7', 'aca132da9638af320f858b404b1cdb72353fd060', '--'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=False)
+12:48:04 [DEBUG] git.cmd: Popen(['git', 'diff', '--numstat', '--no-renames', 'af0abeec7c78318f811c94f29ee4ec2f5f70efa7', 'aca132da9638af320f858b404b1cdb72353fd060', '--'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=False)
+12:48:04 [DEBUG] git.cmd: Popen(['git', 'push', '--porcelain', '--set-upstream', '--force', '--', 'origin', 'HEAD:main'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\b2e73f31-ed4f-401e-8624-6ebd9259d7e4, stdin=None, shell=False, universal_newlines=True)
+12:53:16 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+12:53:18 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+12:53:18 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+12:53:19 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+12:53:20 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/pom.xml HTTP/1.1" 200 5850
+12:53:20 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+12:53:21 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+12:53:21 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+12:53:22 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+12:53:23 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+12:53:23 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+12:53:24 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+12:53:24 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+12:53:25 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+12:53:26 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+12:53:26 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+12:53:27 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+12:53:28 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+12:53:29 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+12:53:29 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+12:53:30 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+12:53:30 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+12:53:31 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+12:53:32 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example HTTP/1.1" 200 774
+12:53:32 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+12:53:33 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+12:53:34 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project HTTP/1.1" 200 7468
+12:53:34 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+12:53:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+12:53:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller HTTP/1.1" 200 1106
+12:53:36 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron HTTP/1.1" 200 1041
+12:53:37 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model HTTP/1.1" 200 3174
+12:53:37 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository HTTP/1.1" 200 1167
+12:53:38 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service HTTP/1.1" 200 4373
+12:53:38 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap HTTP/1.1" 200 1997
+12:53:39 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ui HTTP/1.1" 200 1896
+12:53:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util HTTP/1.1" 200 999
+12:53:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example HTTP/1.1" 200 774
+12:53:41 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project HTTP/1.1" 200 1059
+12:53:42 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller/AttendanceController.java HTTP/1.1" 200 31411
+12:53:42 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ProjectApplication.java HTTP/1.1" 200 1609
+12:53:43 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron/AttendanceCronPM.java HTTP/1.1" 200 4408
+12:53:44 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceRecord.java HTTP/1.1" 200 3130
+12:53:44 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceReportLog.java HTTP/1.1" 200 3121
+12:53:45 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceSoapData.java HTTP/1.1" 200 2896
+12:53:45 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository/AttendanceReportLogRepository.java HTTP/1.1" 200 1642
+12:53:46 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceReportLogService.java HTTP/1.1" 200 2089
+12:53:47 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceService.java HTTP/1.1" 200 7277
+12:53:48 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/EmailService.java HTTP/1.1" 200 3220
+12:53:48 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/WeeklyAttendanceReportService.java HTTP/1.1" 200 20696
+12:53:49 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapClient.java HTTP/1.1" 200 4210
+12:53:49 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapParser.java HTTP/1.1" 200 10894
+12:53:50 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util/UserMapper.java HTTP/1.1" 200 4152
+12:53:51 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project/ProjectApplicationTests.java HTTP/1.1" 200 1384
+12:53:51 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+12:53:52 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+12:53:53 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+12:53:53 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+12:55:25 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:55:25 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:55:25 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+12:55:25 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7E6350>
+12:55:25 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A6DF770> server_hostname='router.huggingface.co' timeout=45.0
+12:55:25 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7CDF10>
+12:55:25 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:55:25 [DEBUG] httpcore.http11: send_request_headers.complete
+12:55:25 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:55:25 [DEBUG] httpcore.http11: send_request_body.complete
+12:55:25 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:55:26 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 07:25:24 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89924195'), (b'x-ratelimit-remaining-tokens-minute', b'1424195'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a1123cef7aa2e5fd-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a1123cef7aa2e5fd-IAD'), (b'inference-id', b'chatcmpl-86240898-2722-4cf6-be12-957feb691539'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=ttSHXb9B87PLwXQ51giwuCTetHuGUIr5A2wHghluofY-1782372323.7532294-1.0.1.1-pwGTtd9NxKggGWaA4TT8JsNzTzKzeBNco.hrcEzUC_YaeFC.EgbHcnafJAM8BAxSdJKA9IoEAB9NPmL_HMDsb3_VH4ErtPtD0A1NXD6KUAaOkoFTQk9ySC8Z0jIp9Zje; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 07:55:24 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159995'), (b'x-ratelimit-remaining-requests-hour', b'89995'), (b'x-ratelimit-remaining-requests-minute', b'1495'), (b'x-ratelimit-remaining-tokens-day', b'2159924195'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 f0b0b757bda5d486a2538debdf4d2396.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'5mJOUUC9Mxx5bxl1EzVCZcwSfgqr9-k6mx4yjuj1eOzKzSCCl8YkRg==')])
+12:55:26 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+12:55:26 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:55:26 [DEBUG] httpcore.http11: receive_response_body.complete
+12:55:26 [DEBUG] httpcore.http11: response_closed.started
+12:55:26 [DEBUG] httpcore.http11: response_closed.complete
+12:55:26 [DEBUG] httpcore.connection: close.started
+12:55:26 [DEBUG] httpcore.connection: close.complete
+12:55:28 [INFO] services.chat_service: Intent=GREETING
+12:55:46 [INFO] services.chat_service: Intent=GENERAL
+12:55:46 [INFO] services.chat_service: Calling remote LLM for message
+12:55:46 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+12:55:46 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+12:55:46 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+12:55:47 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+12:55:47 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7D6610>
+12:55:47 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+12:55:47 [DEBUG] httpcore.http11: send_request_headers.complete
+12:55:47 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+12:55:47 [DEBUG] httpcore.http11: send_request_body.complete
+12:55:47 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+12:56:07 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 07:26:07 GMT'), (b'Content-Length', b'572')])
+12:56:07 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+12:56:07 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+12:56:07 [DEBUG] httpcore.http11: receive_response_body.complete
+12:56:07 [DEBUG] httpcore.http11: response_closed.started
+12:56:07 [DEBUG] httpcore.http11: response_closed.complete
+12:56:07 [DEBUG] httpcore.connection: close.started
+12:56:07 [DEBUG] httpcore.connection: close.complete
+12:56:48 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+12:56:49 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /user HTTP/1.1" 200 None
+12:56:50 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/PoojaG26/essl-Migrated20260625124845 HTTP/1.1" 404 None
+12:56:52 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "POST /user/repos HTTP/1.1" 201 6290
+12:56:52 [DEBUG] git.cmd: Popen(['git', 'remote', 'rm', 'origin'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=False)
+12:56:52 [DEBUG] git.cmd: Popen(['git', 'remote', 'add', '--', 'origin', 'https://*****@github.com/PoojaG26/essl-Migrated20260625124845.git'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=False)
+12:56:52 [DEBUG] git.cmd: Popen(['git', 'status', '--porcelain'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=False)
+12:56:53 [DEBUG] git.cmd: Popen(['git', 'add', '-A'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=False)
+12:56:53 [DEBUG] git.cmd: Popen(['git', 'diff', '--cached', '--name-only'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=False)
+12:56:53 [DEBUG] git.cmd: Popen(['git', 'cat-file', '--batch-check'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=<valid stream>, shell=False, universal_newlines=False)
+12:56:53 [DEBUG] git.cmd: Popen(['git', 'cat-file', '--batch'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=<valid stream>, shell=False, universal_newlines=False)
+12:56:53 [DEBUG] git.cmd: Popen(['git', 'diff', '--numstat', '--no-renames', 'af0abeec7c78318f811c94f29ee4ec2f5f70efa7', '4d6d1ee2c073dc770ee39d075203a1bf8e275029', '--'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=False)
+12:56:53 [DEBUG] git.cmd: Popen(['git', 'diff', '--numstat', '--no-renames', 'af0abeec7c78318f811c94f29ee4ec2f5f70efa7', '4d6d1ee2c073dc770ee39d075203a1bf8e275029', '--'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=False)
+12:56:53 [DEBUG] git.cmd: Popen(['git', 'push', '--porcelain', '--set-upstream', '--force', '--', 'origin', 'HEAD:main'], cwd=C:\Users\ST-POO~1\AppData\Local\Temp\migrations\03ffdf37-7ceb-48db-ad99-9a60d40bf297, stdin=None, shell=False, universal_newlines=True)
+13:11:12 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+13:11:12 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+13:11:13 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+13:11:13 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC25190>
+13:11:13 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEB380> server_hostname='router.huggingface.co' timeout=45.0
+13:11:13 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7E61D0>
+13:11:13 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+13:11:13 [DEBUG] httpcore.http11: send_request_headers.complete
+13:11:13 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+13:11:13 [DEBUG] httpcore.http11: send_request_body.complete
+13:11:13 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+13:11:14 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 07:41:11 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a1125411bddef90b-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a1125411bddef90b-IAD'), (b'inference-id', b'chatcmpl-ad96065c-fe4c-4f8f-8e33-625c3f07f37d'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=MbMPUWQxoiVlkeZNk1B7DYcshX5lB0DhlGaK._zWd1U-1782373271.3166363-1.0.1.1-wLBwGVBeqTIkZ2xVhYRdUBiY.Jx97u_9juVrJOJ_NYSKIvOT3qYe8MOhkFXgRYJAo1N2e8hKBgXJAvj.M2.HaHq0vjMzOeugcc3em29hgKUW7VK8Fky7AljZp8YNrRC3; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 08:11:11 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 942586061fa1c5c92e4d05559e017b84.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'i-R0d6v1tPmeeKonKn2WUSfVjXJyW1Ayhv0x0GwRFUqERaGGeuBauQ==')])
+13:11:14 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+13:11:14 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+13:11:14 [DEBUG] httpcore.http11: receive_response_body.complete
+13:11:14 [DEBUG] httpcore.http11: response_closed.started
+13:11:14 [DEBUG] httpcore.http11: response_closed.complete
+13:11:14 [DEBUG] httpcore.connection: close.started
+13:11:14 [DEBUG] httpcore.connection: close.complete
+13:11:16 [INFO] services.chat_service: Intent=GREETING
+13:11:34 [INFO] services.chat_service: Intent=GENERAL
+13:11:34 [INFO] services.chat_service: Calling remote LLM for message
+13:11:34 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+13:11:34 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+13:11:34 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+13:11:35 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+13:11:35 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A78D0D0>
+13:11:35 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+13:11:35 [DEBUG] httpcore.http11: send_request_headers.complete
+13:11:35 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+13:11:35 [DEBUG] httpcore.http11: send_request_body.complete
+13:11:35 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+13:12:03 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 07:42:03 GMT'), (b'Content-Length', b'593')])
+13:12:03 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+13:12:03 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+13:12:03 [DEBUG] httpcore.http11: receive_response_body.complete
+13:12:03 [DEBUG] httpcore.http11: response_closed.started
+13:12:03 [DEBUG] httpcore.http11: response_closed.complete
+13:12:03 [DEBUG] httpcore.connection: close.started
+13:12:03 [DEBUG] httpcore.connection: close.complete
+13:12:31 [INFO] services.chat_service: Intent=GENERAL
+13:12:31 [INFO] services.chat_service: Calling remote LLM for message
+13:12:31 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+13:12:31 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+13:12:31 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+13:12:33 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+13:12:33 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7C4D10>
+13:12:33 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+13:12:33 [DEBUG] httpcore.http11: send_request_headers.complete
+13:12:33 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+13:12:33 [DEBUG] httpcore.http11: send_request_body.complete
+13:12:33 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+13:12:56 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 07:42:56 GMT'), (b'Content-Length', b'560')])
+13:12:56 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+13:12:56 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+13:12:56 [DEBUG] httpcore.http11: receive_response_body.complete
+13:12:56 [DEBUG] httpcore.http11: response_closed.started
+13:12:56 [DEBUG] httpcore.http11: response_closed.complete
+13:12:56 [DEBUG] httpcore.connection: close.started
+13:12:56 [DEBUG] httpcore.connection: close.complete
+13:14:20 [INFO] services.chat_service: Intent=GENERAL
+13:14:20 [INFO] services.chat_service: Calling remote LLM for message
+13:14:20 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+13:14:20 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+13:14:20 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+13:14:21 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+13:14:21 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC26110>
+13:14:21 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+13:14:21 [DEBUG] httpcore.http11: send_request_headers.complete
+13:14:21 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+13:14:21 [DEBUG] httpcore.http11: send_request_body.complete
+13:14:21 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+13:14:44 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 07:44:44 GMT'), (b'Content-Length', b'594')])
+13:14:44 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+13:14:44 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+13:14:44 [DEBUG] httpcore.http11: receive_response_body.complete
+13:14:44 [DEBUG] httpcore.http11: response_closed.started
+13:14:44 [DEBUG] httpcore.http11: response_closed.complete
+13:14:44 [DEBUG] httpcore.connection: close.started
+13:14:44 [DEBUG] httpcore.connection: close.complete
+13:20:26 [INFO] services.chat_service: Intent=TESTS
+13:20:26 [INFO] services.chat_service: Calling remote LLM for message
+13:20:26 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+13:20:26 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+13:20:26 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+13:20:27 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+13:20:27 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7E4710>
+13:20:27 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+13:20:27 [DEBUG] httpcore.http11: send_request_headers.complete
+13:20:27 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+13:20:27 [DEBUG] httpcore.http11: send_request_body.complete
+13:20:27 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+13:20:53 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 07:50:53 GMT'), (b'Content-Length', b'582')])
+13:20:53 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+13:20:53 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+13:20:53 [DEBUG] httpcore.http11: receive_response_body.complete
+13:20:53 [DEBUG] httpcore.http11: response_closed.started
+13:20:53 [DEBUG] httpcore.http11: response_closed.complete
+13:20:53 [DEBUG] httpcore.connection: close.started
+13:20:53 [DEBUG] httpcore.connection: close.complete
+14:28:41 [INFO] services.chat_service: Intent=GENERAL
+14:32:58 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+14:32:59 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 1220
+14:33:00 [INFO] services.chat_service: Intent=GENERAL
+14:33:09 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+14:33:10 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+14:33:11 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+14:33:11 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+14:33:12 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/pom.xml HTTP/1.1" 200 5850
+14:33:13 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+14:33:13 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+14:33:14 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+14:33:14 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+14:33:15 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+14:33:15 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+14:33:16 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+14:33:17 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+14:33:17 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+14:33:18 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+14:33:18 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+14:33:19 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+14:33:19 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+14:33:20 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+14:33:21 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+14:33:21 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+14:33:22 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+14:33:22 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+14:33:23 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example HTTP/1.1" 200 774
+14:33:24 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+14:33:24 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+14:33:25 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project HTTP/1.1" 200 7468
+14:33:26 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+14:33:26 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+14:33:27 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller HTTP/1.1" 200 1106
+14:33:27 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron HTTP/1.1" 200 1041
+14:33:28 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model HTTP/1.1" 200 3174
+14:33:28 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository HTTP/1.1" 200 1167
+14:33:29 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service HTTP/1.1" 200 4373
+14:33:30 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap HTTP/1.1" 200 1997
+14:33:30 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ui HTTP/1.1" 200 1896
+14:33:31 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util HTTP/1.1" 200 999
+14:33:31 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example HTTP/1.1" 200 774
+14:33:32 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project HTTP/1.1" 200 1059
+14:33:33 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller/AttendanceController.java HTTP/1.1" 200 31411
+14:33:33 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ProjectApplication.java HTTP/1.1" 200 1609
+14:33:34 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron/AttendanceCronPM.java HTTP/1.1" 200 4408
+14:33:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceRecord.java HTTP/1.1" 200 3130
+14:33:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceReportLog.java HTTP/1.1" 200 3121
+14:33:36 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceSoapData.java HTTP/1.1" 200 2896
+14:33:36 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository/AttendanceReportLogRepository.java HTTP/1.1" 200 1642
+14:33:37 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceReportLogService.java HTTP/1.1" 200 2089
+14:33:37 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceService.java HTTP/1.1" 200 7277
+14:33:38 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/EmailService.java HTTP/1.1" 200 3220
+14:33:39 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/WeeklyAttendanceReportService.java HTTP/1.1" 200 20696
+14:33:39 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapClient.java HTTP/1.1" 200 4210
+14:33:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapParser.java HTTP/1.1" 200 10894
+14:33:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util/UserMapper.java HTTP/1.1" 200 4152
+14:33:41 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project/ProjectApplicationTests.java HTTP/1.1" 200 1384
+14:33:41 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+14:33:42 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+14:33:43 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+14:33:43 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+14:33:45 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:33:45 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:33:45 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:33:45 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7AE990>
+14:33:45 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABE9130> server_hostname='router.huggingface.co' timeout=45.0
+14:33:45 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7E7B10>
+14:33:45 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:33:45 [DEBUG] httpcore.http11: send_request_headers.complete
+14:33:45 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:33:45 [DEBUG] httpcore.http11: send_request_body.complete
+14:33:45 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:33:46 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:03:44 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112ccfbacee21cf-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112ccfbacee21cf-IAD'), (b'inference-id', b'chatcmpl-f19dec49-1aee-40f7-8627-a15610da94c4'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=Ipbaf6xqwnbW0bRKmYAU70EXzWNcySldzCzkE_6gQR0-1782378223.9486609-1.0.1.1-F66kCIHdzvjewBC6CX_K_ZWFUcUH3sYt5BpAEqVgj7eVMw.nl76Di4WLdizaNgN4E_SKYfw3X6qQkp.W4DJIA5d6AYBhQYN.sQySegUPS1sqi_NZ4wmwlsTj_wwsr0RJ; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:33:44 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 d2bf6e8429807ec6b44496cc5ab410ae.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'B63qjSfXxKU-b787dZVXHH5ntiiTQUgj8u32A-vmCHwo2lXR_ZddhA==')])
+14:33:46 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:33:46 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:33:46 [DEBUG] httpcore.http11: receive_response_body.complete
+14:33:46 [DEBUG] httpcore.http11: response_closed.started
+14:33:46 [DEBUG] httpcore.http11: response_closed.complete
+14:33:46 [DEBUG] httpcore.connection: close.started
+14:33:46 [DEBUG] httpcore.connection: close.complete
+14:34:00 [INFO] services.chat_service: Intent=GREETING
+14:34:08 [INFO] services.chat_service: Intent=GENERAL
+14:34:08 [INFO] services.chat_service: Calling remote LLM for message
+14:34:08 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+14:34:08 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:34:08 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:34:09 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+14:34:09 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC9AB50>
+14:34:09 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:34:09 [DEBUG] httpcore.http11: send_request_headers.complete
+14:34:09 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:34:09 [DEBUG] httpcore.http11: send_request_body.complete
+14:34:09 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:34:40 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 09:04:40 GMT'), (b'Content-Length', b'535')])
+14:34:40 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+14:34:40 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:34:40 [DEBUG] httpcore.http11: receive_response_body.complete
+14:34:40 [DEBUG] httpcore.http11: response_closed.started
+14:34:40 [DEBUG] httpcore.http11: response_closed.complete
+14:34:40 [DEBUG] httpcore.connection: close.started
+14:34:40 [DEBUG] httpcore.connection: close.complete
+14:35:31 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:35:31 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:35:32 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:35:32 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A79D090>
+14:35:32 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A6DF650> server_hostname='router.huggingface.co' timeout=45.0
+14:35:32 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A543BD0>
+14:35:32 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:35:32 [DEBUG] httpcore.http11: send_request_headers.complete
+14:35:32 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:35:32 [DEBUG] httpcore.http11: send_request_body.complete
+14:35:32 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:35:33 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:05:31 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112cf97ea0cc92c-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112cf97ea0cc92c-IAD'), (b'inference-id', b'chatcmpl-9d68167f-ecfc-4294-98ac-39da793d3a8f'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=IsLgLpTws3XtG6BVU0kURdCAaALON4gHMuCCU8lgyzw-1782378330.863138-1.0.1.1-a5Ira0w1ItsUAqZUZfXXGSV6ame_Yfdzno0cwdokhf2M6qmm_uctqzc69Rg6gEnJzaOAXwTrLDO4GNHXcv3lmSGs3v6T1FHO_GuJdHwf9i6pWqJxR6W0XkrRutv5sJaT; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:35:31 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 a29f9f1ff42721dbcda7f3bae04962a0.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'KC8o-MK1F_4VOWic5FRKlYnGrovTZmYxknplptXsL48tjbGehdkpDg==')])
+14:35:33 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:35:33 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:35:33 [DEBUG] httpcore.http11: receive_response_body.complete
+14:35:33 [DEBUG] httpcore.http11: response_closed.started
+14:35:33 [DEBUG] httpcore.http11: response_closed.complete
+14:35:33 [DEBUG] httpcore.connection: close.started
+14:35:33 [DEBUG] httpcore.connection: close.complete
+14:39:12 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+14:39:13 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+14:39:14 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+14:39:14 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+14:39:15 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/pom.xml HTTP/1.1" 200 5850
+14:39:16 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+14:39:16 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+14:39:17 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+14:39:17 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+14:39:18 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+14:39:18 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+14:39:19 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+14:39:19 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+14:39:20 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+14:39:21 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+14:39:21 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+14:39:22 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+14:39:22 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+14:39:23 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java HTTP/1.1" 200 690
+14:39:23 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src HTTP/1.1" 200 1291
+14:39:24 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com HTTP/1.1" 200 734
+14:39:25 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main HTTP/1.1" 200 1371
+14:39:25 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test HTTP/1.1" 200 671
+14:39:26 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example HTTP/1.1" 200 774
+14:39:26 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources HTTP/1.1" 200 1659
+14:39:27 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java HTTP/1.1" 200 690
+14:39:27 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project HTTP/1.1" 200 7468
+14:39:28 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/resources/static HTTP/1.1" 200 2658
+14:39:29 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com HTTP/1.1" 200 734
+14:39:29 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller HTTP/1.1" 200 1106
+14:39:30 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron HTTP/1.1" 200 1041
+14:39:30 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model HTTP/1.1" 200 3174
+14:39:31 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository HTTP/1.1" 200 1167
+14:39:32 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service HTTP/1.1" 200 4373
+14:39:32 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap HTTP/1.1" 200 1997
+14:39:33 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ui HTTP/1.1" 200 1896
+14:39:33 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util HTTP/1.1" 200 999
+14:39:34 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example HTTP/1.1" 200 774
+14:39:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project HTTP/1.1" 200 1059
+14:39:35 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/controller/AttendanceController.java HTTP/1.1" 200 31411
+14:39:36 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/ProjectApplication.java HTTP/1.1" 200 1609
+14:39:36 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/cron/AttendanceCronPM.java HTTP/1.1" 200 4408
+14:39:37 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceRecord.java HTTP/1.1" 200 3130
+14:39:38 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceReportLog.java HTTP/1.1" 200 3121
+14:39:38 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/model/AttendanceSoapData.java HTTP/1.1" 200 2896
+14:39:39 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/repository/AttendanceReportLogRepository.java HTTP/1.1" 200 1642
+14:39:39 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceReportLogService.java HTTP/1.1" 200 2089
+14:39:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/AttendanceService.java HTTP/1.1" 200 7277
+14:39:40 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/EmailService.java HTTP/1.1" 200 3220
+14:39:41 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/service/WeeklyAttendanceReportService.java HTTP/1.1" 200 20696
+14:39:42 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapClient.java HTTP/1.1" 200 4210
+14:39:42 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/soap/SoapParser.java HTTP/1.1" 200 10894
+14:39:43 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/main/java/com/example/project/util/UserMapper.java HTTP/1.1" 200 4152
+14:39:43 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/src/test/java/com/example/project/ProjectApplicationTests.java HTTP/1.1" 200 1384
+14:39:43 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api.github.com:443
+14:39:44 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /rate_limit HTTP/1.1" 200 None
+14:39:45 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl HTTP/1.1" 200 None
+14:39:46 [DEBUG] urllib3.connectionpool: https://api.github.com:443 "GET /repos/Rathinam288/essl/contents/ HTTP/1.1" 200 11487
+14:39:47 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:39:47 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:39:48 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:39:48 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC995D0>
+14:39:48 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEBBF0> server_hostname='router.huggingface.co' timeout=45.0
+14:39:48 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7CE090>
+14:39:48 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:39:48 [DEBUG] httpcore.http11: send_request_headers.complete
+14:39:48 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:39:48 [DEBUG] httpcore.http11: send_request_body.complete
+14:39:48 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:39:48 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:09:46 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112d5d4df0cd69c-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112d5d4df0cd69c-IAD'), (b'inference-id', b'chatcmpl-4f819b4b-b074-42b5-8906-2e0a7132002e'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=7Pvs.XPMafG7aHvGwG1a7jRMT1UZ7f3GEi3bBM9aMsI-1782378586.37696-1.0.1.1-OfMFQ0A07wJ9clovFdu_z686i1_QzHZKM.eIvhbByFgKbCtoS03u4ao8o9aHqdM9zmpIC3iFINzEy6u8aKotTaZfSDdB_X6FNjjEui2MWmC6ptxDF_3MmXNmuv4Q1nik; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:39:46 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 a29f9f1ff42721dbcda7f3bae04962a0.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'YFrMYNIVfMAqAgFNmHDZmlO_lcVCI5v7QscXPYfmf3hE1FuuVbCTcw==')])
+14:39:48 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:39:48 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:39:48 [DEBUG] httpcore.http11: receive_response_body.complete
+14:39:48 [DEBUG] httpcore.http11: response_closed.started
+14:39:48 [DEBUG] httpcore.http11: response_closed.complete
+14:39:48 [DEBUG] httpcore.connection: close.started
+14:39:48 [DEBUG] httpcore.connection: close.complete
+14:40:40 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:40:40 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:40:41 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:40:41 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A79EC90>
+14:40:41 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEB410> server_hostname='router.huggingface.co' timeout=45.0
+14:40:41 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A61E210>
+14:40:41 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:40:41 [DEBUG] httpcore.http11: send_request_headers.complete
+14:40:41 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:40:41 [DEBUG] httpcore.http11: send_request_body.complete
+14:40:41 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:40:42 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:10:39 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112d720dffa2899-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112d720dffa2899-IAD'), (b'inference-id', b'chatcmpl-e6d4e65b-dd9d-4ea9-8a1a-b80f5fc13e3e'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=WJ0_oLq5bGvmQU1ZIgXrnfF03PWws95Q4XWwkkY.p5I-1782378639.5001795-1.0.1.1-whRFiQTk6pMzdGUiABrQGPgTeUrozdC0Q3wMLhhwEgN2CRVm_CdSvIoQirHV94_vpThOauw1jjvZcG.Up6xeLCaIGq_ei3fFKmisPl5mZWOjj2_JFdgP72O8WlaIOvWV; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:40:39 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 696fc22c99e0ee52186289b5c1a1a3e4.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'VAwPN5smSPvpZcyRfDNT7gsMvenNRNXxH_0ipq-W8n5dZ3jCumyhIg==')])
+14:40:42 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:40:42 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:40:42 [DEBUG] httpcore.http11: receive_response_body.complete
+14:40:42 [DEBUG] httpcore.http11: response_closed.started
+14:40:42 [DEBUG] httpcore.http11: response_closed.complete
+14:40:42 [DEBUG] httpcore.connection: close.started
+14:40:42 [DEBUG] httpcore.connection: close.complete
+14:40:45 [INFO] services.chat_service: Intent=GENERAL
+14:40:45 [INFO] services.chat_service: Calling remote LLM for message
+14:40:45 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+14:40:45 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:40:45 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:40:46 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+14:40:46 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A775310>
+14:40:46 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:40:46 [DEBUG] httpcore.http11: send_request_headers.complete
+14:40:46 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:40:46 [DEBUG] httpcore.http11: send_request_body.complete
+14:40:46 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:40:47 [INFO] services.chat_service: Intent=GREETING
+14:41:05 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 09:11:05 GMT'), (b'Content-Length', b'397')])
+14:41:05 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+14:41:05 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:41:05 [DEBUG] httpcore.http11: receive_response_body.complete
+14:41:05 [DEBUG] httpcore.http11: response_closed.started
+14:41:05 [DEBUG] httpcore.http11: response_closed.complete
+14:41:05 [DEBUG] httpcore.connection: close.started
+14:41:05 [DEBUG] httpcore.connection: close.complete
+14:42:48 [INFO] services.chat_service: Intent=GENERAL
+14:42:48 [INFO] services.chat_service: Calling remote LLM for message
+14:42:48 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+14:42:48 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:42:48 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:42:49 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+14:42:49 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7CCA10>
+14:42:49 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:42:49 [DEBUG] httpcore.http11: send_request_headers.complete
+14:42:49 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:42:49 [DEBUG] httpcore.http11: send_request_body.complete
+14:42:49 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:43:11 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 09:13:11 GMT'), (b'Content-Length', b'584')])
+14:43:11 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+14:43:11 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:43:11 [DEBUG] httpcore.http11: receive_response_body.complete
+14:43:11 [DEBUG] httpcore.http11: response_closed.started
+14:43:11 [DEBUG] httpcore.http11: response_closed.complete
+14:43:11 [DEBUG] httpcore.connection: close.started
+14:43:11 [DEBUG] httpcore.connection: close.complete
+14:47:55 [INFO] services.chat_service: Intent=GREETING
+14:48:50 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:48:50 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:48:51 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:48:51 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:48:51 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:48:52 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:48:52 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC9A290>
+14:48:52 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABE97F0> server_hostname='router.huggingface.co' timeout=45.0
+14:48:52 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7E7C10>
+14:48:52 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEBEC0> server_hostname='router.huggingface.co' timeout=45.0
+14:48:52 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7F0790>
+14:48:52 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:48:52 [DEBUG] httpcore.http11: send_request_headers.complete
+14:48:52 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:48:52 [DEBUG] httpcore.http11: send_request_body.complete
+14:48:52 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:48:52 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A80ADD0>
+14:48:52 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:48:52 [DEBUG] httpcore.http11: send_request_headers.complete
+14:48:52 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:48:52 [DEBUG] httpcore.http11: send_request_body.complete
+14:48:52 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:48:53 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:18:50 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89967750'), (b'x-ratelimit-remaining-tokens-minute', b'1467750'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e31dbd17c991-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e31dbd17c991-IAD'), (b'inference-id', b'chatcmpl-5d941879-8255-403f-a45c-a3916aa87fc3'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=o4Ts1sy6vH1L6ApQRVA3VvXc9rzRGroqWmrBiXdfKVo-1782379130.5133898-1.0.1.1-78yFqNIDjrptfvs2e1DBu_Xy55BzjllMieS.04UrI4K_CsxrL644UZlLMmRYFPpPVW9HqZhaMxqFYk9ZKeXYG3PIuJMvDc5zNSky4LdQeVKQkCDI_Lvm161DFbhVIyX6; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:48:50 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159995'), (b'x-ratelimit-remaining-requests-hour', b'89995'), (b'x-ratelimit-remaining-requests-minute', b'1495'), (b'x-ratelimit-remaining-tokens-day', b'2159967750'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 4774b00e2d656478bcba37c033ae541c.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'uVqwlPO4R81utEiQ4yKZnTV6ocynS1W-gQXRUxKqU0oIsVZanrEhpg==')])
+14:48:53 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:48:53 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:48:53 [DEBUG] httpcore.http11: receive_response_body.complete
+14:48:53 [DEBUG] httpcore.http11: response_closed.started
+14:48:53 [DEBUG] httpcore.http11: response_closed.complete
+14:48:53 [DEBUG] httpcore.connection: close.started
+14:48:53 [DEBUG] httpcore.connection: close.complete
+14:48:53 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:18:51 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89908878'), (b'x-ratelimit-remaining-tokens-minute', b'1408878'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e31dc994eb77-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e31dc994eb77-IAD'), (b'inference-id', b'chatcmpl-db6a450c-acf5-4031-8eac-6e8377c0700b'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=65vpgEceDRCUkhT.okRW3rQusQe7KnIAoyiaZqc0ero-1782379130.528425-1.0.1.1-qaF9nc_OEqAXfU4D4jk5h_KzUDUOvRomgGQ9CFLm_4mng.eZ3qMlpNd3MvHFgdmA1YBPNpSPYLStu93pD4kMh8DN1UqSBgeZ2oUhaU0BxldKg.npdXzNg91AsMNna9jk; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:48:51 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159992'), (b'x-ratelimit-remaining-requests-hour', b'89992'), (b'x-ratelimit-remaining-requests-minute', b'1492'), (b'x-ratelimit-remaining-tokens-day', b'2159908878'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 7ff8b70f0200b5dcc721acba3982ed1e.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'p09dGgRZWuwbTdM66oB0BFzABhEoRoZeljgFfDArjFkxYKcXJbUTww==')])
+14:48:53 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:48:53 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:48:53 [DEBUG] httpcore.http11: receive_response_body.complete
+14:48:53 [DEBUG] httpcore.http11: response_closed.started
+14:48:53 [DEBUG] httpcore.http11: response_closed.complete
+14:48:53 [DEBUG] httpcore.connection: close.started
+14:48:53 [DEBUG] httpcore.connection: close.complete
+14:49:47 [INFO] services.chat_service: Intent=GENERAL
+14:49:47 [INFO] services.chat_service: Calling remote LLM for message
+14:49:47 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+14:49:47 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:49:47 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:49:47 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+14:49:47 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC27990>
+14:49:47 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:49:47 [DEBUG] httpcore.http11: send_request_headers.complete
+14:49:47 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:49:47 [DEBUG] httpcore.http11: send_request_body.complete
+14:49:47 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:50:17 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 09:20:17 GMT'), (b'Content-Length', b'614')])
+14:50:17 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+14:50:17 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:50:17 [DEBUG] httpcore.http11: receive_response_body.complete
+14:50:17 [DEBUG] httpcore.http11: response_closed.started
+14:50:17 [DEBUG] httpcore.http11: response_closed.complete
+14:50:17 [DEBUG] httpcore.connection: close.started
+14:50:17 [DEBUG] httpcore.connection: close.complete
+14:50:31 [INFO] services.chat_service: Intent=TESTS
+14:50:31 [INFO] services.chat_service: Calling remote LLM for message
+14:50:31 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+14:50:31 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:50:31 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:50:32 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+14:50:32 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC6E850>
+14:50:32 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:50:32 [DEBUG] httpcore.http11: send_request_headers.complete
+14:50:32 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:50:32 [DEBUG] httpcore.http11: send_request_body.complete
+14:50:32 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:50:49 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Date', b'Thu, 25 Jun 2026 09:20:49 GMT'), (b'Content-Length', b'586')])
+14:50:49 [INFO] httpx: HTTP Request: POST http://127.0.0.1:11434/v1/chat/completions "HTTP/1.1 200 OK"
+14:50:49 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:50:49 [DEBUG] httpcore.http11: receive_response_body.complete
+14:50:49 [DEBUG] httpcore.http11: response_closed.started
+14:50:49 [DEBUG] httpcore.http11: response_closed.complete
+14:50:49 [DEBUG] httpcore.connection: close.started
+14:50:49 [DEBUG] httpcore.connection: close.complete
+14:51:37 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:51:37 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:51:38 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:51:38 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:51:38 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:51:38 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:51:38 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7E6C50>
+14:51:38 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEBE30> server_hostname='router.huggingface.co' timeout=45.0
+14:51:38 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC9B090>
+14:51:38 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEB920> server_hostname='router.huggingface.co' timeout=45.0
+14:51:38 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7C4BD0>
+14:51:38 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:51:38 [DEBUG] httpcore.http11: send_request_headers.complete
+14:51:38 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:51:38 [DEBUG] httpcore.http11: send_request_body.complete
+14:51:38 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:51:38 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A6DB650>
+14:51:38 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:51:38 [DEBUG] httpcore.http11: send_request_headers.complete
+14:51:38 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:51:38 [DEBUG] httpcore.http11: send_request_body.complete
+14:51:38 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:51:39 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:21:37 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89932895'), (b'x-ratelimit-remaining-tokens-minute', b'1432895'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e72d5caf3b23-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e72d5caf3b23-IAD'), (b'inference-id', b'chatcmpl-5b1a604d-fc78-47e5-afed-40dc8991488b'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=WuXl.wvLz4gqFz64dw1..R6Gjkz5VxQhMJjCLgeGF3g-1782379296.8572507-1.0.1.1-GjraZDnGM2vm8cAL4It2zeq_9GjLVZ0Aydl69YVjFPRfA1cXW8SRcCiLsm.Traz2l65Ky98ys6VvgHrqsiWmHAEuIu1cBX_Kbd3eURWPCklqMQXSxz56.gK7vcS4x08_; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:51:37 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159997'), (b'x-ratelimit-remaining-requests-hour', b'89997'), (b'x-ratelimit-remaining-requests-minute', b'1497'), (b'x-ratelimit-remaining-tokens-day', b'2159932895'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 45fb905d83f639530aa98885e1a3126a.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'zih6H1yIUNduB9u7i10AScgGR6YRUzFEUf5xaz7DTWPuiky-PMYEiw==')])
+14:51:39 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:51:39 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:51:39 [DEBUG] httpcore.http11: receive_response_body.complete
+14:51:39 [DEBUG] httpcore.http11: response_closed.started
+14:51:39 [DEBUG] httpcore.http11: response_closed.complete
+14:51:39 [DEBUG] httpcore.connection: close.started
+14:51:39 [DEBUG] httpcore.connection: close.complete
+14:51:39 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:21:37 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89949902'), (b'x-ratelimit-remaining-tokens-minute', b'1449902'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e72d4d897af9-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e72d4d897af9-IAD'), (b'inference-id', b'chatcmpl-6d43f52d-3e60-4c18-a43c-4d293a509725'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=gQ463Cu5nK4SAdyv5NKlGjP38WL4589PLCsDl5xuEKw-1782379296.8460042-1.0.1.1-8xk5wbuwTCzheOfxlNer4KaaI3dtUwnLt54n9FgioScNWs5HYqPh6xbSgl7OeLXWgpTArAfd23OsL.YAZWPT4PjrOr8Dr0cd8tXzpMXDEI9OmHzMYh.XGvIRIGgvYOWf; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:51:37 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159998'), (b'x-ratelimit-remaining-requests-hour', b'89998'), (b'x-ratelimit-remaining-requests-minute', b'1498'), (b'x-ratelimit-remaining-tokens-day', b'2159949902'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 d2bf6e8429807ec6b44496cc5ab410ae.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'mMofIoQmXoBvO-yeyjVIhWvUzevgNkWP0OzTGpqhAKitsvtSiHuCvA==')])
+14:51:39 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:51:39 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:51:39 [DEBUG] httpcore.http11: receive_response_body.complete
+14:51:39 [DEBUG] httpcore.http11: response_closed.started
+14:51:39 [DEBUG] httpcore.http11: response_closed.complete
+14:51:39 [DEBUG] httpcore.connection: close.started
+14:51:39 [DEBUG] httpcore.connection: close.complete
+14:51:52 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:51:52 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:51:53 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:51:53 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:51:53 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:51:53 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:51:53 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A820910>
+14:51:53 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEB890> server_hostname='router.huggingface.co' timeout=45.0
+14:51:53 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A7F1710>
+14:51:53 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A6DEB10> server_hostname='router.huggingface.co' timeout=45.0
+14:51:53 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A823A10>
+14:51:53 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:51:53 [DEBUG] httpcore.http11: send_request_headers.complete
+14:51:53 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:51:53 [DEBUG] httpcore.http11: send_request_body.complete
+14:51:53 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:51:54 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A79D310>
+14:51:54 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:51:54 [DEBUG] httpcore.http11: send_request_headers.complete
+14:51:54 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:51:54 [DEBUG] httpcore.http11: send_request_body.complete
+14:51:54 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:51:54 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:21:52 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89905283'), (b'x-ratelimit-remaining-tokens-minute', b'1405283'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e78baae0f284-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e78baae0f284-IAD'), (b'inference-id', b'chatcmpl-74383d28-35fa-48a3-9196-7a8c94aa5a50'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=jsBErtr3PTJGZoFfVOwmxwHSxVtEZij_0D5bWPE2lnQ-1782379311.9456632-1.0.1.1-vg1q242C6qATlVEml.iPLWXJ522zbcDaXa_dWJWhtG2XyFxNnt_sEuEf.HQQbFgsBJG54.R71lG0xayGRmwwRUIY82UGiQB3D8vPD_dDOhzD6TmLywS5ubvJnf4rfyL5; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:51:52 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159991'), (b'x-ratelimit-remaining-requests-hour', b'89991'), (b'x-ratelimit-remaining-requests-minute', b'1491'), (b'x-ratelimit-remaining-tokens-day', b'2159905283'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 45fb905d83f639530aa98885e1a3126a.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'NdTrRSLDVxYkM6aizRoXIVQjic3b9SdwRAX97fLIl76nVpO0bZf4SQ==')])
+14:51:54 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:51:54 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:51:54 [DEBUG] httpcore.http11: receive_response_body.complete
+14:51:54 [DEBUG] httpcore.http11: response_closed.started
+14:51:54 [DEBUG] httpcore.http11: response_closed.complete
+14:51:54 [DEBUG] httpcore.connection: close.started
+14:51:54 [DEBUG] httpcore.connection: close.complete
+14:51:54 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:21:52 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89888276'), (b'x-ratelimit-remaining-tokens-minute', b'1388276'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e78bba578982-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e78bba578982-IAD'), (b'inference-id', b'chatcmpl-a485a842-e0cf-4bf6-9c31-04c75f2885a5'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=wCWr5TZU1BqPI1rlMGitmKnEHnR0DLmZX73YVZ9SbwE-1782379311.9530594-1.0.1.1-tyNUzBzU8rN.4ciMAKit3a4ToS04ZJMuncLWn0Ra.JJxXi.NBf6YXzyWE3sPh.owN1q16FR240dUmxB5CoPi_3OGnPqFIW.Z8pFoMuCnVwFxvH_oYO.GT.lUHjcYsDMW; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:51:52 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159990'), (b'x-ratelimit-remaining-requests-hour', b'89990'), (b'x-ratelimit-remaining-requests-minute', b'1490'), (b'x-ratelimit-remaining-tokens-day', b'2159888276'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 5c22f10a32e5d064bbf36cb39af79a98.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'YAGl8hFOg8uoRlGKvlq3r_SAz0LZhKJo5aRe3xhn506VuGG_v9O5tQ==')])
+14:51:54 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:51:54 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:51:54 [DEBUG] httpcore.http11: receive_response_body.complete
+14:51:54 [DEBUG] httpcore.http11: response_closed.started
+14:51:54 [DEBUG] httpcore.http11: response_closed.complete
+14:51:54 [DEBUG] httpcore.connection: close.started
+14:51:54 [DEBUG] httpcore.connection: close.complete
+14:52:06 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:52:06 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:52:07 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:52:07 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:52:07 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:52:08 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:52:08 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC99950>
+14:52:08 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABE92E0> server_hostname='router.huggingface.co' timeout=45.0
+14:52:08 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A78EE50>
+14:52:08 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312A6DEB10> server_hostname='router.huggingface.co' timeout=45.0
+14:52:08 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A79C9D0>
+14:52:08 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:52:08 [DEBUG] httpcore.http11: send_request_headers.complete
+14:52:08 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:52:08 [DEBUG] httpcore.http11: send_request_body.complete
+14:52:08 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:52:08 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A78CE10>
+14:52:08 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:52:08 [DEBUG] httpcore.http11: send_request_headers.complete
+14:52:08 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:52:08 [DEBUG] httpcore.http11: send_request_body.complete
+14:52:08 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:52:08 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:22:06 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89919207'), (b'x-ratelimit-remaining-tokens-minute', b'1419207'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e7e50868489c-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e7e50868489c-IAD'), (b'inference-id', b'chatcmpl-12abe1c9-d28f-49e1-a488-65ce605f8193'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=7KqmIm8_sGFy__g7NCq5ENve2IdirFKufbF1IsgZaDM-1782379326.2511446-1.0.1.1-PPMwvzLatUgNwxGFhYSBUj92B7_lOXxR2WI7P8jQ121O10.qoQqhjGnYZ17MjOTXPTQskmGJ5ZwW.HV15Soee9CA006AER4Ei89Iu7Nr68TNRsyKyo0vW7FGLAOgYhko; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:52:06 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159919207'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 457b36267487e906b58f06d150a4aa82.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'_opeouLF2V5DiIMb78OcFYpnk21qCoAyyUY7ULRNdKOSh4CPNDNbDA==')])
+14:52:08 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:52:08 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:52:08 [DEBUG] httpcore.http11: receive_response_body.complete
+14:52:08 [DEBUG] httpcore.http11: response_closed.started
+14:52:08 [DEBUG] httpcore.http11: response_closed.complete
+14:52:08 [DEBUG] httpcore.connection: close.started
+14:52:08 [DEBUG] httpcore.connection: close.complete
+14:52:09 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:22:06 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89902200'), (b'x-ratelimit-remaining-tokens-minute', b'1402200'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e7e51fecc56b-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e7e51fecc56b-IAD'), (b'inference-id', b'chatcmpl-2369edad-1038-48bb-859b-50069e741918'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=uxw4_3O0KoI_9eFP8F4RkCstWfMdL77GSQ6VLuteuaw-1782379326.2578347-1.0.1.1-83ZyyDO0LiIiI48VyzYsj2QbXemLyHht3fS10wepLDnC1xKFxOsXWLYF3936OtUOnizIxPUj.IvFuaOnj3rlpGJS8Gie69Rq5C1GNTz4rIWfdeAYiVRtZgKXN5UbQl9f; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:52:06 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159998'), (b'x-ratelimit-remaining-requests-hour', b'89998'), (b'x-ratelimit-remaining-requests-minute', b'1498'), (b'x-ratelimit-remaining-tokens-day', b'2159902200'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 7ff8b70f0200b5dcc721acba3982ed1e.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'gG2Je3zpNznezZTjthXe0rwi-0vKnEKDiiNlSNo4uvJQ8W74RfKiXw==')])
+14:52:09 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:52:09 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:52:09 [DEBUG] httpcore.http11: receive_response_body.complete
+14:52:09 [DEBUG] httpcore.http11: response_closed.started
+14:52:09 [DEBUG] httpcore.http11: response_closed.complete
+14:52:09 [DEBUG] httpcore.connection: close.started
+14:52:09 [DEBUG] httpcore.connection: close.complete
+14:52:14 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:52:14 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:52:15 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:52:15 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:52:15 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:52:16 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:52:16 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC735D0>
+14:52:16 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEBEC0> server_hostname='router.huggingface.co' timeout=45.0
+14:52:16 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC33410>
+14:52:16 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEABA0> server_hostname='router.huggingface.co' timeout=45.0
+14:52:16 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC6EC50>
+14:52:16 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.http11: send_request_headers.complete
+14:52:16 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A78EE50>
+14:52:16 [DEBUG] httpcore.http11: send_request_body.complete
+14:52:16 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.http11: send_request_headers.complete
+14:52:16 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.http11: send_request_body.complete
+14:52:16 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:22:14 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89951121'), (b'x-ratelimit-remaining-tokens-minute', b'1451121'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e815ab82d6d1-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e815ab82d6d1-IAD'), (b'inference-id', b'chatcmpl-80171995-6a6a-491f-9e07-ab710db507bb'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=ds4sJYNT3_gbBHYkj71zn79Wkrof_EiSSIPwQ9KgAfQ-1782379334.0267844-1.0.1.1-6qyC0VlOgU3Dj4CjAxRdfiaqqvAvPw9nxGNWTRq64JWZFwWkGYYTEKypYUgdpzI8guVjJgRQig.VmGMMWCltsws_qSJSs6OnBHdUqwEUppBrKjpq1BHKiIpigf5hTijC; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:52:14 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159995'), (b'x-ratelimit-remaining-requests-hour', b'89995'), (b'x-ratelimit-remaining-requests-minute', b'1495'), (b'x-ratelimit-remaining-tokens-day', b'2159951121'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 e062e15dc382654089d5ed4efa058fe4.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'mPrKxTc4ba_M_-uUhcBDCplPnnTEcqx0qI3alIbxNW6wuTpdNR0bJw==')])
+14:52:16 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:52:16 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.http11: receive_response_body.complete
+14:52:16 [DEBUG] httpcore.http11: response_closed.started
+14:52:16 [DEBUG] httpcore.http11: response_closed.complete
+14:52:16 [DEBUG] httpcore.connection: close.started
+14:52:16 [DEBUG] httpcore.connection: close.complete
+14:52:16 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:22:14 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89934113'), (b'x-ratelimit-remaining-tokens-minute', b'1434113'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112e815ca7a2952-IAD'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112e815ca7a2952-IAD'), (b'inference-id', b'chatcmpl-7f627f0a-cc3f-40cd-8353-71d417af79a7'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=QhR3k6aXWNGs_ad20WesqdzbssqdRR4a8Ncdo_CE1a0-1782379334.0463922-1.0.1.1-ROXyHWCzYe7i6OBiDWj4ah3bIlnO76I8O86O.pJZnyo96kZis0NieYUYCNRmJKES0fzrFbQPfTb0rRoQn98w3JKQ55e9IJqPMCPSD_R.cbjz0llV_FR0BFqwQSmyecN4; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:52:14 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159994'), (b'x-ratelimit-remaining-requests-hour', b'89994'), (b'x-ratelimit-remaining-requests-minute', b'1494'), (b'x-ratelimit-remaining-tokens-day', b'2159934113'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 45fb905d83f639530aa98885e1a3126a.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'fE06Ek6lWAdEriAn9cu_kAC3blh81gJUWOd4hzLwO6_1mm9Nlb48qg==')])
+14:52:16 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:52:16 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:52:16 [DEBUG] httpcore.http11: receive_response_body.complete
+14:52:16 [DEBUG] httpcore.http11: response_closed.started
+14:52:16 [DEBUG] httpcore.http11: response_closed.complete
+14:52:16 [DEBUG] httpcore.connection: close.started
+14:52:16 [DEBUG] httpcore.connection: close.complete
+14:56:36 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+14:56:36 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+14:56:37 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=45.0 socket_options=None
+14:56:37 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312A3D5850>
+14:56:37 [DEBUG] httpcore.connection: start_tls.started ssl_context=<ssl.SSLContext object at 0x000002312ABEA720> server_hostname='router.huggingface.co' timeout=45.0
+14:56:37 [DEBUG] httpcore.connection: start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002312AC9A5D0>
+14:56:37 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+14:56:37 [DEBUG] httpcore.http11: send_request_headers.complete
+14:56:37 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+14:56:37 [DEBUG] httpcore.http11: send_request_body.complete
+14:56:37 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+14:56:37 [DEBUG] httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Date', b'Thu, 25 Jun 2026 09:26:35 GMT'), (b'x-ratelimit-remaining-tokens-hour', b'89982993'), (b'x-ratelimit-remaining-tokens-minute', b'1482993'), (b'X-Powered-By', b'huggingface-moon'), (b'x-request-id', b'a112ee767c80e5e7-CMH'), (b'cross-origin-opener-policy', b'same-origin'), (b'referrer-policy', b'strict-origin-when-cross-origin'), (b'Vary', b'Origin'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Expose-Headers', b'X-Repo-Commit,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash'), (b'X-Robots-Tag', b'none'), (b'x-inference-provider', b'cerebras'), (b'cf-cache-status', b'DYNAMIC'), (b'cf-ray', b'a112ee767c80e5e7-IAD'), (b'inference-id', b'chatcmpl-13f90637-a37d-4f1a-a411-0014c2f5ffad'), (b'server', b'cloudflare'), (b'set-cookie', b'__cf_bm=4Gwf3H0ka8QXyUHzenLpZohTwVQuePmehMzaQP.1cbc-1782379595.279843-1.0.1.1-YufGEdWrGvNpzOAWSAUaITBsqUiynglbq.ONlv931ziQieHcEtXgpHHq0_n5iOGhb1MxC2EOHW1ULBlBNjH014.Xp82WdwMLjH1pAhmgr_zY_2nrnz5ieNLCAf1GwIRI; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.cerebras.ai; Expires=Thu, 25 Jun 2026 09:56:35 GMT'), (b'strict-transport-security', b'max-age=15552000; includeSubDomains; preload'), (b'x-content-type-options', b'nosniff'), (b'x-ratelimit-limit-requests-day', b'2160000'), (b'x-ratelimit-limit-requests-hour', b'90000'), (b'x-ratelimit-limit-requests-minute', b'1500'), (b'x-ratelimit-limit-tokens-day', b'2160000000'), (b'x-ratelimit-limit-tokens-hour', b'90000000'), (b'x-ratelimit-limit-tokens-minute', b'1500000'), (b'x-ratelimit-remaining-requests-day', b'2159999'), (b'x-ratelimit-remaining-requests-hour', b'89999'), (b'x-ratelimit-remaining-requests-minute', b'1499'), (b'x-ratelimit-remaining-tokens-day', b'2159982993'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 b45f798736564f5ccd7e5125e950d572.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'MAA51-P3'), (b'X-Amz-Cf-Id', b'7le8QmGzxHpu5iqOvlgwLk61hQE4Ztv8v0nyl5E6OJr0jqYN7cblyg==')])
+14:56:37 [INFO] httpx: HTTP Request: POST https://router.huggingface.co/v1/chat/completions "HTTP/1.1 200 OK"
+14:56:37 [DEBUG] httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+14:56:37 [DEBUG] httpcore.http11: receive_response_body.complete
+14:56:37 [DEBUG] httpcore.http11: response_closed.started
+14:56:37 [DEBUG] httpcore.http11: response_closed.complete
+14:56:37 [DEBUG] httpcore.connection: close.started
+14:56:37 [DEBUG] httpcore.connection: close.complete

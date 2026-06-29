@@ -1,0 +1,50 @@
+10:52:40 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+10:52:40 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+10:52:41 [DEBUG] asyncio: Using proactor: IocpProactor
+INFO:     Started server process [25160]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+10:52:43 [INFO] services.chat_service: Intent=GENERAL
+10:52:43 [INFO] services.chat_service: Calling remote LLM for message
+10:52:43 [INFO] services.chat_service: Using provider: openai (Grok-compatible)
+10:52:43 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+10:52:43 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+10:52:43 [DEBUG] httpcore.connection: connect_tcp.started host='api.grok.ai' port=443 local_address=None timeout=30.0 socket_options=None
+10:52:43 [DEBUG] httpcore.connection: connect_tcp.failed exception=ConnectError(OSError('All connection attempts failed'))
+10:52:43 [WARNING] services.chat_service: Initial provider request failed: All connection attempts failed
+10:52:43 [WARNING] services.chat_service: Retrying provider request with verify=False and Host header=api.grok.ai
+10:52:43 [DEBUG] httpx: load_ssl_context verify=False cert=None trust_env=True http2=False
+10:52:43 [DEBUG] httpcore.connection: connect_tcp.started host='api.grok.ai' port=443 local_address=None timeout=30.0 socket_options=None
+10:52:43 [DEBUG] httpcore.connection: connect_tcp.failed exception=ConnectError(OSError('All connection attempts failed'))
+10:52:43 [WARNING] services.chat_service: Grok-compatible call failed: Provider connection error (retry failed): All connection attempts failed. Network/SSL error when contacting the LLM provider. Check GROK_API_BASE, network/proxy, and ensure the host is reachable. If you are behind a corporate proxy or using a private CA, set HTTP(S)_PROXY or SSL_CERT_FILE accordingly.
+10:52:43 [INFO] services.chat_service: Using provider: auto (try Grok -> HF -> Ollama)
+10:52:43 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+10:52:43 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+10:52:44 [DEBUG] httpcore.connection: connect_tcp.started host='api.grok.ai' port=443 local_address=None timeout=30.0 socket_options=None
+10:52:44 [DEBUG] httpcore.connection: connect_tcp.failed exception=ConnectError(OSError('All connection attempts failed'))
+10:52:44 [WARNING] services.chat_service: Initial provider request failed: All connection attempts failed
+10:52:44 [WARNING] services.chat_service: Retrying provider request with verify=False and Host header=api.grok.ai
+10:52:44 [DEBUG] httpx: load_ssl_context verify=False cert=None trust_env=True http2=False
+10:52:44 [DEBUG] httpcore.connection: connect_tcp.started host='api.grok.ai' port=443 local_address=None timeout=30.0 socket_options=None
+10:52:44 [DEBUG] httpcore.connection: connect_tcp.failed exception=ConnectError(OSError('All connection attempts failed'))
+10:52:44 [WARNING] services.chat_service: Grok call failed: Provider connection error (retry failed): All connection attempts failed. Network/SSL error when contacting the LLM provider. Check GROK_API_BASE, network/proxy, and ensure the host is reachable. If you are behind a corporate proxy or using a private CA, set HTTP(S)_PROXY or SSL_CERT_FILE accordingly.
+10:52:44 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+10:52:44 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+10:52:45 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=30.0 socket_options=None
+10:52:45 [DEBUG] httpcore.connection: connect_tcp.failed exception=ConnectError(OSError('All connection attempts failed'))
+10:52:45 [WARNING] services.chat_service: Hugging Face call also failed: All connection attempts failed
+10:52:45 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+10:52:45 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+10:52:46 [DEBUG] httpcore.connection: connect_tcp.started host='router.huggingface.co' port=443 local_address=None timeout=30.0 socket_options=None
+10:52:46 [DEBUG] httpcore.connection: connect_tcp.failed exception=ConnectError(OSError('All connection attempts failed'))
+10:52:46 [WARNING] services.chat_service: Hugging Face call failed: All connection attempts failed
+10:52:46 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+10:52:46 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+10:52:46 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+10:52:46 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001D594B3D090>
+10:52:46 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+10:52:46 [DEBUG] httpcore.http11: send_request_headers.complete
+10:52:46 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+10:52:46 [DEBUG] httpcore.http11: send_request_body.complete
+10:52:46 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>

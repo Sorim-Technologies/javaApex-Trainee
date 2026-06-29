@@ -5,14 +5,16 @@ Simple mock server to handle the GitHub analyze-url endpoint
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import urllib.parse
+import os
 
 class MockHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path.startswith('api/github/analyze-url'):
-            # Parse the query parameters
-            parsed_path = urllib.parse.urlparse(self.path)
-            query_params = urllib.parse.parse_qs(parsed_path.query)
+        parsed_path = urllib.parse.urlparse(self.path)
+        path = parsed_path.path.lstrip('/')
+        query_params = urllib.parse.parse_qs(parsed_path.query)
+        print(f"[Mock] GET {self.path} -> normalized='{path}' query='{parsed_path.query}'")
 
+        if path.startswith('api/github/analyze-url'):
             repo_url = query_params.get('repo_url', [''])[0]
             token = query_params.get('token', [''])[0]
 
@@ -55,10 +57,7 @@ class MockHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
-        elif self.path.startswith('api/github/list-files'):
-            # Mock file listing response with comprehensive file structure
-            parsed_path = urllib.parse.urlparse(self.path)
-            query_params = urllib.parse.parse_qs(parsed_path.query)
+        elif path.startswith('api/github/list-files'):
             repo_url = query_params.get('repo_url', [''])[0]
             current_path = query_params.get('path', [''])[0]
 
@@ -422,11 +421,14 @@ class MockHandler(BaseHTTPRequestHandler):
                 ]
             }
 
-            # Get the appropriate structure for this repository
-            file_structures = repo_structures.get(repo_key, default_structure)
+            # Get the appropriate structure for this repository by merging generated structure with defaults
+            generated = file_structures
+            # Merge default_structure and generated, giving priority to generated entries
+            merged = default_structure.copy()
+            merged.update(generated)
 
             # Get files for the current path, default to root if path not found
-            files = file_structures.get(current_path, file_structures[""])
+            files = merged.get(current_path, merged.get("", []))
 
             response = {
                 "repo_url": repo_url,
@@ -441,9 +443,9 @@ class MockHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
-        elif self.path.startswith('/api/migration/'):
+        elif path.startswith('api/migration/'):
             # Handle migration status requests like /api/migration/mock-job-12345
-            job_id = self.path.split('/')[-1]
+            job_id = path.split('/')[-1]
             if job_id == 'mock-job-12345':
                 response = {
                     "job_id": "mock-job-12345",
@@ -496,7 +498,7 @@ class MockHandler(BaseHTTPRequestHandler):
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(json.dumps({"detail": "Migration job not found"}).encode())
-        elif self.path == '/api/java-versions':
+        elif path.startswith('api/java-versions'):
             response = {
                 "source_versions": [
                     {"value": "7", "label": "Java 7"},
@@ -547,7 +549,7 @@ class MockHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
-        elif self.path == 'api/conversion-types':
+        elif path.startswith('api/conversion-types'):
             response = [
                 {
                     "id": "java_version",
@@ -612,12 +614,28 @@ class MockHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
-        elif self.path == '/health':
+        elif path.startswith('health'):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({"status": "healthy"}).encode())
+        elif path.startswith('api/github/repo-visibility'):
+            repo_url = query_params.get('repo_url', [''])[0]
+            # Basic visibility mock: public if URL contains 'github.com/', otherwise inaccessible
+            visibility = 'public' if 'github.com/' in repo_url else 'private_or_inaccessible'
+            response = {
+                "owner": (repo_url.split('github.com/')[1].split('/')[0] if 'github.com/' in repo_url else 'unknown'),
+                "repo": (repo_url.split('github.com/')[1].split('/')[1].replace('.git','') if 'github.com/' in repo_url and len(repo_url.split('github.com/')[1].split('/'))>1 else 'unknown'),
+                "visibility": visibility,
+                "requires_token": False,
+                "message": "OK"
+            }
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(response).encode())
         else:
             self.send_response(404)
             self.send_header('Content-type', 'application/json')
@@ -626,7 +644,12 @@ class MockHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"detail": "Not Found"}).encode())
 
     def do_POST(self):
-        if self.path == '/api/migration/start':
+        parsed_path = urllib.parse.urlparse(self.path)
+        path = parsed_path.path.lstrip('/')
+        print(f"[Mock] REQUESTLINE: {self.requestline}")
+        print(f"[Mock] HEADERS:\n{self.headers}")
+        print(f"[Mock] POST {self.path} -> normalized='{path}'")
+        if path == 'api/migration/start':
             # Read the POST data
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
@@ -668,6 +691,30 @@ class MockHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
+        elif path.startswith('api/chat') or path.startswith('chat'):
+            # Simple chat endpoint: expects JSON { message: string, context?: any }
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                data = json.loads(body.decode('utf-8'))
+            except Exception:
+                data = {}
+
+            user_message = (data.get('message') or data.get('text') or '')
+
+            # Use GROK_TOKEN if available to indicate we would call the external model
+            grok_token = os.environ.get('GROK_TOKEN')
+            if grok_token:
+                reply_text = f"(Mock Grok reply) I received: {user_message}"
+            else:
+                reply_text = f"(Mock assistant) I received: {user_message}"
+
+            resp = { 'reply': reply_text }
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(resp).encode())
         else:
             self.send_response(404)
             self.send_header('Content-type', 'application/json')
@@ -683,9 +730,10 @@ class MockHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 def run_server():
-    server_address = ('', 8000)
+    port = int(os.environ.get('PORT', '8000'))
+    server_address = ('', port)
     httpd = HTTPServer(server_address, MockHandler)
-    print("Mock server running on port 8000...")
+    print(f"Mock server running on port {server_address[1]}...")
     httpd.serve_forever()
 
 if __name__ == '__main__':

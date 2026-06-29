@@ -1,0 +1,4 @@
+[AUTH_SERVICE] GITHUB_REDIRECT_URI override: [auto]
+[HTTP] GET http://127.0.0.1:8000/docs - From: 127.0.0.1
+[HTTP] GET http://127.0.0.1:8000/docs - Status: 200
+INFO:     127.0.0.1:59984 - "GET /docs HTTP/1.1" 200 OK

@@ -47,12 +47,12 @@ COPY --from=frontend-builder /app/frontend/dist /app/static
 # Create necessary directories
 RUN mkdir -p /tmp/migrations /app/logs
 
-# Expose ports (backend on 8001, frontend served via backend)
-EXPOSE 8001
+# Expose ports (backend on 8000, frontend served via backend)
+EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONPATH=/app:$PYTHONPATH
 ENV WORK_DIR=/tmp/migrations
 
 # Start the backend server (it will serve static frontend files)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

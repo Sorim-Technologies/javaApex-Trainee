@@ -1,0 +1,7 @@
+10:44:48 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+10:44:48 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+10:44:49 [DEBUG] asyncio: Using proactor: IocpProactor
+INFO:     Started server process [22736]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

@@ -1,0 +1,19 @@
+10:58:55 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+10:58:55 [DEBUG] git.cmd: Popen(['git', 'version'], cwd=C:\Users\ST-PoojaGanesh\Desktop\java-apex-new\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend, stdin=None, shell=False, universal_newlines=False)
+10:58:55 [DEBUG] asyncio: Using proactor: IocpProactor
+INFO:     Started server process [21676]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+10:58:55 [INFO] services.chat_service: Intent=GENERAL
+10:58:55 [INFO] services.chat_service: Calling remote LLM for message
+10:58:55 [INFO] services.chat_service: Using provider: ollama (gemma2:2b)
+10:58:55 [DEBUG] httpx: load_ssl_context verify=True cert=None trust_env=True http2=False
+10:58:55 [DEBUG] httpx: load_verify_locations cafile='C:\\Users\\ST-PoojaGanesh\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem'
+10:58:56 [DEBUG] httpcore.connection: connect_tcp.started host='127.0.0.1' port=11434 local_address=None timeout=60.0 socket_options=None
+10:58:56 [DEBUG] httpcore.connection: connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000130E83F9B90>
+10:58:56 [DEBUG] httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+10:58:56 [DEBUG] httpcore.http11: send_request_headers.complete
+10:58:56 [DEBUG] httpcore.http11: send_request_body.started request=<Request [b'POST']>
+10:58:56 [DEBUG] httpcore.http11: send_request_body.complete
+10:58:56 [DEBUG] httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
