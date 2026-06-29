@@ -57,18 +57,101 @@ export default function StrategyWizardStep({ context }: { context: WizardScreenC
           </div>
 
           {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
-            <div style={styles.field}>
-              <label style={styles.label}>Detected Dependencies ({repoAnalysis.dependencies.length})</label>
-              <div style={styles.dependenciesList}>
+            <div
+              style={{
+                marginTop: 24,
+                padding: "28px 32px",
+                borderRadius: 18,
+                background: "#ffffff",
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <span style={{ fontSize: 22 }}>📦</span>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
+                  Detected Dependencies ({repoAnalysis.dependencies.length})
+                </h3>
+              </div>
+
+              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                These are the dependencies detected in your project.
+              </p>
+
+              <div style={{ height: 1, backgroundColor: "#e5e7eb", marginBottom: 14 }} />
+
+              <div
+                style={{
+                  maxHeight: 235,
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  backgroundColor: "#ffffff",
+                  padding: "0 10px",
+                  scrollBehavior: "smooth",
+                }}
+              >
                 {repoAnalysis.dependencies.map((dep, idx) => (
-                  <div key={idx} className="inner-card-hover dependency-inner-card" style={styles.dependencyItem}>
-                    <span style={{ flex: 2 }}>{dep.group_id}:{dep.artifact_id}</span>
-                    <span style={{ ...styles.dependencyVersion, flex: 1, textAlign: "center" }}>{dep.current_version}</span>
-                    <span style={{ ...styles.detectedBadge, flex: 1, textAlign: "center", backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb", color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280" }}>
+                  <div
+                    key={idx}
+                    className="inner-card-hover dependency-inner-card"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.7fr 0.55fr 0.65fr",
+                      alignItems: "center",
+                      minHeight: 72,
+                      gap: 14,
+                      padding: "14px 8px",
+                      borderBottom: idx === repoAnalysis.dependencies.length - 1 ? "none" : "1px solid #e5e7eb",
+                      backgroundColor: "#ffffff",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", wordBreak: "break-word" }}>
+                        {dep.group_id}:{dep.artifact_id}
+                      </div>
+                      <div
+                        style={{
+                          width: 145,
+                          maxWidth: "60%",
+                          height: 3,
+                          marginTop: 14,
+                          borderRadius: 999,
+                          background: "linear-gradient(90deg, #7c3aed, #a855f7)",
+                        }}
+                      />
+                    </div>
+
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", textAlign: "center" }}>
+                      {dep.current_version}
+                    </span>
+
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                        minWidth: 118,
+                        padding: "8px 14px",
+                        borderRadius: 999,
+                        backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb",
+                        color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        textAlign: "center",
+                      }}
+                    >
+                      {isDetectedDependencyStatus(dep.status) && <span style={{ fontSize: 15 }}>✓</span>}
                       {getDependencyStatusLabel(dep.status)}
                     </span>
                   </div>
                 ))}
+              </div>
+
+              <div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "#64748b", fontWeight: 500 }}>
+                Scroll to view all {repoAnalysis.dependencies.length} dependencies
               </div>
             </div>
           )}

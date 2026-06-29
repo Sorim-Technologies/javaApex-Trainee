@@ -17,6 +17,11 @@
 .metric-card {
   position: relative;
   overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.4);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.86) 0%, rgba(226, 232, 240, 0.62) 100%);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
   transition:
     transform 0.28s ease,
     box-shadow 0.28s ease,
@@ -48,7 +53,7 @@
 .file-item:hover {
   transform: translateY(-6px);
   border-color: #3b82f6 !important;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.88) 0%, rgba(219, 234, 254, 0.78) 100%) !important;
   box-shadow: 0 16px 34px rgba(59, 130, 246, 0.22) !important;
 }
 
@@ -62,7 +67,7 @@
 .info-inner-card:hover {
   transform: translateY(-6px);
   border-color: #06b6d4 !important;
-  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%) !important;
+  background: linear-gradient(135deg, rgba(236, 254, 255, 0.88) 0%, rgba(207, 250, 254, 0.78) 100%) !important;
   box-shadow: 0 16px 34px rgba(6, 182, 212, 0.22) !important;
 }
 
@@ -75,7 +80,7 @@
 .dependency-inner-card:hover {
   transform: translateY(-6px);
   border-color: #6366f1 !important;
-  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.88) 0%, rgba(224, 231, 255, 0.78) 100%) !important;
   box-shadow: 0 16px 34px rgba(99, 102, 241, 0.22) !important;
 }
 
@@ -87,7 +92,7 @@
 .metric-card:hover {
   transform: translateY(-6px);
   border-color: #10b981 !important;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.88) 0%, rgba(209, 250, 229, 0.78) 100%) !important;
   box-shadow: 0 16px 34px rgba(16, 185, 129, 0.22) !important;
 }
 
@@ -99,7 +104,7 @@
 .risk-inner-card:hover {
   transform: translateY(-6px);
   border-color: #ef4444 !important;
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.88) 0%, rgba(254, 226, 226, 0.78) 100%) !important;
   box-shadow: 0 16px 34px rgba(239, 68, 68, 0.22) !important;
 }
 
@@ -145,13 +150,16 @@
 .inner-card-hover {
   position: relative;
   overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.86) 0%, rgba(226, 232, 240, 0.62) 100%);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease !important;
 }
 
 .inner-card-hover:hover {
   transform: translateY(-6px) scale(1.01) !important;
   border-color: var(--inner-card-accent, #6366f1) !important;
-  background: linear-gradient(135deg, var(--inner-card-bg, #eef2ff) 0%, #ffffff 100%) !important;
+  background: linear-gradient(135deg, var(--inner-card-bg, rgba(238, 242, 255, 0.88)) 0%, rgba(255, 255, 255, 0.78) 100%) !important;
   box-shadow: 0 16px 34px var(--inner-card-shadow, rgba(99, 102, 241, 0.22)) !important;
 }
 

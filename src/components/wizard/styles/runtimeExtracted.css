@@ -2139,3 +2139,61 @@
   font-size: 11px;
   color: #f85149;
 }
+
+/* Glassmorphism overrides for legacy wizard surfaces */
+.wizard-header,
+.wizard-step-indicator-container {
+  background: rgba(255, 255, 255, 0.76);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.48);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.wizard-card,
+.wizard-assessment-item,
+.wizard-structure-box,
+.wizard-dependencies-list,
+.wizard-file-list,
+.wizard-framework-card,
+.wizard-conversion-option,
+.wizard-migration-option,
+.wizard-stat-box,
+.wizard-discovery-summary-card,
+.wizard-detected-config-card,
+.wizard-report-section,
+.wizard-recommendation-item,
+.wizard-issue-item,
+.wizard-no-files-msg,
+.wizard-animation-container,
+.wizard-recent-log,
+.wizard-change-item,
+.wizard-result-change-item,
+.wizard-final-repo-item,
+.wizard-final-stat,
+.wizard-risk-item,
+.wizard-fossa-card,
+.wizard-sonar-card,
+.wizard-static-22 {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(248, 250, 252, 0.6) 100%);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+}
+
+.wizard-warning-box {
+  background: rgba(255, 251, 235, 0.78);
+  border-color: rgba(252, 211, 77, 0.68);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
+}
+
+.wizard-breadcrumb,
+.wizard-detected-config-chip,
+.wizard-secondary-btn,
+.wizard-static-48 {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
+}

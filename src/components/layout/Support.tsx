@@ -39,7 +39,11 @@ export default function Support() {
   }
 
   return (
-    <div className="support__modal-backdrop" role="presentation" onMouseDown={() => setShowSupportModal(false)}>
+    <div
+      className="support__modal-backdrop"
+      role="presentation"
+      onMouseDown={() => setShowSupportModal(false)}
+    >
       <section
         className="support__modal"
         role="dialog"
@@ -52,7 +56,12 @@ export default function Support() {
             <div className="support__eyebrow">Migration support center</div>
             <h2 id="support-modal-title">How can we help?</h2>
           </div>
-          <button type="button" className="support__modal-close" onClick={() => setShowSupportModal(false)} aria-label="Close support modal">
+          <button
+            type="button"
+            className="support__modal-close"
+            onClick={() => setShowSupportModal(false)}
+            aria-label="Close support modal"
+          >
             ×
           </button>
         </div>

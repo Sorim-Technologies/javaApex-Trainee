@@ -547,14 +547,25 @@ export default function DiscoveryWizardStep({ context }: { context: WizardScreen
                     </div>
 
                     {showFileExplorer && (
-                      <div style={{ display: "flex", minHeight: 400 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          minHeight: selectedFile ? 400 : 0,
+                          maxHeight: selectedFile ? 500 : 208,
+                          overflow: "hidden",
+                        }}
+                      >
                         {/* File Tree - Left Panel */}
-                        <div style={{
-                          width: selectedFile ? "40%" : "100%",
-                          borderRight: selectedFile ? "1px solid #d0d7de" : "none",
-                          overflowY: "auto",
-                          maxHeight: 500
-                        }}>
+                        <div
+                          style={{
+                            width: selectedFile ? "40%" : "100%",
+                            borderRight: selectedFile ? "1px solid #d0d7de" : "none",
+                            overflowY: "auto",
+                            overflowX: "hidden",
+                            maxHeight: selectedFile ? 500 : 208,
+                            scrollBehavior: "smooth",
+                          }}
+                        >
                           {/* Back navigation */}
                           {currentPath && (
                             <div

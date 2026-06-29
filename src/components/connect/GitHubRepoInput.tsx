@@ -22,8 +22,8 @@ export default function GitHubRepoInput({
   const repoStatusMessage = !repoUrl
     ? ""
     : urlValidation.valid
-      ? "✅ Valid Repository"
-      : "❌ Invalid Repository";
+      ? "Valid Repository"
+      : "Invalid Repository";
   const inputStatusClass = urlValidation.valid ? "connect-input--success" : repoUrl ? "connect-input--error" : "connect-input--neutral";
 
   return (
@@ -65,7 +65,7 @@ export default function GitHubRepoInput({
           disabled={!canContinueRepository}
           onClick={onContinue}
         >
-          Continue →
+          Continue
         </button>
       </div>
     </>

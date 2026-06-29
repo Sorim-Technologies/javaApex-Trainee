@@ -16,8 +16,9 @@ export default function Footer({
         <div className="app-footer__brand" aria-label="JavaAPEX">
           <img src={apexLogo} alt="JavaAPEX" className="app-footer__logo" />
         </div>
+        <div className="app-footer__meta">Java Migration Accelerator</div>
         <div className="app-footer__copyright">
-          © {new Date().getFullYear()}{" "}
+          {"\u00A9"} {new Date().getFullYear()}{" "}
           <a href="https://sorim.ai/" target="_blank" rel="noreferrer">
             Sorim.ai
           </a>

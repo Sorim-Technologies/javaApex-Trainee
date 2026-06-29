@@ -1,14 +1,16 @@
 /* Sidebar */
 .shared-sidebar {
   width: 220px;
-  background: #ffffff;
-  border-right: 1px solid #e0e0e0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(248, 250, 252, 0.58) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.38);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   padding: 32px 0 0 0;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.02);
+  box-shadow: 12px 0 36px rgba(15, 23, 42, 0.08), inset -1px 0 0 rgba(255, 255, 255, 0.46);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
 .shared-sidebar__header {
@@ -41,7 +43,7 @@
 }
 
 .shared-sidebar__item--active {
-  background: #e3f2fd;
+  background: rgba(227, 242, 253, 0.72);
   color: #2563eb;
   border-left-color: #2563eb;
   font-weight: 600;
@@ -57,15 +59,17 @@
 
 .shared-step-card {
   flex: 1;
-  background: #f8fafc;
+  background: rgba(248, 250, 252, 0.68);
   border-radius: 10px;
   padding: 20px 0;
   text-align: center;
   font-weight: 500;
   font-size: 15px;
   color: #334155;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
-  border: 1.5px solid #e0e0e0;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  border: 1.5px solid rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
   transition: border 0.2s, background 0.2s;
 }
 
@@ -90,9 +94,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 2rem;
-  background: #ffffff;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  background: rgba(255, 255, 255, 0.76);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.48);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   min-height: 56px;
 }
 
@@ -126,12 +132,12 @@
 }
 
 .shared-topbar__badge {
-  background: #e3f2fd;
+  background: rgba(227, 242, 253, 0.72);
   color: #2563eb;
 }
 
 .shared-topbar__online {
-  background: #e8f5e9;
+  background: rgba(232, 245, 233, 0.72);
   color: #2e7d32;
 }
 

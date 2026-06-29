@@ -1693,9 +1693,9 @@ export default function MigrationWizardController({ onBackToHome }: { onBackToHo
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
-      <div style={styles.main}>
+    <div className="migration-wizard-layout" style={styles.container}>
+      <aside className="migration-wizard-sidebar" style={styles.stepIndicatorContainer}>{renderStepIndicator()}</aside>
+      <main className="migration-wizard-main" style={styles.main}>
         {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
         {step === 1 && <ConnectWizardStep context={screenContext} />}
         {step === 2 && <DiscoveryPage><DiscoveryWizardStep context={screenContext} /></DiscoveryPage>}
@@ -1704,7 +1704,7 @@ export default function MigrationWizardController({ onBackToHome }: { onBackToHo
         {step === 5 && <MigrationPage><MigrationAnimationStep context={screenContext} /></MigrationPage>}
         {step === 6 && <MigrationProgress><MigrationProgressStep context={screenContext} /></MigrationProgress>}
         {step === 7 && <ResultPage><ResultWizardStep context={screenContext} /></ResultPage>}
-      </div>
+      </main>
     </div>
   );
 };

@@ -4,10 +4,14 @@
   box-sizing: border-box;
   margin-bottom: 20px;
   padding: 28px 32px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.42);
   border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(226, 232, 240, 0.6) 100%);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
 .discovery-step-header {
@@ -112,9 +116,12 @@
   gap: 4px;
   margin-left: auto;
   padding: 10px 14px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid rgba(147, 197, 253, 0.58);
   border-radius: 10px;
-  background: #eff6ff;
+  background: rgba(239, 246, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
 }
 
 .discovery-timer-label {
@@ -144,12 +151,16 @@
 
 .discovery-alert--error {
   border: 2px solid #ef4444;
-  background: #fef2f2;
+  background: rgba(254, 242, 242, 0.78);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
 }
 
 .discovery-alert--warning {
   border: 2px solid #facc15;
-  background: #fef9c3;
+  background: rgba(254, 249, 195, 0.78);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
 }
 
 .discovery-alert__icon {
@@ -569,9 +580,12 @@
   align-items: center;
   gap: 14px;
   padding: 18px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 10px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
 }
 
 .discovery-summary-icon {
@@ -595,9 +609,12 @@
   margin-top: 18px;
   margin-bottom: 20px;
   padding: 20px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid rgba(147, 197, 253, 0.6);
   border-radius: 12px;
-  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.78) 0%, rgba(248, 250, 252, 0.58) 100%);
+  box-shadow: 0 16px 38px rgba(37, 99, 235, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
 }
 
 .discovery-config-header {
@@ -641,8 +658,8 @@
 
 .discovery-config-chip {
   padding: 10px 14px;
-  border: 1px solid #93c5fd;
-  background: #ffffff;
+  border: 1px solid rgba(147, 197, 253, 0.72);
+  background: rgba(255, 255, 255, 0.7);
   color: #1e3a8a;
   cursor: default;
 }
@@ -685,17 +702,19 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border: 1px solid #d0d7de;
+  border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 8px;
-  background-color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .discovery-framework-card:hover {
   border-color: #0969da;
-  background-color: #f6f8fa;
+  background: rgba(246, 248, 250, 0.78);
   box-shadow: 0 2px 8px rgba(9, 105, 218, 0.15);
 }
 
@@ -804,8 +823,11 @@
   max-height: 85vh;
   overflow: hidden;
   border-radius: 12px;
-  background-color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
 }
 
 .discovery-framework-modal__header {
@@ -857,9 +879,12 @@
 .discovery-structure-card {
   margin-bottom: 20px;
   padding: 18px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 10px;
-  background: #f8fafc;
+  background: rgba(248, 250, 252, 0.7);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
 }
 
 .discovery-structure-title {
@@ -887,9 +912,12 @@
 
 .discovery-dependency-list {
   padding: 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 10px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
 }
 
 .discovery-dependency-row {

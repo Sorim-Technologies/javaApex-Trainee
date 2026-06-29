@@ -9,6 +9,7 @@ import "./Connect.css";
 type ZipUploadStatus = "idle" | "ready" | "uploading" | "success" | "error";
 
 interface ConnectPageProps {
+  styles?: unknown;
   sourceInputType: SourceInputType;
   isPrivateRepo: boolean;
   repoUrl: string;
@@ -93,7 +94,6 @@ export default function ConnectPage({
   return (
     <div className="connect-card">
       <div className="connect-step-header">
-        <span className="connect-step-icon">{isZipSelected ? "📦" : isPrivateRepo ? "🔒" : "🔗"}</span>
         <div>
           <h2 className="connect-title">Connect Repository</h2>
           <p className="connect-subtitle">Choose one source and the wizard will handle access automatically.</p>

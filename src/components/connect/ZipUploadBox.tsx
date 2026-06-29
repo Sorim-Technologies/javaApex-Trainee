@@ -63,7 +63,7 @@ export default function ZipUploadBox({
             onChange={onFileChange}
             className="connect-zip-input"
           />
-          <div className="connect-zip-icon">{zipUploadStatus === "success" ? "✅" : zipUploadStatus === "error" ? "⚠️" : "📦"}</div>
+          <div className="connect-zip-icon">{zipUploadStatus === "success" ? "Done" : zipUploadStatus === "error" ? "Error" : "ZIP"}</div>
           <div className="connect-zip-file-name">
             {selectedZipFile ? selectedZipFile.name : "Drop a .zip file here or click to browse"}
           </div>
@@ -84,7 +84,6 @@ export default function ZipUploadBox({
 
         {zipUploadMessage && (
           <div className={`connect-zip-message ${messageStatusClass}`}>
-            {zipUploadStatus === "uploading" ? "⏳ " : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "✓ " : zipUploadStatus === "error" ? "⚠️ " : ""}
             {zipUploadMessage}
           </div>
         )}
@@ -96,7 +95,7 @@ export default function ZipUploadBox({
           disabled={!selectedZipFile || zipUploadStatus === "uploading"}
           onClick={onContinue}
         >
-          {zipUploadStatus === "uploading" ? "Uploading..." : "Upload & Continue →"}
+          {zipUploadStatus === "uploading" ? "Uploading..." : "Upload and Continue"}
         </button>
       </div>
     </>

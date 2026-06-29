@@ -102,41 +102,265 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
 
           {/* Dependencies Fixed */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>📦 Dependencies Fixed</h3>
-            {migrationJob.dependencies && migrationJob.dependencies.length > 0 ? (
-              <div style={styles.dependenciesReport}>
-                {migrationJob.dependencies.map((dep, idx) => (
-                  <div key={idx} className="inner-card-hover result-inner-card" style={styles.dependencyReportItem}>
-                    <span style={styles.dependencyName}>{dep.group_id}:{dep.artifact_id}</span>
-                    <span style={styles.dependencyChange}>
-                      {dep.current_version} → {dep.new_version || 'latest'}
-                    </span>
-                    <span style={{ ...styles.dependencyStatus, backgroundColor: dep.status === 'upgraded' ? '#dcfce7' : '#e5e7eb', color: dep.status === 'upgraded' ? '#166534' : '#6b7280' }}>
-                      {dep.status.replace('_', ' ').toUpperCase()}
-                    </span>
-                  </div>
-                ))}
+            <div
+              style={{
+                padding: "20px 24px",
+                borderRadius: 16,
+                backgroundColor: "#ffffff",
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 18 }}>📦</span>
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#111827" }}>
+                  Dependencies Fixed ({migrationJob.dependencies?.length || 0})
+                </h3>
               </div>
-            ) : (
-              <div className="inner-card-hover info-inner-card" style={styles.noData}>No dependency updates were required</div>
-            )}
+
+              <p style={{ margin: "0 0 14px", fontSize: 14, color: "#64748b", fontWeight: 500 }}>
+                These dependencies were updated or reviewed during migration.
+              </p>
+
+              <div style={{ height: 1, backgroundColor: "#e5e7eb", marginBottom: 14 }} />
+
+              {migrationJob.dependencies && migrationJob.dependencies.length > 0 ? (
+                <>
+                  <div
+                    style={{
+                      maxHeight: 258,
+                      overflowY: "auto",
+                      overflowX: "hidden",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 12,
+                      backgroundColor: "#ffffff",
+                      padding: "0 10px",
+                      scrollBehavior: "smooth",
+                    }}
+                  >
+                    {migrationJob.dependencies.map((dep, idx) => (
+                      <div
+                        key={idx}
+                        className="inner-card-hover result-inner-card"
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1.8fr 0.8fr 0.8fr",
+                          alignItems: "center",
+                          gap: 16,
+                          minHeight: 84,
+                          padding: "14px 8px",
+                          borderBottom: idx === migrationJob.dependencies.length - 1 ? "none" : "1px solid #e5e7eb",
+                          backgroundColor: "#ffffff",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 15,
+                              fontWeight: 800,
+                              color: "#111827",
+                              wordBreak: "break-word",
+                              fontFamily: "'JetBrains Mono', 'Consolas', monospace",
+                            }}
+                          >
+                            {dep.group_id}:{dep.artifact_id}
+                          </div>
+                          <div
+                            style={{
+                              width: 150,
+                              maxWidth: "60%",
+                              height: 4,
+                              marginTop: 14,
+                              borderRadius: 999,
+                              background: "linear-gradient(90deg, #7c3aed, #a855f7)",
+                            }}
+                          />
+                        </div>
+
+                        <span
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: "#475569",
+                            textAlign: "center",
+                          }}
+                        >
+                          {dep.current_version} → {dep.new_version || "latest"}
+                        </span>
+
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            minWidth: 130,
+                            padding: "9px 14px",
+                            borderRadius: 999,
+                            backgroundColor: dep.status === "upgraded" ? "#dcfce7" : "#e5e7eb",
+                            color: dep.status === "upgraded" ? "#166534" : "#6b7280",
+                            fontSize: 12,
+                            fontWeight: 800,
+                            textAlign: "center",
+                          }}
+                        >
+                          {dep.status === "upgraded" && <span style={{ fontSize: 13 }}>✓</span>}
+                          {dep.status.replace("_", " ").toUpperCase()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ marginTop: 12, textAlign: "center", fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                    Scroll to view all {migrationJob.dependencies.length} dependencies
+                  </div>
+                </>
+              ) : (
+                <div className="inner-card-hover info-inner-card" style={styles.noData}>No dependency updates were required</div>
+              )}
+            </div>
           </div>
 
           {/* Errors Fixed */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🐛 Errors Fixed</h3>
-            <div className="inner-card-hover result-summary-card" style={styles.errorsSummary}>
-              <div className="inner-card-hover risk-inner-card" style={styles.errorStat}>
-                <span style={styles.errorCount}>{migrationJob.errors_fixed || 0}</span>
-                <span style={styles.errorLabel}>Errors Fixed</span>
+            <div
+              style={{
+                padding: "20px 24px",
+                borderRadius: 16,
+                backgroundColor: "#ffffff",
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <span style={{ fontSize: 18 }}>🐛</span>
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#111827" }}>
+                  Errors Fixed
+                </h3>
               </div>
-              <div className="inner-card-hover risk-inner-card" style={styles.errorStat}>
-                <span style={styles.errorCount}>{migrationJob.total_errors}</span>
-                <span style={styles.errorLabel}>Remaining Errors</span>
-              </div>
-              <div className="inner-card-hover risk-inner-card" style={styles.errorStat}>
-                <span style={styles.errorCount}>{migrationJob.total_warnings}</span>
-                <span style={styles.errorLabel}>Warnings</span>
+
+              <div style={{ height: 1, backgroundColor: "#e5e7eb", marginBottom: 16 }} />
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 14,
+                  padding: 0,
+                  margin: 0,
+                  background: "transparent",
+                  border: "none",
+                  boxShadow: "none",
+                  overflow: "visible",
+                }}
+              >
+                <div
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#dcfce7";
+                    e.currentTarget.style.borderColor = "#22c55e";
+                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(34, 197, 94, 0.18)";
+                    e.currentTarget.style.transform = "translateY(-3px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#f0fdf4";
+                    e.currentTarget.style.borderColor = "#d1fae5";
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  style={{
+                    minHeight: 104,
+                    padding: "20px 16px",
+                    borderRadius: 14,
+                    border: "1px solid #d1fae5",
+                    backgroundColor: "#f0fdf4",
+                    transition: "all 0.25s ease",
+                    cursor: "default",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 30, fontWeight: 800, color: "#166534", lineHeight: 1 }}>
+                    {migrationJob.errors_fixed || 0}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Errors Fixed
+                  </span>
+                </div>
+
+                <div
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fee2e2";
+                    e.currentTarget.style.borderColor = "#ef4444";
+                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(239, 68, 68, 0.18)";
+                    e.currentTarget.style.transform = "translateY(-3px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fff7f7";
+                    e.currentTarget.style.borderColor = "#fecaca";
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  style={{
+                    minHeight: 104,
+                    padding: "20px 16px",
+                    borderRadius: 14,
+                    border: "1px solid #fecaca",
+                    backgroundColor: "#fff7f7",
+                    transition: "all 0.25s ease",
+                    cursor: "default",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 30, fontWeight: 800, color: "#991b1b", lineHeight: 1 }}>
+                    {migrationJob.total_errors}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Remaining Errors
+                  </span>
+                </div>
+
+                <div
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fef3c7";
+                    e.currentTarget.style.borderColor = "#f59e0b";
+                    e.currentTarget.style.boxShadow = "0 10px 24px rgba(245, 158, 11, 0.18)";
+                    e.currentTarget.style.transform = "translateY(-3px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fffbeb";
+                    e.currentTarget.style.borderColor = "#fde68a";
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                  style={{
+                    minHeight: 104,
+                    padding: "20px 16px",
+                    borderRadius: 14,
+                    border: "1px solid #fde68a",
+                    backgroundColor: "#fffbeb",
+                    transition: "all 0.25s ease",
+                    cursor: "default",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 30, fontWeight: 800, color: "#92400e", lineHeight: 1 }}>
+                    {migrationJob.total_warnings}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Warnings
+                  </span>
+                </div>
               </div>
             </div>
           </div>

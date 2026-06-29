@@ -27,7 +27,6 @@ export default function RepoSourceTabs({
         onClick={onSelectPublic}
       >
         <div className={`connect-source-title ${publicActive ? "connect-source-title--active" : ""}`}>
-          <span>🔗</span>
           Public GitHub Repository
         </div>
         <div className="connect-source-description">
@@ -41,7 +40,6 @@ export default function RepoSourceTabs({
         onClick={onSelectPrivate}
       >
         <div className={`connect-source-title ${privateActive ? "connect-source-title--active" : ""}`}>
-          <span>🔒</span>
           Private GitHub Repository
         </div>
         <div className="connect-source-description">
@@ -55,7 +53,6 @@ export default function RepoSourceTabs({
         onClick={onSelectZip}
       >
         <div className={`connect-source-title ${zipActive ? "connect-source-title--zip-active" : ""}`}>
-          <span>📦</span>
           Upload Local ZIP
         </div>
         <div className="connect-source-description">
