@@ -36,11 +36,14 @@ interface JavaVersionOption {
   label: string;
 }
 
+type GitPlatform = "github" | "gitlab";
+
 interface PersistedWizardFormState {
   maxVisitedIndicatorStep: number;
   isPrivateRepo: boolean;
   patToken: string;
   currentPath: string;
+  targetRepoPlatform: GitPlatform;
   targetRepoName: string;
   targetRepoUrl: string;
   existingRepoBranches: string[];
@@ -182,8 +185,32 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     ].join("");
   };
 
-  const buildTargetRepoUrl = (repoName: string, timestamp: string) =>
-    `https://github.com/SrikkanthSorim/${repoName || "repo"}-Migrated${timestamp}`;
+  const detectRepositoryPlatform = (url: string): GitPlatform => {
+    const normalized = url.toLowerCase();
+    if (normalized.includes("gitlab.com")) return "gitlab";
+    return "github";
+  };
+
+  const parseRepositoryOwnerAndName = (url: string) => {
+    const normalized = normalizeGithubUrl(url).normalizedUrl || url;
+    const path = normalized.replace(/^https?:\/\/(www\.)?(github|gitlab)\.com\//i, "").replace(/\/$/, "");
+    const parts = path.split("/").filter(Boolean);
+    const repo = parts.pop() || "repo";
+    const owner = parts.join("/") || "owner";
+    return { owner, repo };
+  };
+
+  const getTargetRepositoryOwner = (platform: GitPlatform) =>
+    platform === "gitlab" ? "karthika_06" : "Karthika-sorim";
+
+  const buildTargetRepoUrl = (
+    timestamp: string,
+    platform: GitPlatform = "github"
+  ) => {
+    const host = platform === "gitlab" ? "gitlab.com" : "github.com";
+    const owner = getTargetRepositoryOwner(platform);
+    return `https://${host}/${owner}/${timestamp}-migratedcode-${platform}`;
+  };
 
   const buildTargetBranchName = (repoName: string, timestamp: string) =>
     `migration/${repoName || "repo"}-Migrated${timestamp}`;
@@ -191,6 +218,13 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const getRepositoryLink = (repoValue: string | null) => {
     if (!repoValue) return null;
     return repoValue.startsWith("http") ? repoValue : `https://github.com/${repoValue}`;
+  };
+
+  const applyTargetRepoPlatform = (platform: GitPlatform) => {
+    setTargetRepoPlatform(platform);
+    if (migrationApproach !== "branch") {
+      setTargetRepoName(buildTargetRepoUrl(targetRepoTimestamp, platform));
+    }
   };
 
   const [step, setStep] = useState(() => initialStep);
@@ -272,11 +306,17 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const currentToken = useMemo(getCurrentToken, [githubToken, patToken, showEnterpriseToken, isGitlabRepo, isPrivateRepo]);
   const shouldShowPatInput = showEnterpriseToken || isGitlabRepo || isPrivateRepo;
+  const getRepositoryApiToken = (repoValue: string) => {
+    const isGitlabTarget = detectRepositoryPlatform(repoValue) === "gitlab";
+    if (isGitlabTarget && !patToken.trim()) return "";
+    return isGitlabTarget ? patToken.trim() : currentToken;
+  };
   const [repoAnalysis, setRepoAnalysis] = useState<RepoAnalysis | null>(() =>
     readSessionJson<RepoAnalysis>(WIZARD_REPO_ANALYSIS_KEY)
   );
   const [repoFiles, setRepoFiles] = useState<RepoFile[]>([]);
   const [currentPath, setCurrentPath] = useState(persistedFormState?.currentPath ?? "");
+  const [targetRepoPlatform, setTargetRepoPlatform] = useState<GitPlatform>(persistedFormState?.targetRepoPlatform ?? "github");
   const [targetRepoName, setTargetRepoName] = useState(persistedFormState?.targetRepoName ?? "");
   const [targetRepoUrl, setTargetRepoUrl] = useState(persistedFormState?.targetRepoUrl ?? "");
   const targetRepoUrlValidation = targetRepoUrl ? normalizeGithubUrl(targetRepoUrl) : { valid: false, normalizedUrl: "", message: "Repository URL is required" };
@@ -552,6 +592,40 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       : status.replace(/_/g, " ").toUpperCase();
   };
 
+  const detectedApiEndpoints = (repoAnalysis?.api_endpoints || []).map((endpoint) => ({
+    method: (endpoint.method || "ANY").toUpperCase(),
+    path: endpoint.path || "/",
+    controller: endpoint.controller || endpoint.file || "Unknown",
+    lineNumber: endpoint.line_number ?? endpoint.line ?? null,
+  }));
+
+  const renderEndpointDetailsTable = () => (
+    <div style={{ border: "1px solid #d1fae5", borderRadius: 8, backgroundColor: "#fff", overflow: "hidden", boxShadow: "0 14px 32px rgba(15, 23, 42, 0.14)" }}>
+      {detectedApiEndpoints.length > 0 ? (
+        <div style={{ maxHeight: 220, overflowY: "auto", overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "82px minmax(160px, 1.4fr) minmax(140px, 1fr) 96px", minWidth: 620, gap: 10, padding: "9px 12px", backgroundColor: "#f0fdf4", color: "#047857", fontSize: 11, fontWeight: 800, textTransform: "uppercase", position: "sticky", top: 0, zIndex: 1 }}>
+            <span>Method</span>
+            <span>Path</span>
+            <span>Controller/File</span>
+            <span>Line Number</span>
+          </div>
+          {detectedApiEndpoints.map((endpoint, idx) => (
+            <div key={`${endpoint.method}-${endpoint.path}-${endpoint.controller}-${idx}`} style={{ display: "grid", gridTemplateColumns: "82px minmax(160px, 1.4fr) minmax(140px, 1fr) 96px", minWidth: 620, gap: 10, alignItems: "center", padding: "10px 12px", borderTop: "1px solid #e2e8f0", fontSize: 12, color: "#1e293b" }}>
+              <span style={{ width: 58, textAlign: "center", padding: "3px 7px", borderRadius: 6, backgroundColor: "#dcfce7", color: "#047857", fontWeight: 800 }}>{endpoint.method}</span>
+              <code style={{ color: "#0f172a", fontSize: 12, whiteSpace: "normal", overflowWrap: "anywhere" }}>{endpoint.path}</code>
+              <span style={{ color: "#334155", overflowWrap: "anywhere" }}>{endpoint.controller}</span>
+              <span style={{ color: "#64748b" }}>{endpoint.lineNumber ?? "-"}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ padding: "12px 14px", fontSize: 13, color: "#64748b" }}>
+          No API endpoints detected
+        </div>
+      )}
+    </div>
+  );
+
   const enrichAnalysisWithPomVersion = async (analysis: RepoAnalysis, repoUrlToAnalyze: string, token: string) => {
     const javaVersionFromAnalysis = analysis.java_version || analysis.java_version_from_build;
     const needsPomFallback =
@@ -673,6 +747,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       return;
     }
 
+    const platform = detectRepositoryPlatform(normalizedUrl);
+    const { owner, repo } = parseRepositoryOwnerAndName(normalizedUrl);
+    const defaultTargetRepo = buildTargetRepoUrl(targetRepoTimestamp, platform);
+
     setError("");
     setRepoAnalysis(null);
     setRepoFiles([]);
@@ -685,15 +763,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setIsJavaProject(null);
     setDetectedFrameworks([]);
     setSelectedRepo({
-      name: normalizedUrl.split('/').pop() || "",
-      full_name: normalizedUrl
-        .replace(/^https?:\/\/(www\.)?github\.com\//, '')
-        .replace(/^https?:\/\/(www\.)?gitlab\.com\//, ''),
+      name: repo,
+      full_name: `${owner}/${repo}`,
       url: normalizedUrl,
       default_branch: "main",
       language: "Java",
       description: ""
     });
+    setTargetRepoPlatform(platform);
+    setTargetRepoName(defaultTargetRepo);
     setStep(2);
   };
 
@@ -777,7 +855,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       isPrivateRepo,
       patToken,
       currentPath,
+      targetRepoPlatform,
       targetRepoName,
+      targetRepoUrl,
+      existingRepoBranches,
+      targetRepoToken,
       targetRepoTimestamp,
       selectedSourceVersion,
       selectedTargetVersion,
@@ -804,7 +886,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     isPrivateRepo,
     patToken,
     currentPath,
+    targetRepoPlatform,
     targetRepoName,
+    targetRepoUrl,
+    existingRepoBranches,
+    targetRepoToken,
     targetRepoTimestamp,
     selectedSourceVersion,
     selectedTargetVersion,
@@ -999,8 +1085,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       setAnalysisLoading(true);
       setError("");
 
-      const analyzePromise = analyzeRepoUrl(selectedRepo.url, getCurrentToken())
-        .then(async (result) => enrichAnalysisWithPomVersion(result.analysis, selectedRepo.url, getCurrentToken()));
+      const repoApiToken = getRepositoryApiToken(selectedRepo.url);
+      const analyzePromise = analyzeRepoUrl(selectedRepo.url, repoApiToken)
+        .then(async (result) => enrichAnalysisWithPomVersion(result.analysis, selectedRepo.url, repoApiToken));
 
       analyzePromise
         .then((analysis) => applyRepositoryAnalysis(analysis))
@@ -1109,7 +1196,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   useEffect(() => {
     if (step === 2 && selectedRepo) {
       setRepoFilesLoading(true);
-      listRepoFiles(selectedRepo.url, currentToken, currentPath)
+      listRepoFiles(selectedRepo.url, getRepositoryApiToken(selectedRepo.url), currentPath)
         .then((response) => {
           setRepoFiles(response.files);
         })
@@ -1118,17 +1205,18 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
   }, [step, selectedRepo, currentPath, currentToken]);
 
-  // Auto-fill target repo name when selectedRepo or target version changes
+  // Auto-fill target repo name when selectedRepo or target timestamp changes.
   useEffect(() => {
     if (selectedRepo) {
-      const sourceRepoName = selectedRepo.name || "repo";
+      const { repo } = parseRepositoryOwnerAndName(selectedRepo.url);
       setTargetRepoName(
         migrationApproach === "branch"
-          ? buildTargetBranchName(sourceRepoName, targetRepoTimestamp)
-          : buildTargetRepoUrl(sourceRepoName, targetRepoTimestamp)
+          ? buildTargetBranchName(repo, targetRepoTimestamp)
+          : buildTargetRepoUrl(targetRepoTimestamp, targetRepoPlatform)
       );
     }
-  }, [selectedRepo, selectedTargetVersion, targetRepoTimestamp, migrationApproach]);
+  }, [selectedRepo, targetRepoTimestamp, migrationApproach, targetRepoPlatform]);
+
   useEffect(() => {
     if (migrationApproach !== "branch") return;
 
@@ -1233,27 +1321,29 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const buildMigrationRequest = () => {
+    const sourceRepoUrl = selectedRepo?.url || repoUrl;
     const repoName = selectedRepo?.name || repoUrl.split("/").pop()?.replace(".git", "") || "repo";
     const finalTargetRepoName = targetRepoName || (
       migrationApproach === "branch"
         ? buildTargetBranchName(repoName, targetRepoTimestamp)
-        : buildTargetRepoUrl(repoName, targetRepoTimestamp)
+        : buildTargetRepoUrl(targetRepoTimestamp, targetRepoPlatform)
     );
-
-    const detectPlatform = (url: string) => {
-      if (url.includes("gitlab.com")) return "gitlab";
-      if (url.includes("github.com")) return "github";
-      return "github";
-    };
+    const destinationPlatform = migrationApproach === "branch"
+      ? detectRepositoryPlatform(targetRepoUrlValidation.normalizedUrl || targetRepoUrl)
+      : targetRepoPlatform;
+    const destinationToken = migrationApproach === "branch" ? (targetRepoToken.trim() || currentToken) : "";
 
     return {
-      source_repo_url: selectedRepo?.url || repoUrl,
+      source_repo_url: sourceRepoUrl,
       target_repo_name: finalTargetRepoName,
       target_repo_url: migrationApproach === "branch" ? targetRepoUrlValidation.normalizedUrl : undefined,
-      platform: detectPlatform(selectedRepo?.url || repoUrl),
+      platform: detectRepositoryPlatform(sourceRepoUrl),
+      target_platform: destinationPlatform,
       source_java_version: userSelectedVersion || selectedSourceVersion,
       target_java_version: selectedTargetVersion,
-      token: migrationApproach === "branch" ? (targetRepoToken.trim() || currentToken) : currentToken,
+      token: currentToken,
+      source_token: currentToken,
+      target_token: destinationToken,
       migration_approach: migrationApproach,
       conversion_types: selectedConversions,
       run_tests: runTests,
@@ -1304,6 +1394,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     currentToken,
     migrationApproach,
     targetRepoName,
+    targetRepoPlatform,
+    targetRepoUrl,
+    targetRepoToken,
     targetRepoTimestamp,
     selectedConversions,
     runTests,
@@ -1359,6 +1452,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setRepoFiles([]);
     setCurrentPath("");
     setTargetRepoName("");
+    setTargetRepoPlatform("github");
+    setTargetRepoUrl("");
+    setTargetRepoToken("");
     setTargetRepoTimestamp(generateRepoTimestamp());
     setSelectedSourceVersion("8");
     setSelectedTargetVersion("17");
@@ -1486,7 +1582,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <span style={styles.stepIcon}>🔗</span>
           <div>
             <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
+            <p style={styles.subtitle}>Enter a GitHub repository URL/ GITLAB repository URL to start migration analysis.</p>
           </div>
         </div>
 
@@ -1654,7 +1750,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         setFileLoading(true);
         setSelectedFile(file);
         try {
-          const response = await getFileContent(selectedRepo!.url, file.path, currentToken);
+          const response = await getFileContent(selectedRepo!.url, file.path, getRepositoryApiToken(selectedRepo!.url));
           setFileContent(response.content);
           setEditedContent(response.content);
         } catch (err) {
@@ -2501,7 +2597,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                             setFrameworkFileLoading(true);
                             setViewingFrameworkFile({ name: fw.name, path: fw.path, content: "" });
                             try {
-                              const response = await getFileContent(selectedRepo!.url, fw.path, currentToken);
+                              const response = await getFileContent(selectedRepo!.url, fw.path, getRepositoryApiToken(selectedRepo!.url));
                               setViewingFrameworkFile({ name: fw.name, path: fw.path, content: response.content });
                             } catch (err) {
                               setViewingFrameworkFile({ name: fw.name, path: fw.path, content: `// Error loading file: ${fw.path}` });
@@ -3123,20 +3219,35 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
         </div>
       ) : (
-        <div style={styles.field}>
-          <label style={styles.label}>Target Repository Name</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              type="text"
-              style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }}
-              value={targetRepoName}
-              onChange={(e) => setTargetRepoName(e.target.value)}
-              placeholder={buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)}
-            />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={styles.field}>
+            <label style={styles.label}>Repository Platform</label>
+            <select
+              style={styles.select}
+              value={targetRepoPlatform}
+              onChange={(e) => applyTargetRepoPlatform(e.target.value as GitPlatform)}
+            >
+              <option value="gitlab">GitLab</option>
+              <option value="github">GitHub</option>
+            </select>
+            <p style={styles.helpText}>The migrated code will be pushed to a newly created repository on this platform.</p>
           </div>
-          <p style={styles.helpText}>
-            Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</code> (auto-generated, editable)
-          </p>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Target Repository Name</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }}
+                value={targetRepoName}
+                onChange={(e) => setTargetRepoName(e.target.value)}
+                placeholder={buildTargetRepoUrl(targetRepoTimestamp, targetRepoPlatform)}
+              />
+            </div>
+            <p style={styles.helpText}>
+              Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{buildTargetRepoUrl(targetRepoTimestamp, targetRepoPlatform)}</code> (auto-generated, editable)
+            </p>
+          </div>
         </div>
       )}
 
@@ -3322,21 +3433,77 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     {item.desc}
                   </div>
                   {item.detail && (
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        marginTop: 8,
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        backgroundColor: `${item.color}12`,
-                        color: item.color,
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {item.detail}
-                    </div>
+                    item.title === "Code Refactoring" ? (
+                      <div
+                        style={{ position: "relative", display: "inline-flex" }}
+                        onMouseEnter={(e) => {
+                          const popup = e.currentTarget.querySelector("[data-endpoint-popup]") as HTMLElement | null;
+                          if (popup) popup.style.display = "block";
+                        }}
+                        onMouseLeave={(e) => {
+                          const popup = e.currentTarget.querySelector("[data-endpoint-popup]") as HTMLElement | null;
+                          if (popup) popup.style.display = "none";
+                        }}
+                        onFocus={(e) => {
+                          const popup = e.currentTarget.querySelector("[data-endpoint-popup]") as HTMLElement | null;
+                          if (popup) popup.style.display = "block";
+                        }}
+                        onBlur={(e) => {
+                          const popup = e.currentTarget.querySelector("[data-endpoint-popup]") as HTMLElement | null;
+                          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                            if (popup) popup.style.display = "none";
+                          }
+                        }}
+                      >
+                        <button
+                          type="button"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            marginTop: 8,
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            border: "none",
+                            backgroundColor: `${item.color}12`,
+                            color: item.color,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: "default",
+                          }}
+                        >
+                          {item.detail}
+                        </button>
+                        <div
+                          data-endpoint-popup
+                          style={{
+                            display: "none",
+                            position: "absolute",
+                            left: 0,
+                            top: "calc(100% + 8px)",
+                            width: "min(620px, 78vw)",
+                            zIndex: 30,
+                          }}
+                        >
+                          {renderEndpointDetailsTable()}
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          marginTop: 8,
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          backgroundColor: `${item.color}12`,
+                          color: item.color,
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {item.detail}
+                      </div>
+                    )
                   )}
                 </div>
               </div>
@@ -3984,7 +4151,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               placeholder={
                 migrationApproach === "branch"
                   ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
-                  : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
+                  : buildTargetRepoUrl(targetRepoTimestamp, targetRepoPlatform)
               }
             />
           </div>
@@ -3992,7 +4159,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
               {migrationApproach === "branch"
                 ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-                : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
+                : <>{buildTargetRepoUrl(targetRepoTimestamp, targetRepoPlatform)}</>}
             </code>
           </p>
         </div>
@@ -5615,5 +5782,3 @@ const styles: { [key: string]: React.CSSProperties } = {
   jmeterLabel: { fontSize: 14, color: "#64748b" },
   jmeterValue: { fontSize: 16, fontWeight: 700, color: "#1e293b" },
 };
-
-

@@ -196,9 +196,12 @@ export interface MigrationRequest {
   target_repo_url?: string;
   migration_approach?: string;
   platform?: string;
+  target_platform?: string;
   source_java_version: string;
   target_java_version: string;
   token?: string;
+  source_token?: string;
+  target_token?: string;
   conversion_types: string[];
   email?: string;
   run_tests: boolean;
@@ -255,7 +258,7 @@ export interface RepoAnalysis {
   java_files?: string[];
   has_tests: boolean;
   dependencies: DependencyInfo[];
-  api_endpoints: { path: string; method: string; file: string }[];
+  api_endpoints: { path: string; method: string; file?: string; controller?: string; line_number?: number | null; line?: number | null }[];
   structure: {
     has_pom_xml: boolean;
     has_build_gradle: boolean;
@@ -573,4 +576,3 @@ export async function updateJavaVersion(
   }
   return response.json();
 }
-

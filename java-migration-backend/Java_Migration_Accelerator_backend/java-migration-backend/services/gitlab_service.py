@@ -4,6 +4,8 @@ GitLab Service - Handles GitLab API interactions
 import os
 import tempfile
 import shutil
+import re
+from urllib.parse import quote
 from typing import List, Dict, Any
 import git
 import httpx
@@ -140,11 +142,267 @@ class GitLabService:
                         analysis["structure"]["has_src_test"] = True  # Assume if src exists, test exists
                         analysis["has_tests"] = True
 
+                    analysis["api_endpoints"] = await self._detect_api_endpoints_in_project(
+                        client,
+                        headers,
+                        project["id"],
+                        project.get("default_branch", "main")
+                    )
+
                 return analysis
 
         except Exception as e:
             raise Exception(f"GitLab API error: {str(e)}")
 
+    async def _detect_api_endpoints_in_project(self, client: httpx.AsyncClient, headers: Dict[str, str], project_id: int, ref: str) -> List[Dict[str, Any]]:
+        """Detect REST API endpoints in a GitLab project."""
+        endpoints: List[Dict[str, Any]] = []
+        seen = set()
+        candidate_files = await self._collect_endpoint_candidate_files(client, headers, project_id, ref)
+        servlet_methods_by_controller: Dict[str, List[str]] = {}
+
+        for file_path in candidate_files:
+            if not file_path.endswith(".java"):
+                continue
+            try:
+                file_response = await client.get(
+                    f"{self.api_base_url}/projects/{project_id}/repository/files/{quote(file_path, safe='')}/raw",
+                    headers=headers,
+                    params={"ref": ref}
+                )
+                if file_response.status_code != 200:
+                    continue
+                file_name = os.path.basename(file_path)
+                class_match = re.search(r'\bclass\s+(\w+)', file_response.text)
+                controller_name = class_match.group(1) if class_match else file_name.replace(".java", "")
+                methods = self._extract_servlet_http_methods(file_response.text)
+                if methods != ["SERVLET"]:
+                    servlet_methods_by_controller[controller_name] = methods
+                    servlet_methods_by_controller[file_name] = methods
+            except Exception:
+                continue
+
+        for file_path in candidate_files:
+            try:
+                file_response = await client.get(
+                    f"{self.api_base_url}/projects/{project_id}/repository/files/{quote(file_path, safe='')}/raw",
+                    headers=headers,
+                    params={"ref": ref}
+                )
+                if file_response.status_code != 200:
+                    continue
+
+                if file_path.endswith("web.xml"):
+                    extracted_endpoints = self._extract_endpoints_from_web_xml(file_response.text, file_path, servlet_methods_by_controller)
+                else:
+                    extracted_endpoints = self._extract_endpoints_from_java_content(file_response.text, file_path)
+                for endpoint in extracted_endpoints:
+                    key = (endpoint["method"], endpoint["path"], endpoint["file"], endpoint.get("line_number"))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    endpoints.append(endpoint)
+            except Exception:
+                continue
+
+        return endpoints
+
+    async def _collect_endpoint_candidate_files(self, client: httpx.AsyncClient, headers: Dict[str, str], project_id: int, ref: str, max_files: int = 200) -> List[str]:
+        """Collect Java files likely to contain API endpoints."""
+        java_files: List[str] = []
+        seen_paths = set()
+
+        for base_path in ["src/main/java", "src", ""]:
+            try:
+                response = await client.get(
+                    f"{self.api_base_url}/projects/{project_id}/repository/tree",
+                    headers=headers,
+                    params={"path": base_path, "ref": ref, "recursive": "true", "per_page": str(max_files)}
+                )
+                if response.status_code != 200:
+                    continue
+
+                for item in response.json():
+                    item_path = item.get("path", "")
+                    if item.get("type") == "blob" and (item_path.endswith(".java") or item_path.endswith("web.xml")) and item_path not in seen_paths:
+                        seen_paths.add(item_path)
+                        java_files.append(item_path)
+                        if len(java_files) >= max_files:
+                            break
+            except Exception:
+                continue
+
+        prioritized = []
+        fallback = []
+        for path in java_files:
+            normalized = path.lower()
+            if normalized.endswith("web.xml") or any(token in normalized for token in ["controller", "resource", "endpoint", "api", "servlet"]):
+                prioritized.append(path)
+            else:
+                fallback.append(path)
+
+        return prioritized + fallback
+
+    def _extract_endpoints_from_java_content(self, content: str, file_path: str) -> List[Dict[str, Any]]:
+        """Extract Spring-style and JAX-RS endpoints from a Java file."""
+        endpoints: List[Dict[str, Any]] = []
+        file_name = os.path.basename(file_path)
+
+        def endpoint_line(match) -> int:
+            return content.count("\n", 0, match.start()) + 1
+
+        class_base_path = ""
+        class_request_match = re.search(r'@RequestMapping\s*\((.*?)\)\s*(?:public\s+)?(?:class|interface|record)\s+\w+', content, re.DOTALL)
+        if class_request_match:
+            class_base_path = self._extract_mapping_path(class_request_match.group(1))
+
+        if not class_base_path:
+            class_path_match = re.search(r'@Path\s*\(\s*["\']([^"\']*)["\']\s*\)\s*(?:public\s+)?(?:class|interface|record)\s+\w+', content, re.DOTALL)
+            if class_path_match:
+                class_base_path = class_path_match.group(1)
+
+        spring_patterns = [
+            ("GET", r'@GetMapping\s*(?:\((.*?)\))?'),
+            ("POST", r'@PostMapping\s*(?:\((.*?)\))?'),
+            ("PUT", r'@PutMapping\s*(?:\((.*?)\))?'),
+            ("DELETE", r'@DeleteMapping\s*(?:\((.*?)\))?'),
+            ("PATCH", r'@PatchMapping\s*(?:\((.*?)\))?'),
+        ]
+
+        for method, pattern in spring_patterns:
+            for match in re.finditer(pattern, content, re.DOTALL):
+                sub_path = self._extract_mapping_path(match.group(1) or "")
+                endpoints.append({
+                    "path": self._join_endpoint_paths(class_base_path, sub_path),
+                    "method": method,
+                    "file": file_name,
+                    "controller": file_name,
+                    "line_number": endpoint_line(match),
+                })
+
+        for match in re.finditer(r'@RequestMapping\s*\((.*?)\)', content, re.DOTALL):
+            annotation_args = match.group(1)
+            method_match = re.search(r'RequestMethod\.([A-Z]+)', annotation_args)
+            sub_path = self._extract_mapping_path(annotation_args)
+            if method_match:
+                endpoints.append({
+                    "path": self._join_endpoint_paths(class_base_path, sub_path),
+                    "method": method_match.group(1),
+                    "file": file_name,
+                    "controller": file_name,
+                    "line_number": endpoint_line(match),
+                })
+
+        for match in re.finditer(r'@(GET|POST|PUT|DELETE|PATCH)\b(?:(?!@(GET|POST|PUT|DELETE|PATCH)\b).)*?(?:@Path\s*\(\s*["\']([^"\']*)["\']\s*\))?', content, re.DOTALL):
+            method = match.group(1)
+            sub_path = match.group(3) or ""
+            endpoints.append({
+                "path": self._join_endpoint_paths(class_base_path, sub_path),
+                "method": method,
+                "file": file_name,
+                "controller": file_name,
+                "line_number": endpoint_line(match),
+            })
+
+        for match in re.finditer(r'@WebServlet\s*\((.*?)\)', content, re.DOTALL):
+            for servlet_path in self._extract_servlet_url_patterns(match.group(1)):
+                for method in self._extract_servlet_http_methods(content):
+                    endpoints.append({
+                        "path": servlet_path,
+                        "method": method,
+                        "file": file_name,
+                        "controller": file_name,
+                        "line_number": endpoint_line(match),
+                    })
+
+        return endpoints
+
+    def _extract_servlet_http_methods(self, content: str) -> List[str]:
+        methods = []
+        servlet_methods = [
+            ("GET", r'\bdoGet\s*\('),
+            ("POST", r'\bdoPost\s*\('),
+            ("PUT", r'\bdoPut\s*\('),
+            ("DELETE", r'\bdoDelete\s*\('),
+            ("PATCH", r'\bdoPatch\s*\('),
+        ]
+        for method, pattern in servlet_methods:
+            if re.search(pattern, content):
+                methods.append(method)
+        return methods or ["SERVLET"]
+
+    def _extract_servlet_url_patterns(self, annotation_args: str) -> List[str]:
+        if not annotation_args:
+            return ["/"]
+
+        patterns = []
+        named_match = re.search(r'(?:urlPatterns|value)\s*=\s*\{([^}]*)\}', annotation_args, re.DOTALL)
+        if named_match:
+            patterns.extend(re.findall(r'["\']([^"\']+)["\']', named_match.group(1)))
+
+        single_named_match = re.search(r'(?:urlPatterns|value)\s*=\s*["\']([^"\']+)["\']', annotation_args)
+        if single_named_match:
+            patterns.append(single_named_match.group(1))
+
+        direct_patterns = re.findall(r'^[\s\{]*["\']([^"\']+)["\']', annotation_args.strip())
+        patterns.extend(direct_patterns)
+
+        return [pattern if pattern.startswith("/") else f"/{pattern}" for pattern in dict.fromkeys(patterns or ["/"])]
+
+    def _extract_endpoints_from_web_xml(self, content: str, file_path: str, servlet_methods_by_controller: Dict[str, List[str]] | None = None) -> List[Dict[str, Any]]:
+        endpoints: List[Dict[str, Any]] = []
+        servlet_classes = {}
+        servlet_methods_by_controller = servlet_methods_by_controller or {}
+
+        for match in re.finditer(r'<servlet>\s*(.*?)\s*</servlet>', content, re.DOTALL | re.IGNORECASE):
+            block = match.group(1)
+            name_match = re.search(r'<servlet-name>\s*([^<]+)\s*</servlet-name>', block, re.IGNORECASE)
+            class_match = re.search(r'<servlet-class>\s*([^<]+)\s*</servlet-class>', block, re.IGNORECASE)
+            if name_match and class_match:
+                servlet_classes[name_match.group(1).strip()] = class_match.group(1).strip().split(".")[-1]
+
+        for match in re.finditer(r'<servlet-mapping>\s*(.*?)\s*</servlet-mapping>', content, re.DOTALL | re.IGNORECASE):
+            block = match.group(1)
+            name_match = re.search(r'<servlet-name>\s*([^<]+)\s*</servlet-name>', block, re.IGNORECASE)
+            if not name_match:
+                continue
+            servlet_name = name_match.group(1).strip()
+            controller = servlet_classes.get(servlet_name, servlet_name)
+            methods = servlet_methods_by_controller.get(controller) or servlet_methods_by_controller.get(f"{controller}.java") or ["SERVLET"]
+            for url_match in re.finditer(r'<url-pattern>\s*([^<]+)\s*</url-pattern>', block, re.IGNORECASE):
+                path = url_match.group(1).strip()
+                for method in methods:
+                    endpoints.append({
+                        "path": path if path.startswith("/") else f"/{path}",
+                        "method": method,
+                        "file": os.path.basename(file_path),
+                        "controller": controller,
+                        "line_number": content.count("\n", 0, match.start()) + 1,
+                    })
+
+        return endpoints
+
+    def _extract_mapping_path(self, annotation_args: str) -> str:
+        """Extract a route path from Java mapping annotation arguments."""
+        if not annotation_args:
+            return ""
+
+        named_match = re.search(r'(?:value|path)\s*=\s*\{?\s*["\']([^"\']*)["\']', annotation_args)
+        if named_match:
+            return named_match.group(1)
+
+        direct_match = re.search(r'^\s*["\']([^"\']*)["\']', annotation_args.strip())
+        if direct_match:
+            return direct_match.group(1)
+
+        return ""
+
+    def _join_endpoint_paths(self, base_path: str, sub_path: str) -> str:
+        """Join class-level and method-level endpoint paths."""
+        parts = [part.strip("/") for part in [base_path, sub_path] if part and part.strip("/")]
+        if not parts:
+            return "/"
+        return "/" + "/".join(parts)
     async def parse_repo_url(self, repo_url: str) -> tuple:
         """Parse GitLab URL to extract owner and repo name"""
         import re

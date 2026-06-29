@@ -997,11 +997,31 @@ class GitHubService:
         candidate_files = await self._collect_endpoint_candidate_files(repository)
         endpoints: List[Dict[str, str]] = []
         seen = set()
+        servlet_methods_by_controller: Dict[str, List[str]] = {}
+
+        for file_path in candidate_files:
+            if not file_path.endswith(".java"):
+                continue
+            try:
+                content = repository.get_contents(file_path).decoded_content.decode("utf-8", errors="ignore")
+                file_name = os.path.basename(file_path)
+                class_match = re.search(r'\bclass\s+(\w+)', content)
+                controller_name = class_match.group(1) if class_match else file_name.replace(".java", "")
+                methods = self._extract_servlet_http_methods(content)
+                if methods != ["SERVLET"]:
+                    servlet_methods_by_controller[controller_name] = methods
+                    servlet_methods_by_controller[file_name] = methods
+            except Exception:
+                continue
 
         for file_path in candidate_files:
             try:
                 content = repository.get_contents(file_path).decoded_content.decode("utf-8", errors="ignore")
-                for endpoint in self._extract_endpoints_from_java_content(content, file_path):
+                if file_path.endswith("web.xml"):
+                    extracted_endpoints = self._extract_endpoints_from_web_xml(content, file_path, servlet_methods_by_controller)
+                else:
+                    extracted_endpoints = self._extract_endpoints_from_java_content(content, file_path)
+                for endpoint in extracted_endpoints:
                     key = (endpoint["method"], endpoint["path"], endpoint["file"])
                     if key in seen:
                         continue
@@ -1043,7 +1063,7 @@ class GitHubService:
                 contents = [contents]
 
             for item in contents:
-                if item.type == "file" and item.name.endswith(".java"):
+                if item.type == "file" and (item.name.endswith(".java") or item.name == "web.xml"):
                     candidate_paths.append(item.path)
                     if len(candidate_paths) >= max_files:
                         break
@@ -1056,7 +1076,7 @@ class GitHubService:
         fallback = []
         for path in candidate_paths:
             normalized = path.lower()
-            if any(token in normalized for token in ["controller", "resource", "endpoint", "api"]):
+            if normalized.endswith("web.xml") or any(token in normalized for token in ["controller", "resource", "endpoint", "api", "servlet"]):
                 prioritized.append(path)
             else:
                 fallback.append(path)
@@ -1067,6 +1087,9 @@ class GitHubService:
         """Extract Spring-style and JAX-RS endpoints from a Java file."""
         endpoints: List[Dict[str, str]] = []
         file_name = os.path.basename(file_path)
+
+        def endpoint_line(match) -> int:
+            return content.count("\n", 0, match.start()) + 1
 
         class_base_path = ""
         class_request_match = re.search(r'@RequestMapping\s*\((.*?)\)\s*(?:public\s+)?(?:class|interface|record)\s+\w+', content, re.DOTALL)
@@ -1093,6 +1116,8 @@ class GitHubService:
                     "path": self._join_endpoint_paths(class_base_path, sub_path),
                     "method": method,
                     "file": file_name,
+                    "controller": file_name,
+                    "line_number": endpoint_line(match),
                 })
 
         for match in re.finditer(r'@RequestMapping\s*\((.*?)\)', content, re.DOTALL):
@@ -1104,6 +1129,8 @@ class GitHubService:
                     "path": self._join_endpoint_paths(class_base_path, sub_path),
                     "method": method_match.group(1),
                     "file": file_name,
+                    "controller": file_name,
+                    "line_number": endpoint_line(match),
                 })
 
         jaxrs_class_base = class_base_path
@@ -1114,7 +1141,87 @@ class GitHubService:
                 "path": self._join_endpoint_paths(jaxrs_class_base, sub_path),
                 "method": method,
                 "file": file_name,
+                "controller": file_name,
+                "line_number": endpoint_line(match),
             })
+
+        for match in re.finditer(r'@WebServlet\s*\((.*?)\)', content, re.DOTALL):
+            for servlet_path in self._extract_servlet_url_patterns(match.group(1)):
+                for method in self._extract_servlet_http_methods(content):
+                    endpoints.append({
+                        "path": servlet_path,
+                        "method": method,
+                        "file": file_name,
+                        "controller": file_name,
+                        "line_number": endpoint_line(match),
+                    })
+
+        return endpoints
+
+    def _extract_servlet_http_methods(self, content: str) -> List[str]:
+        methods = []
+        servlet_methods = [
+            ("GET", r'\bdoGet\s*\('),
+            ("POST", r'\bdoPost\s*\('),
+            ("PUT", r'\bdoPut\s*\('),
+            ("DELETE", r'\bdoDelete\s*\('),
+            ("PATCH", r'\bdoPatch\s*\('),
+        ]
+        for method, pattern in servlet_methods:
+            if re.search(pattern, content):
+                methods.append(method)
+        return methods or ["SERVLET"]
+
+    def _extract_servlet_url_patterns(self, annotation_args: str) -> List[str]:
+        if not annotation_args:
+            return ["/"]
+
+        patterns = []
+        named_match = re.search(r'(?:urlPatterns|value)\s*=\s*\{([^}]*)\}', annotation_args, re.DOTALL)
+        if named_match:
+            patterns.extend(re.findall(r'["\']([^"\']+)["\']', named_match.group(1)))
+
+        single_named_match = re.search(r'(?:urlPatterns|value)\s*=\s*["\']([^"\']+)["\']', annotation_args)
+        if single_named_match:
+            patterns.append(single_named_match.group(1))
+
+        direct_patterns = re.findall(r'^[\s\{]*["\']([^"\']+)["\']', annotation_args.strip())
+        patterns.extend(direct_patterns)
+
+        return [pattern if pattern.startswith("/") else f"/{pattern}" for pattern in dict.fromkeys(patterns or ["/"])]
+
+    def _extract_endpoints_from_web_xml(self, content: str, file_path: str, servlet_methods_by_controller: Dict[str, List[str]] | None = None) -> List[Dict[str, str]]:
+        endpoints: List[Dict[str, str]] = []
+        servlet_classes = {}
+        servlet_methods_by_controller = servlet_methods_by_controller or {}
+
+        for match in re.finditer(r'<servlet>\s*(.*?)\s*</servlet>', content, re.DOTALL | re.IGNORECASE):
+            block = match.group(1)
+            name_match = re.search(r'<servlet-name>\s*([^<]+)\s*</servlet-name>', block, re.IGNORECASE)
+            class_match = re.search(r'<servlet-class>\s*([^<]+)\s*</servlet-class>', block, re.IGNORECASE)
+            if name_match:
+                servlet_name = name_match.group(1).strip()
+                if class_match:
+                    servlet_classes[servlet_name] = class_match.group(1).strip().split(".")[-1]
+
+        for match in re.finditer(r'<servlet-mapping>\s*(.*?)\s*</servlet-mapping>', content, re.DOTALL | re.IGNORECASE):
+            block = match.group(1)
+            name_match = re.search(r'<servlet-name>\s*([^<]+)\s*</servlet-name>', block, re.IGNORECASE)
+            if not name_match:
+                continue
+            servlet_name = name_match.group(1).strip()
+            controller = servlet_classes.get(servlet_name, servlet_name)
+            methods = servlet_methods_by_controller.get(controller) or servlet_methods_by_controller.get(f"{controller}.java") or ["SERVLET"]
+            for url_match in re.finditer(r'<url-pattern>\s*([^<]+)\s*</url-pattern>', block, re.IGNORECASE):
+                path = url_match.group(1).strip()
+                for method in methods:
+                    endpoints.append({
+                        "path": path if path.startswith("/") else f"/{path}",
+                        "method": method,
+                        "file": os.path.basename(file_path),
+                        "controller": controller,
+                        "line_number": content.count("\n", 0, match.start()) + 1,
+                    })
 
         return endpoints
 

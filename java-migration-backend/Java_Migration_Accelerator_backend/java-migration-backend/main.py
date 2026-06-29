@@ -72,6 +72,14 @@ app.include_router(auth_router, prefix="/api")
 
 # Default GitHub token from environment variable (set in Render dashboard)
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+DEFAULT_GITLAB_TOKEN = os.environ.get("GITLAB_TOKEN") or os.environ.get("GITLAB_ACCESS_TOKEN", "")
+
+
+def get_effective_gitlab_token(token: str = "") -> str:
+    candidate = (token or "").strip()
+    if candidate.startswith("ghp_") or candidate.startswith("github_pat_"):
+        return DEFAULT_GITLAB_TOKEN
+    return candidate or DEFAULT_GITLAB_TOKEN
 # Hugging Face token for LLM-based recommendations
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
@@ -163,10 +171,13 @@ class MigrationRequest(BaseModel):
     target_repo_name: str = Field(description="Name for the new migrated repository or target branch")
     target_repo_url: Optional[str] = Field(default=None, description="Existing repository URL to push branch migrations into")
     migration_approach: Optional[str] = Field(default="fork", description="Migration destination strategy: fork or branch")
-    platform: GitPlatform = Field(default=GitPlatform.GITHUB, description="Git platform (GitHub or GitLab)")
+    platform: GitPlatform = Field(default=GitPlatform.GITHUB, description="Source Git platform (GitHub or GitLab)")
+    target_platform: Optional[GitPlatform] = Field(default=None, description="Destination Git platform for new repository creation")
     source_java_version: str = Field(default="7", description="Current Java version")
     target_java_version: JavaVersion = Field(default=JavaVersion.JAVA_18, description="Target Java version")
-    token: Optional[str] = Field(default="", description="Personal access token (optional - only needed for pushing to GitHub)")
+    token: Optional[str] = Field(default="", description="Personal access token fallback for clone and push operations")
+    source_token: Optional[str] = Field(default="", description="Personal access token for cloning the source repository")
+    target_token: Optional[str] = Field(default="", description="Personal access token for creating or pushing to the target repository")
     conversion_types: List[str] = Field(default=["java_version"], description="Types of conversions to perform")
     email: Optional[str] = Field(default=None, description="Email for migration summary")
     run_tests: bool = Field(default=True, description="Run tests after migration")
@@ -593,7 +604,7 @@ async def get_gitlab_repo_visibility(repo_url: str, token: str = ""):
     """Check GitLab repository visibility/access."""
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        repo_info = await gitlab_service.get_repo_info(token.strip(), owner, repo)
+        repo_info = await gitlab_service.get_repo_info(get_effective_gitlab_token(token), owner, repo)
         return {
             "owner": owner,
             "repo": repo,
@@ -625,7 +636,7 @@ async def list_gitlab_repos(token: str):
 async def analyze_gitlab_repository(owner: str, repo: str, token: str = ""):
     """Analyze a GitLab repository to detect Java version, dependencies, and structure"""
     try:
-        analysis = await gitlab_service.analyze_repository(token, owner, repo)
+        analysis = await gitlab_service.analyze_repository(get_effective_gitlab_token(token), owner, repo)
         return analysis
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -636,7 +647,7 @@ async def analyze_gitlab_repo_url(repo_url: str, token: str = ""):
     """Analyze a GitLab repository directly by URL"""
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        analysis = await gitlab_service.analyze_repository(token, owner, repo)
+        analysis = await gitlab_service.analyze_repository(get_effective_gitlab_token(token), owner, repo)
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -652,7 +663,7 @@ async def list_gitlab_repo_files(repo_url: str, token: str = "", path: str = "")
     """List all files in a GitLab repository"""
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        files = await gitlab_service.list_repo_files(token, owner, repo, path)
+        files = await gitlab_service.list_repo_files(get_effective_gitlab_token(token), owner, repo, path)
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -670,7 +681,7 @@ async def list_gitlab_repo_branches(repo_url: str, token: str = ""):
     """List branches in a GitLab repository."""
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        branch_info = await gitlab_service.list_repo_branches(token.strip(), owner, repo)
+        branch_info = await gitlab_service.list_repo_branches(get_effective_gitlab_token(token), owner, repo)
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -686,7 +697,7 @@ async def get_gitlab_file_content(repo_url: str, file_path: str, token: str = ""
     """Get the content of a file from a GitLab repository"""
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        content = await gitlab_service.get_file_content(token, owner, repo, file_path)
+        content = await gitlab_service.get_file_content(get_effective_gitlab_token(token), owner, repo, file_path)
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -703,7 +714,7 @@ async def get_gitlab_file_content(repo_url: str, file_path: str, token: str = ""
 async def update_gitlab_java_version(repo_url: str, java_version: str, file_path: str, token: str = ""):
     """Update Java version in a GitLab pom.xml or build.gradle file in a local clone."""
     try:
-        clone_path = await gitlab_service.clone_repository(token.strip(), repo_url)
+        clone_path = await gitlab_service.clone_repository(get_effective_gitlab_token(token), repo_url)
         file_full_path = os.path.join(clone_path, file_path)
         if not os.path.exists(file_full_path):
             raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
@@ -975,8 +986,9 @@ async def preview_migration_changes(request: MigrationRequest):
             repo_service = github_service
 
         # Clone repository
+        source_token = (request.source_token or request.token or "").strip()
         clone_path = await repo_service.clone_repository(
-            request.token,  # Use the generic token field
+            source_token,
             request.source_repo_url
         )
         print(f"[PREVIEW] Repository cloned to: {clone_path}")
@@ -1783,15 +1795,14 @@ async def run_migration(job_id: str, request: MigrationRequest):
         # Determine which service to use based on platform
         if request.platform == GitPlatform.GITLAB:
             repo_service = gitlab_service
-            token_field = "token"
         else:  # GitHub is default
             repo_service = github_service
-            token_field = "token"  # Updated to match new field name
 
         # Step 1: Clone repository
         update_job(job_id, MigrationStatus.CLONING, 5, "Cloning source repository...")
+        source_token = (request.source_token or request.token or "").strip()
         clone_path = await repo_service.clone_repository(
-            request.token,  # Use the generic token field
+            source_token,
             request.source_repo_url
         )
         add_log(job_id, f"Repository cloned to {clone_path}")
@@ -1916,18 +1927,26 @@ async def run_migration(job_id: str, request: MigrationRequest):
         _, source_repo_name = await repo_service.parse_repo_url(request.source_repo_url)
         now = datetime.now().strftime("%Y%m%d-%H%M%S")
 
-        # Use user token. Only GitHub may fall back to the configured default token.
-        user_token = request.token.strip() if request.token and request.token.strip() else ""
+        # Use destination token for repository creation/push. GitHub and GitLab can fall back to configured default tokens.
         migration_approach = (request.migration_approach or "fork").strip().lower()
-        push_token = user_token
-        if request.platform != GitPlatform.GITLAB and not push_token:
-            push_token = DEFAULT_GITHUB_TOKEN
-        add_log(job_id, f"Using repository token: {'user-provided' if user_token else 'default GitHub token' if push_token else 'not provided'}")
+        destination_platform = request.target_platform or request.platform
+        target_user_token = (request.target_token or "").strip()
+        if not request.target_platform and not target_user_token:
+            target_user_token = (request.token or "").strip()
+
+        push_token = target_user_token
+        if not push_token:
+            push_token = DEFAULT_GITLAB_TOKEN if destination_platform == GitPlatform.GITLAB else DEFAULT_GITHUB_TOKEN
+
+        token_source = "user-provided" if target_user_token else f"default {destination_platform.value} token" if push_token else "not provided"
+        add_log(job_id, f"Destination platform: {destination_platform.value}")
+        add_log(job_id, f"Using repository token: {token_source}")
 
         if migration_approach == "branch":
             target_repo_url = (request.target_repo_url or request.source_repo_url).strip()
-            target_repo_service = gitlab_service if "gitlab.com" in target_repo_url.lower() else github_service
-            branch_push_token = user_token or ("" if "gitlab.com" in target_repo_url.lower() else DEFAULT_GITHUB_TOKEN)
+            is_gitlab_target = "gitlab.com" in target_repo_url.lower()
+            target_repo_service = gitlab_service if is_gitlab_target else github_service
+            branch_push_token = target_user_token or (DEFAULT_GITLAB_TOKEN if is_gitlab_target else DEFAULT_GITHUB_TOKEN)
             _, target_repo_source_name = await target_repo_service.parse_repo_url(target_repo_url)
             target_branch_name = normalize_target_branch_name(
                 request.target_repo_name,
@@ -1956,10 +1975,11 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 source_repo_name,
                 now,
             )
+            target_repo_service = gitlab_service if destination_platform == GitPlatform.GITLAB else github_service
             add_log(job_id, f"Target repository name: {target_repo_name}")
             update_job(job_id, MigrationStatus.PUSHING, 90, "Creating new repository and pushing migrated code...")
             try:
-                new_repo_url = await repo_service.create_and_push_repo(
+                new_repo_url = await target_repo_service.create_and_push_repo(
                     push_token,
                     target_repo_name,
                     clone_path,
@@ -1968,7 +1988,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 job.target_repo = new_repo_url
                 add_log(job_id, f"? Created new repository: {new_repo_url}")
             except Exception as push_error:
-                add_log(job_id, f"?? GitHub push failed: {str(push_error)}")
+                add_log(job_id, f"?? Repository push failed: {str(push_error)}")
                 add_log(job_id, f"?? Migrated code saved locally at: {clone_path}")
                 raise Exception(f"Git push to target repository failed: {str(push_error)}")
 
@@ -2221,9 +2241,3 @@ def add_log(job_id: str, message: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
-
-
-
-
-
-
