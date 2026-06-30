@@ -3,6 +3,7 @@ Java Migration Backend - Main FastAPI Application
 Handles Java 7 → Java 18 migration automation using OpenRewrite
 """
 import sys
+import asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,7 @@ import os
 import re
 import logging
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from github import GithubException
 
 # Force unbuffered output for immediate logging
@@ -38,7 +40,7 @@ from services.github_service import GitHubService
 from services.gitlab_service import GitLabService
 from services.migration_service import MigrationService
 from services.email_service import EmailService
-from services.sonarqube_service import SonarQubeService
+from services.sonarqube_service import MavenBuildValidationError, SonarQubeService
 from services.auth_service import router as auth_router
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
@@ -73,13 +75,71 @@ app.include_router(auth_router, prefix="/api")
 # Default GitHub token from environment variable (set in Render dashboard)
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 DEFAULT_GITLAB_TOKEN = os.environ.get("GITLAB_TOKEN") or os.environ.get("GITLAB_ACCESS_TOKEN", "")
+REPO_API_TIMEOUT_SECONDS = int(os.environ.get("REPO_API_TIMEOUT_SECONDS", "30"))
+
+
+def sanitize_token(token: str = "") -> str:
+    """Never treat repository URLs or placeholder text as tokens."""
+    candidate = (token or "").strip()
+    if candidate.startswith(("http://", "https://", "git@")):
+        return ""
+    return candidate
+
+
+def detect_platform_from_url(repo_url: str):
+    return GitPlatform.GITLAB if "gitlab.com" in (repo_url or "").lower() else GitPlatform.GITHUB
+
+
+def get_repo_service(platform):
+    return gitlab_service if platform == GitPlatform.GITLAB else github_service
+
+
+def get_default_token(platform) -> str:
+    return DEFAULT_GITLAB_TOKEN if platform == GitPlatform.GITLAB else DEFAULT_GITHUB_TOKEN
+
+
+def get_effective_token(platform, token: str = "") -> str:
+    candidate = sanitize_token(token)
+    if platform == GitPlatform.GITLAB:
+        if candidate.startswith(("ghp_", "github_pat_")):
+            candidate = ""
+        return candidate or DEFAULT_GITLAB_TOKEN
+    if candidate.startswith("glpat-"):
+        candidate = ""
+    return candidate or DEFAULT_GITHUB_TOKEN
 
 
 def get_effective_gitlab_token(token: str = "") -> str:
-    candidate = (token or "").strip()
-    if candidate.startswith("ghp_") or candidate.startswith("github_pat_"):
-        return DEFAULT_GITLAB_TOKEN
-    return candidate or DEFAULT_GITLAB_TOKEN
+    return get_effective_token(GitPlatform.GITLAB, token)
+
+
+def describe_access_error(platform, operation: str, error: Exception) -> HTTPException:
+    message = str(error)
+    normalized = message.lower()
+    status_code = 400
+    if any(marker in normalized for marker in ["authentication", "bad credentials", "401", "unauthorized"]):
+        status_code = 401
+    elif any(marker in normalized for marker in ["access denied", "forbidden", "403", "not found", "404", "private"]):
+        status_code = 403
+    provider = platform.value.capitalize()
+    if status_code in (401, 403):
+        return HTTPException(
+            status_code=status_code,
+            detail=f"Private repository access denied or token missing. {provider} {operation} failed because the repository is private/inaccessible or the configured {provider} token is missing/invalid. {message}"
+        )
+    return HTTPException(status_code=status_code, detail=message)
+
+
+async def run_repo_operation(operation, platform, operation_name: str):
+    try:
+        return await asyncio.wait_for(operation, timeout=REPO_API_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        provider = platform.value.capitalize()
+        raise HTTPException(
+            status_code=504,
+            detail=f"{provider} {operation_name} timed out after {REPO_API_TIMEOUT_SECONDS} seconds. Check repository access and token configuration."
+        )
+
 # Hugging Face token for LLM-based recommendations
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
@@ -166,6 +226,52 @@ class GitPlatform(str, Enum):
     GITLAB = "gitlab"
 
 
+
+
+def normalize_repository_url(repo_url: str, platform: GitPlatform | None = None) -> str:
+    """Normalize repository URL and reject malformed suffixes before hitting Git APIs."""
+    raw = (repo_url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Invalid repository URL: repository URL is required.")
+    if raw.startswith(("http://", "https://")):
+        parsed = urlparse(raw)
+        host = (parsed.netloc or "").lower()
+        parts = [part for part in (parsed.path or "").strip("/").split("/") if part]
+    elif re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", raw):
+        host = "gitlab.com" if platform == GitPlatform.GITLAB else "github.com"
+        parts = raw.split("/", 1)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid repository URL. Use https://github.com/owner/repo, https://gitlab.com/owner/repo, or owner/repo."
+        )
+
+    if platform == GitPlatform.GITHUB and "github" not in host:
+        raise HTTPException(status_code=400, detail="Invalid GitHub repository URL: host must be github.com or a GitHub Enterprise host.")
+    if platform == GitPlatform.GITLAB and "gitlab.com" not in host:
+        raise HTTPException(status_code=400, detail="Invalid GitLab repository URL: host must be gitlab.com.")
+    if not platform and "gitlab.com" not in host and "github" not in host:
+        raise HTTPException(status_code=400, detail="Invalid repository URL: only GitHub and GitLab URLs are supported.")
+    if len(parts) < 2:
+        raise HTTPException(status_code=400, detail="Invalid repository URL: expected owner/repository path.")
+
+    owner = parts[0].strip()
+    repo = parts[1].strip()
+    lowered_repo = repo.lower()
+    if lowered_repo.endswith(".git"):
+        repo = repo[:-4]
+    elif re.search(r"\.git\w+$", lowered_repo):
+        raise HTTPException(status_code=400, detail=f"Invalid repository URL: unsupported repository suffix in '{repo}'. Did you mean '.git'?")
+
+    if not re.match(r"^[A-Za-z0-9_.-]+$", owner) or not re.match(r"^[A-Za-z0-9_.-]+$", repo):
+        raise HTTPException(status_code=400, detail="Invalid repository URL: owner and repository names may contain only letters, numbers, dots, dashes, and underscores.")
+    if not repo:
+        raise HTTPException(status_code=400, detail="Invalid repository URL: repository name is required.")
+
+    scheme = "https"
+    return f"{scheme}://{host}/{owner}/{repo}"
+
+
 class MigrationRequest(BaseModel):
     source_repo_url: str = Field(description="Repository URL (GitHub or GitLab)")
     target_repo_name: str = Field(description="Name for the new migrated repository or target branch")
@@ -185,6 +291,13 @@ class MigrationRequest(BaseModel):
     run_fossa: bool = Field(default=False, description="Run FOSSA license and dependency scan")
     fix_business_logic: bool = Field(default=True, description="Attempt to fix business logic issues")
 
+
+def build_sonar_project_key(source_repo_url: str, job_id: str) -> str:
+    """Create a unique SonarQube-safe project key for each migrated project."""
+    repo_name = source_repo_url.rstrip("/").split("/")[-1].replace(".git", "") or "java-project"
+    candidate = f"java-apex-{repo_name}-{job_id[:8]}"
+    candidate = re.sub(r"[^A-Za-z0-9_.:-]", "-", candidate).strip("-._:")
+    return candidate or f"java-apex-migration-{job_id[:8]}"
 
 def normalize_target_repo_name(target_repo_name: str, fallback_repo_name: str, timestamp: str) -> str:
     """Accept either a bare repo name or a full URL and return a GitHub-safe repo slug."""
@@ -263,6 +376,9 @@ class MigrationResult(BaseModel):
     sonar_vulnerabilities: int = 0
     sonar_code_smells: int = 0
     sonar_coverage: float = 0.0
+    sonar_project_key: Optional[str] = None
+    sonar_dashboard_url: Optional[str] = None
+    sonar_build_report: Optional[Dict[str, Any]] = None
     # FOSSA results
     fossa_policy_status: Optional[str] = None
     fossa_total_dependencies: int = 0
@@ -337,7 +453,7 @@ async def list_github_repos(token: str):
         error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
         
         if status_code == 401:
-            error_msg = "Authentication failed. Please check your GitHub token."
+            error_msg = "Private repository access denied or token missing. Check the configured GitHub token in backend .env."
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
@@ -351,7 +467,7 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
     """Analyze a repository to detect Java version, dependencies, and structure"""
     try:
         # Use default token if none provided to avoid rate limits
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        effective_token = get_effective_token(GitPlatform.GITHUB, token)
         analysis = await github_service.analyze_repository(effective_token, owner, repo, include_deep_analysis=False)
         return analysis
     except GithubException as e:
@@ -361,9 +477,9 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
         if status_code == 404:
             error_msg = f"Repository not found. Please check that the repository {owner}/{repo} exists."
         elif status_code == 403:
-            error_msg = "Access denied. The repository may be private or you may not have permission to access it."
+            error_msg = "Private repository access denied or token missing. Check the backend .env token for this repository platform."
         elif status_code == 401:
-            error_msg = "Authentication failed. Please check your GitHub token."
+            error_msg = "Private repository access denied or token missing. Check the configured GitHub token in backend .env."
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
@@ -378,9 +494,14 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
 async def analyze_repo_url(repo_url: str, token: str = ""):
     """Analyze a repository directly by URL (token only needed for private repos or higher rate limits)"""
     try:
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITHUB)
+        effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
-        analysis = await github_service.analyze_repository(effective_token, owner, repo, repo_url, include_deep_analysis=False)
+        analysis = await run_repo_operation(
+            github_service.analyze_repository(effective_token, owner, repo, repo_url, include_deep_analysis=False),
+            GitPlatform.GITHUB,
+            "repository analysis"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -393,17 +514,19 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
         
         if status_code == 404:
             if token and token.strip():
-                error_msg = "Repository not found or access denied. Check that your Personal Access Token has 'repo' scope, the repository exists, and (if in an organization) your PAT is approved by the organization admin."
+                error_msg = "Private repository access denied or token missing. Check that the configured GitHub token in backend .env has repo scope, the repository exists, and organization SSO/PAT approval is complete."
             else:
-                error_msg = "Repository not found or is private. If this is a private repository, provide a Personal Access Token with 'repo' scope."
+                error_msg = "Private repository access denied or token missing. If this is a private repository, configure a valid GitHub token in backend .env with repo scope."
         elif status_code == 403:
-            error_msg = "Access denied. The repository may be private or you may not have permission to access it."
+            error_msg = "Private repository access denied or token missing. Check the backend .env token for this repository platform."
         elif status_code == 401:
-            error_msg = "Authentication failed. Please check your GitHub token."
+            error_msg = "Private repository access denied or token missing. Check the configured GitHub token in backend .env."
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
         raise HTTPException(status_code=status_code, detail=error_msg)
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         print(f"[analyze-url ERROR] repo_url={repo_url} token_provided={bool(token and token.strip())} error={str(e)}\nTRACE:\n{traceback.format_exc()}")
@@ -414,6 +537,7 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
 async def get_github_repo_visibility(repo_url: str, token: str = ""):
     """Check repository visibility without falling back to the server default token."""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITHUB)
         owner, repo = await github_service.parse_repo_url(repo_url)
         repo_info = await github_service.get_repo_info(token.strip(), owner, repo)
 
@@ -424,6 +548,8 @@ async def get_github_repo_visibility(repo_url: str, token: str = ""):
             "requires_token": bool(repo_info.get("is_private")),
             "message": "Repository is accessible."
         }
+    except HTTPException:
+        raise
     except Exception as e:
         message = str(e)
         normalized = message.lower()
@@ -446,10 +572,15 @@ async def get_github_repo_visibility(repo_url: str, token: str = ""):
 async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
     """List all files in a repository (uses default token for rate limits)"""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITHUB)
         # Always use default token to avoid rate limits
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
-        files = await github_service.list_repo_files(effective_token, owner, repo, path, repo_url)
+        files = await run_repo_operation(
+            github_service.list_repo_files(effective_token, owner, repo, path, repo_url),
+            GitPlatform.GITHUB,
+            "file listing"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -462,15 +593,17 @@ async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
         error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
         
         if status_code == 404:
-            error_msg = f"Repository not found. Please check that the repository URL is correct and the repository exists: {repo_url}"
+            error_msg = f"Private repository access denied or token missing. Check that the repository URL is correct and the configured GitHub token in backend .env can access it: {repo_url}"
         elif status_code == 403:
-            error_msg = "Access denied. The repository may be private or you may not have permission to access it."
+            error_msg = "Private repository access denied or token missing. Check the backend .env token for this repository platform."
         elif status_code == 401:
-            error_msg = "Authentication failed. Please check your GitHub token."
+            error_msg = "Private repository access denied or token missing. Check the configured GitHub token in backend .env."
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
         raise HTTPException(status_code=status_code, detail=error_msg)
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         print(f"[list-files ERROR] repo_url={repo_url} token_len={len(token) if token else 0} path={path} error={str(e)}\nTRACE:\n{traceback.format_exc()}")
@@ -482,9 +615,14 @@ async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
 async def list_repo_branches(repo_url: str, token: str = ""):
     """List branches in a GitHub repository."""
     try:
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITHUB)
+        effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
-        branch_info = await github_service.list_repo_branches(effective_token, owner, repo, repo_url)
+        branch_info = await run_repo_operation(
+            github_service.list_repo_branches(effective_token, owner, repo, repo_url),
+            GitPlatform.GITHUB,
+            "branch listing"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -492,17 +630,24 @@ async def list_repo_branches(repo_url: str, token: str = ""):
             "default_branch": branch_info.get("default_branch", "main"),
             "branches": branch_info.get("branches", []),
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise describe_access_error(GitPlatform.GITHUB, "branch listing", e)
 
 @app.get("/api/github/file-content")
 async def get_file_content(repo_url: str, file_path: str, token: str = ""):
     """Get the content of a file from a repository (uses default token for rate limits)"""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITHUB)
         # Always use default token to avoid rate limits
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
-        content = await github_service.get_file_content(effective_token, owner, repo, file_path)
+        content = await run_repo_operation(
+            github_service.get_file_content(effective_token, owner, repo, file_path),
+            GitPlatform.GITHUB,
+            "file content"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -517,22 +662,25 @@ async def get_file_content(repo_url: str, file_path: str, token: str = ""):
         if status_code == 404:
             error_msg = f"File not found. Please check that the file path '{file_path}' exists in the repository."
         elif status_code == 403:
-            error_msg = "Access denied. The repository may be private or you may not have permission to access it."
+            error_msg = "Private repository access denied or token missing. Check the backend .env token for this repository platform."
         elif status_code == 401:
-            error_msg = "Authentication failed. Please check your GitHub token."
+            error_msg = "Private repository access denied or token missing. Check the configured GitHub token in backend .env."
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
         raise HTTPException(status_code=status_code, detail=error_msg)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise describe_access_error(GitPlatform.GITHUB, "file content", e)
 
 
 @app.post("/api/github/update-java-version")
 async def update_java_version(repo_url: str, java_version: str, file_path: str, token: str = ""):
     """Update Java version in pom.xml or build.gradle file"""
     try:
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITHUB)
+        effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
         
         # Clone repository
@@ -603,8 +751,9 @@ async def update_java_version(repo_url: str, java_version: str, file_path: str, 
 async def get_gitlab_repo_visibility(repo_url: str, token: str = ""):
     """Check GitLab repository visibility/access."""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITLAB)
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        repo_info = await gitlab_service.get_repo_info(get_effective_gitlab_token(token), owner, repo)
+        repo_info = await gitlab_service.get_repo_info(get_effective_token(GitPlatform.GITLAB, token), owner, repo)
         return {
             "owner": owner,
             "repo": repo,
@@ -612,6 +761,8 @@ async def get_gitlab_repo_visibility(repo_url: str, token: str = ""):
             "requires_token": bool(repo_info.get("is_private")),
             "message": "Repository is accessible."
         }
+    except HTTPException:
+        raise
     except Exception as e:
         message = str(e)
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
@@ -636,34 +787,50 @@ async def list_gitlab_repos(token: str):
 async def analyze_gitlab_repository(owner: str, repo: str, token: str = ""):
     """Analyze a GitLab repository to detect Java version, dependencies, and structure"""
     try:
-        analysis = await gitlab_service.analyze_repository(get_effective_gitlab_token(token), owner, repo)
+        analysis = await run_repo_operation(
+            gitlab_service.analyze_repository(get_effective_token(GitPlatform.GITLAB, token), owner, repo),
+            GitPlatform.GITLAB,
+            "repository analysis"
+        )
         return analysis
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise describe_access_error(GitPlatform.GITLAB, "repository analysis", e)
 
 
 @app.get("/api/gitlab/analyze-url")
 async def analyze_gitlab_repo_url(repo_url: str, token: str = ""):
     """Analyze a GitLab repository directly by URL"""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITLAB)
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        analysis = await gitlab_service.analyze_repository(get_effective_gitlab_token(token), owner, repo)
+        analysis = await run_repo_operation(
+            gitlab_service.analyze_repository(get_effective_token(GitPlatform.GITLAB, token), owner, repo),
+            GitPlatform.GITLAB,
+            "repository analysis"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
             "repo": repo,
             "analysis": analysis
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise describe_access_error(GitPlatform.GITLAB, "repository analysis", e)
 
 
 @app.get("/api/gitlab/list-files")
 async def list_gitlab_repo_files(repo_url: str, token: str = "", path: str = ""):
     """List all files in a GitLab repository"""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITLAB)
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        files = await gitlab_service.list_repo_files(get_effective_gitlab_token(token), owner, repo, path)
+        files = await run_repo_operation(
+            gitlab_service.list_repo_files(get_effective_token(GitPlatform.GITLAB, token), owner, repo, path),
+            GitPlatform.GITLAB,
+            "file listing"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -671,8 +838,10 @@ async def list_gitlab_repo_files(repo_url: str, token: str = "", path: str = "")
             "path": path,
             "files": files
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise describe_access_error(GitPlatform.GITLAB, "file listing", e)
 
 
 
@@ -680,8 +849,13 @@ async def list_gitlab_repo_files(repo_url: str, token: str = "", path: str = "")
 async def list_gitlab_repo_branches(repo_url: str, token: str = ""):
     """List branches in a GitLab repository."""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITLAB)
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        branch_info = await gitlab_service.list_repo_branches(get_effective_gitlab_token(token), owner, repo)
+        branch_info = await run_repo_operation(
+            gitlab_service.list_repo_branches(get_effective_token(GitPlatform.GITLAB, token), owner, repo),
+            GitPlatform.GITLAB,
+            "branch listing"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -689,15 +863,22 @@ async def list_gitlab_repo_branches(repo_url: str, token: str = ""):
             "default_branch": branch_info.get("default_branch", "main"),
             "branches": branch_info.get("branches", []),
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise describe_access_error(GitPlatform.GITLAB, "branch listing", e)
 
 @app.get("/api/gitlab/file-content")
 async def get_gitlab_file_content(repo_url: str, file_path: str, token: str = ""):
     """Get the content of a file from a GitLab repository"""
     try:
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITLAB)
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
-        content = await gitlab_service.get_file_content(get_effective_gitlab_token(token), owner, repo, file_path)
+        content = await run_repo_operation(
+            gitlab_service.get_file_content(get_effective_token(GitPlatform.GITLAB, token), owner, repo, file_path),
+            GitPlatform.GITLAB,
+            "file content"
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -705,8 +886,10 @@ async def get_gitlab_file_content(repo_url: str, file_path: str, token: str = ""
             "file_path": file_path,
             "content": content
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise describe_access_error(GitPlatform.GITLAB, "file content", e)
 
 
 
@@ -714,7 +897,8 @@ async def get_gitlab_file_content(repo_url: str, file_path: str, token: str = ""
 async def update_gitlab_java_version(repo_url: str, java_version: str, file_path: str, token: str = ""):
     """Update Java version in a GitLab pom.xml or build.gradle file in a local clone."""
     try:
-        clone_path = await gitlab_service.clone_repository(get_effective_gitlab_token(token), repo_url)
+        repo_url = normalize_repository_url(repo_url, GitPlatform.GITLAB)
+        clone_path = await gitlab_service.clone_repository(get_effective_token(GitPlatform.GITLAB, token), repo_url)
         file_full_path = os.path.join(clone_path, file_path)
         if not os.path.exists(file_full_path):
             raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
@@ -754,14 +938,11 @@ async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
     This is useful for running a quick FOSSA scan on an arbitrary public
     repository URL without starting a full migration job.
     """
+    source_platform = detect_platform_from_url(repo_url)
+    repo_url = normalize_repository_url(repo_url, source_platform)
     try:
-        # Choose appropriate repo service based on URL
-        if 'gitlab.com' in repo_url:
-            repo_service = gitlab_service
-        else:
-            repo_service = github_service
-
-        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_service = get_repo_service(source_platform)
+        effective_token = get_effective_token(source_platform, token)
 
         # Clone repository to a temporary working directory
         clone_path = await repo_service.clone_repository(effective_token, repo_url)
@@ -783,6 +964,11 @@ async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
 @app.post("/api/migration/start", response_model=MigrationResult)
 async def start_migration(request: MigrationRequest, background_tasks: BackgroundTasks):
     """Start a new migration job"""
+    request.source_repo_url = normalize_repository_url(request.source_repo_url, request.platform)
+    if request.target_repo_url:
+        target_platform = request.target_platform or detect_platform_from_url(request.target_repo_url)
+        request.target_repo_url = normalize_repository_url(request.target_repo_url, target_platform)
+
     job_id = str(uuid.uuid4())
     
     # Create initial job record
@@ -977,16 +1163,17 @@ async def generate_jmeter_test(job_id: str):
 async def preview_migration_changes(request: MigrationRequest):
     """Preview what changes will be made during migration without actually applying them"""
     try:
+        request.source_repo_url = normalize_repository_url(request.source_repo_url, request.platform)
+        if request.target_repo_url:
+            target_platform = request.target_platform or detect_platform_from_url(request.target_repo_url)
+            request.target_repo_url = normalize_repository_url(request.target_repo_url, target_platform)
         print(f"[PREVIEW] Starting migration preview for: {request.source_repo_url}")
 
-        # Determine which service to use based on platform
-        if request.platform == GitPlatform.GITLAB:
-            repo_service = gitlab_service
-        else:  # GitHub is default
-            repo_service = github_service
+        source_platform = detect_platform_from_url(request.source_repo_url)
+        repo_service = get_repo_service(source_platform)
 
         # Clone repository
-        source_token = (request.source_token or request.token or "").strip()
+        source_token = get_effective_token(source_platform, request.source_token or request.token or "")
         clone_path = await repo_service.clone_repository(
             source_token,
             request.source_repo_url
@@ -1010,7 +1197,7 @@ async def preview_migration_changes(request: MigrationRequest):
 
         return {
             "repository": request.source_repo_url,
-            "platform": request.platform.value,
+            "platform": source_platform.value,
             "source_version": request.source_java_version,
             "target_version": request.target_java_version.value,
             "conversions": request.conversion_types,
@@ -1029,10 +1216,16 @@ async def preview_migration_changes(request: MigrationRequest):
             }
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[PREVIEW] Error during preview: {e}")
         import traceback
         print(f"[PREVIEW] Traceback: {traceback.format_exc()}")
+        source_platform = detect_platform_from_url(request.source_repo_url)
+        access_error = describe_access_error(source_platform, "migration preview", e)
+        if access_error.status_code in (401, 403):
+            raise access_error
         raise HTTPException(status_code=500, detail=f"Preview failed: {str(e)}")
 
 
@@ -1792,15 +1985,18 @@ async def run_migration(job_id: str, request: MigrationRequest):
     job = migration_jobs[job_id]
 
     try:
-        # Determine which service to use based on platform
-        if request.platform == GitPlatform.GITLAB:
-            repo_service = gitlab_service
-        else:  # GitHub is default
-            repo_service = github_service
+        request.source_repo_url = normalize_repository_url(request.source_repo_url, request.platform)
+        if request.target_repo_url:
+            target_platform_for_url = request.target_platform or detect_platform_from_url(request.target_repo_url)
+            request.target_repo_url = normalize_repository_url(request.target_repo_url, target_platform_for_url)
+        source_platform = detect_platform_from_url(request.source_repo_url)
+        repo_service = get_repo_service(source_platform)
 
         # Step 1: Clone repository
         update_job(job_id, MigrationStatus.CLONING, 5, "Cloning source repository...")
-        source_token = (request.source_token or request.token or "").strip()
+        source_token = get_effective_token(source_platform, request.source_token or request.token or "")
+        add_log(job_id, f"Source platform: {source_platform.value}")
+        add_log(job_id, f"Using source token: {'configured' if source_token else 'not provided/public clone'}")
         clone_path = await repo_service.clone_repository(
             source_token,
             request.source_repo_url
@@ -1875,16 +2071,51 @@ async def run_migration(job_id: str, request: MigrationRequest):
             job.api_endpoints_working = test_result.get("working_endpoints", 0)
             add_log(job_id, f"Tests: {job.api_endpoints_working}/{job.api_endpoints_validated} endpoints working")
         
-        # Step 5: SonarQube analysis
+        # Step 5: Maven validation + SonarQube analysis
         if request.run_sonar:
-            update_job(job_id, MigrationStatus.SONAR_ANALYSIS, 75, "Running SonarQube code quality analysis...")
-            sonar_result = await sonarqube_service.analyze_project(clone_path, job_id)
+            update_job(job_id, MigrationStatus.SONAR_ANALYSIS, 75, "Validating migrated Maven project before SonarQube analysis...")
+            sonar_project_key = build_sonar_project_key(request.source_repo_url, job_id)
+            add_log(job_id, f"SonarQube project key: {sonar_project_key}")
+            try:
+                sonar_result = await sonarqube_service.analyze_project(clone_path, sonar_project_key)
+            except MavenBuildValidationError as build_error:
+                job.sonar_project_key = sonar_project_key
+                job.sonar_build_report = build_error.report
+                report_summary = build_error.report.get("summary") or str(build_error)
+                add_log(job_id, "SonarQube build report: " + str(build_error.report))
+                add_log(job_id, "SonarQube validation summary: " + report_summary)
+                raise Exception(f"SonarQube analysis failed: {report_summary}")
+            except Exception as sonar_error:
+                job.sonar_project_key = sonar_project_key
+                job.sonar_dashboard_url = f"{sonarqube_service.sonar_url}/dashboard?id={sonar_project_key}"
+                job.sonar_build_report = {
+                    "status": "failed",
+                    "stage": "sonarqube_setup_or_execution",
+                    "project_key": sonar_project_key,
+                    "dashboard_url": job.sonar_dashboard_url,
+                    "summary": str(sonar_error),
+                    "issues": [{
+                        "type": "sonarqube_error",
+                        "message": str(sonar_error),
+                        "suggested_fix": "Verify SonarQube is running at http://localhost:9000 and SONAR_TOKEN in .env is valid."
+                    }],
+                    "commands": [],
+                }
+                add_log(job_id, "SonarQube error report: " + str(job.sonar_build_report))
+                raise Exception(str(sonar_error))
+
             job.sonar_quality_gate = sonar_result.get("quality_gate", "N/A")
             job.sonar_bugs = sonar_result.get("bugs", 0)
             job.sonar_vulnerabilities = sonar_result.get("vulnerabilities", 0)
             job.sonar_code_smells = sonar_result.get("code_smells", 0)
             job.sonar_coverage = sonar_result.get("coverage", 0.0)
+            job.sonar_project_key = sonar_result.get("project_key", sonar_project_key)
+            job.sonar_dashboard_url = sonar_result.get("analysis_url")
+            job.sonar_build_report = sonar_result.get("build_report")
             add_log(job_id, f"SonarQube: Quality Gate = {job.sonar_quality_gate}")
+            add_log(job_id, f"SonarQube dashboard: {job.sonar_dashboard_url}")
+            add_log(job_id, "Maven validation report: " + str(job.sonar_build_report))
+            add_log(job_id, "SonarQube scanner output:\n" + sonar_result.get("scanner_output", ""))
 
         # Step 5b: FOSSA analysis (optional)
         if getattr(request, 'run_fossa', False):
@@ -1930,23 +2161,22 @@ async def run_migration(job_id: str, request: MigrationRequest):
         # Use destination token for repository creation/push. GitHub and GitLab can fall back to configured default tokens.
         migration_approach = (request.migration_approach or "fork").strip().lower()
         destination_platform = request.target_platform or request.platform
-        target_user_token = (request.target_token or "").strip()
+        if migration_approach == "branch" and request.target_repo_url:
+            destination_platform = detect_platform_from_url(request.target_repo_url)
+        target_user_token = sanitize_token(request.target_token or "")
         if not request.target_platform and not target_user_token:
-            target_user_token = (request.token or "").strip()
+            target_user_token = sanitize_token(request.token or "")
 
-        push_token = target_user_token
-        if not push_token:
-            push_token = DEFAULT_GITLAB_TOKEN if destination_platform == GitPlatform.GITLAB else DEFAULT_GITHUB_TOKEN
-
+        push_token = get_effective_token(destination_platform, target_user_token)
         token_source = "user-provided" if target_user_token else f"default {destination_platform.value} token" if push_token else "not provided"
         add_log(job_id, f"Destination platform: {destination_platform.value}")
         add_log(job_id, f"Using repository token: {token_source}")
 
         if migration_approach == "branch":
             target_repo_url = (request.target_repo_url or request.source_repo_url).strip()
-            is_gitlab_target = "gitlab.com" in target_repo_url.lower()
-            target_repo_service = gitlab_service if is_gitlab_target else github_service
-            branch_push_token = target_user_token or (DEFAULT_GITLAB_TOKEN if is_gitlab_target else DEFAULT_GITHUB_TOKEN)
+            target_branch_platform = detect_platform_from_url(target_repo_url)
+            target_repo_service = get_repo_service(target_branch_platform)
+            branch_push_token = get_effective_token(target_branch_platform, target_user_token)
             _, target_repo_source_name = await target_repo_service.parse_repo_url(target_repo_url)
             target_branch_name = normalize_target_branch_name(
                 request.target_repo_name,
@@ -1975,7 +2205,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 source_repo_name,
                 now,
             )
-            target_repo_service = gitlab_service if destination_platform == GitPlatform.GITLAB else github_service
+            target_repo_service = get_repo_service(destination_platform)
             add_log(job_id, f"Target repository name: {target_repo_name}")
             update_job(job_id, MigrationStatus.PUSHING, 90, "Creating new repository and pushing migrated code...")
             try:
@@ -1983,7 +2213,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
                     push_token,
                     target_repo_name,
                     clone_path,
-                    f"Migrated from {request.source_repo_url} (Java {request.source_java_version} ? Java {request.target_java_version.value})"
+                    f"Migrated from {request.source_repo_url} (Java {request.source_java_version} to Java {request.target_java_version.value})"
                 )
                 job.target_repo = new_repo_url
                 add_log(job_id, f"? Created new repository: {new_repo_url}")

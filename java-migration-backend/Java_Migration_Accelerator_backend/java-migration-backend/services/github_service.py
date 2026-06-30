@@ -321,22 +321,32 @@ class GitHubService:
             raise Exception(f"GitHub API error: {error_msg}")
     
     async def parse_repo_url(self, repo_url: str) -> tuple:
-        """Parse GitHub URL to extract owner and repo name"""
+        """Parse GitHub URL to extract owner and repo name with strict suffix validation."""
         import re
-        # Accept github.com, github.<enterprise>.com, and owner/repo
-        patterns = [
-            r'github(\.[^/]+)?\.com[:/]+([^/]+)/([^/\s]+)',  # https://github.com/owner/repo or github.enterprise.com/owner/repo
-            r'^([^/]+)/([^/]+)$',  # owner/repo format
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, repo_url)
-            if match:
-                # For enterprise, owner/repo is always last two groups
-                if 'github' in pattern:
-                    return match.group(2), match.group(3).replace('.git', '')
-                else:
-                    return match.group(1), match.group(2).replace('.git', '')
-        raise Exception("Invalid GitHub repository URL. Use format: owner/repo, https://github.com/owner/repo, or https://github.<enterprise>.com/owner/repo")
+        from urllib.parse import urlparse
+
+        raw = (repo_url or "").strip()
+        if raw.startswith(("http://", "https://")):
+            parsed = urlparse(raw)
+            if "github" not in (parsed.netloc or "").lower():
+                raise Exception("Invalid GitHub repository URL: host must be github.com or a GitHub Enterprise host.")
+            parts = [part for part in parsed.path.strip("/").split("/") if part]
+        elif re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", raw):
+            parts = raw.split("/", 1)
+        else:
+            raise Exception("Invalid GitHub repository URL. Use format: owner/repo, https://github.com/owner/repo, or https://github.<enterprise>.com/owner/repo")
+
+        if len(parts) < 2:
+            raise Exception("Invalid GitHub repository URL: expected owner/repository path.")
+        owner, repo = parts[0], parts[1]
+        lowered_repo = repo.lower()
+        if lowered_repo.endswith(".git"):
+            repo = repo[:-4]
+        elif re.search(r"\.git\w+$", lowered_repo):
+            raise Exception(f"Invalid GitHub repository URL: unsupported repository suffix in '{repo}'. Did you mean '.git'?")
+        if not re.match(r"^[A-Za-z0-9_.-]+$", owner) or not re.match(r"^[A-Za-z0-9_.-]+$", repo):
+            raise Exception("Invalid GitHub repository URL: owner and repository names may contain only letters, numbers, dots, dashes, and underscores.")
+        return owner, repo
     
     async def get_repo_info(self, token: str, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository information (works with or without token for public repos)"""
@@ -499,12 +509,12 @@ class GitHubService:
         clone_dir = os.path.join(self.work_dir, str(uuid.uuid4()))
         os.makedirs(clone_dir, exist_ok=True)
 
-        # Add token to URL for authentication
-        if "github.com" in repo_url:
-            auth_url = repo_url.replace("https://", f"https://{token}@")
+        # Add token to URL only when a token is available. Public repos must clone without auth.
+        token = (token or "").strip()
+        if token and repo_url.startswith("https://") and "github.com" in repo_url:
+            auth_url = repo_url.replace("https://", f"https://x-access-token:{token}@", 1)
         else:
             auth_url = repo_url
-
         try:
             # Use subprocess for better control over git clone with config
             import subprocess
@@ -544,6 +554,8 @@ class GitHubService:
                     else:
                         raise Exception(f"Failed to clone repository (recovery): {result2.stderr}")
                 else:
+                    if "Authentication failed" in error_msg or "Repository not found" in error_msg or "could not read Username" in error_msg or "403" in error_msg:
+                        raise Exception("GitHub repository access failed. If this is a private repository, configure a valid GITHUB_TOKEN in .env or provide a source token with repo read access.")
                     raise Exception(f"Failed to clone repository: {error_msg}")
         except Exception as e:
             raise Exception(f"Failed to clone repository: {str(e)}")
@@ -993,46 +1005,45 @@ class GitHubService:
             return java_files
 
     async def _detect_api_endpoints_in_repo(self, repository) -> List[Dict[str, str]]:
-        """Detect REST API endpoints in a connected repository."""
+        """Detect REST API endpoints using a bounded, single-pass file scan."""
         candidate_files = await self._collect_endpoint_candidate_files(repository)
         endpoints: List[Dict[str, str]] = []
         seen = set()
         servlet_methods_by_controller: Dict[str, List[str]] = {}
+        file_contents: Dict[str, str] = {}
 
         for file_path in candidate_files:
+            try:
+                file_contents[file_path] = repository.get_contents(file_path).decoded_content.decode("utf-8", errors="ignore")
+            except Exception:
+                continue
+
+        for file_path, content in file_contents.items():
             if not file_path.endswith(".java"):
                 continue
-            try:
-                content = repository.get_contents(file_path).decoded_content.decode("utf-8", errors="ignore")
-                file_name = os.path.basename(file_path)
-                class_match = re.search(r'\bclass\s+(\w+)', content)
-                controller_name = class_match.group(1) if class_match else file_name.replace(".java", "")
-                methods = self._extract_servlet_http_methods(content)
-                if methods != ["SERVLET"]:
-                    servlet_methods_by_controller[controller_name] = methods
-                    servlet_methods_by_controller[file_name] = methods
-            except Exception:
-                continue
+            file_name = os.path.basename(file_path)
+            class_match = re.search(r'\bclass\s+(\w+)', content)
+            controller_name = class_match.group(1) if class_match else file_name.replace(".java", "")
+            methods = self._extract_servlet_http_methods(content)
+            if methods != ["SERVLET"]:
+                servlet_methods_by_controller[controller_name] = methods
+                servlet_methods_by_controller[file_name] = methods
 
-        for file_path in candidate_files:
-            try:
-                content = repository.get_contents(file_path).decoded_content.decode("utf-8", errors="ignore")
-                if file_path.endswith("web.xml"):
-                    extracted_endpoints = self._extract_endpoints_from_web_xml(content, file_path, servlet_methods_by_controller)
-                else:
-                    extracted_endpoints = self._extract_endpoints_from_java_content(content, file_path)
-                for endpoint in extracted_endpoints:
-                    key = (endpoint["method"], endpoint["path"], endpoint["file"])
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    endpoints.append(endpoint)
-            except Exception:
-                continue
+        for file_path, content in file_contents.items():
+            if file_path.endswith("web.xml"):
+                extracted_endpoints = self._extract_endpoints_from_web_xml(content, file_path, servlet_methods_by_controller)
+            else:
+                extracted_endpoints = self._extract_endpoints_from_java_content(content, file_path)
+            for endpoint in extracted_endpoints:
+                key = (endpoint["method"], endpoint["path"], endpoint["file"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                endpoints.append(endpoint)
 
         return endpoints
 
-    async def _collect_endpoint_candidate_files(self, repository, max_depth: int = 6, max_files: int = 200) -> List[str]:
+    async def _collect_endpoint_candidate_files(self, repository, max_depth: int = 4, max_files: int = 50) -> List[str]:
         """Collect Java source files that are likely to declare API endpoints."""
         candidate_paths: List[str] = []
         queue: List[tuple[str, int]] = []

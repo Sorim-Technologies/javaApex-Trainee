@@ -16,11 +16,81 @@ const runtimeOrigin =
 export const APP_BASE_URL = (configuredApiUrl || runtimeOrigin).replace(/\/+$/, "");
 export const API_BASE_URL = `${APP_BASE_URL}/api`;
 export const GITHUB_AUTH_LOGIN_URL = `${API_BASE_URL}/auth/github/login`;
+const REPOSITORY_DISCOVERY_TIMEOUT_MS = 90000;
 
 
 function getRepoPlatform(repoUrl: string): "github" | "gitlab" {
   return repoUrl.toLowerCase().includes("gitlab.com") ? "gitlab" : "github";
 }
+
+function sanitizeApiToken(token: string = ""): string {
+  const candidate = token.trim();
+  if (candidate.startsWith("http://") || candidate.startsWith("https://") || candidate.startsWith("git@")) return "";
+  return candidate;
+}
+
+function buildRepoApiUrl(repoUrl: string, endpoint: string, params: Record<string, string | undefined> = {}): string {
+  const search = new URLSearchParams({ repo_url: repoUrl });
+  const token = sanitizeApiToken(params.token || "");
+  if (token) search.set("token", token);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (key === "token" || value === undefined) return;
+    if (value !== "") search.set(key, value);
+  });
+
+  return `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/${endpoint}?${search.toString()}`;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = REPOSITORY_DISCOVERY_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error("Repository request timed out. Check repository access or try again.");
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+function formatApiError(data: any, fallbackMessage: string): string {
+  const detail = data?.detail;
+
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail
+      .map((item: any) => {
+        const field = Array.isArray(item?.loc)
+          ? item.loc.filter((part: any) => part !== "body").join(".")
+          : "";
+        const message = item?.msg || item?.message || JSON.stringify(item);
+        return field ? `${field}: ${message}` : message;
+      })
+      .join("; ");
+  }
+
+  if (detail && typeof detail === "object") {
+    return detail.msg || detail.message || JSON.stringify(detail);
+  }
+
+  if (typeof data?.error === "string" && data.error.trim()) {
+    return data.error;
+  }
+
+  return fallbackMessage;
+}
+
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
   const bodyText = await response.text();
@@ -29,27 +99,12 @@ async function parseJsonResponse<T>(response: Response, fallbackMessage: string)
     if (bodyText.trim().startsWith("<!doctype") || bodyText.trim().startsWith("<html")) {
       throw new Error(`API routing error: expected JSON from ${response.url} but received HTML. Check VITE_API_URL or backend routing.`);
     }
-    throw new Error(fallbackMessage);
+    throw new Error(bodyText.trim() || fallbackMessage);
   }
 
   const data = JSON.parse(bodyText);
   if (!response.ok) {
-    const detail = data?.detail;
-    let errorMessage = fallbackMessage;
-
-    if (typeof detail === "string" && detail.trim()) {
-      errorMessage = detail;
-    } else if (Array.isArray(detail) && detail.length > 0) {
-      errorMessage = detail
-        .map((item: any) => item?.msg || item?.message || JSON.stringify(item))
-        .join("; ");
-    } else if (detail && typeof detail === "object") {
-      errorMessage = detail.msg || detail.message || JSON.stringify(detail);
-    } else if (typeof data?.error === "string" && data.error.trim()) {
-      errorMessage = data.error;
-    }
-
-    throw new Error(errorMessage);
+    throw new Error(formatApiError(data, fallbackMessage));
   }
 
   return data as T;
@@ -232,6 +287,9 @@ export interface MigrationResult {
   sonar_vulnerabilities: number;
   sonar_code_smells: number;
   sonar_coverage: number;
+  sonar_project_key?: string | null;
+  sonar_dashboard_url?: string | null;
+  sonar_build_report?: Record<string, any> | null;
   // FOSSA scan results (optional)
   fossa_policy_status?: string | null;
   fossa_total_dependencies?: number;
@@ -289,72 +347,51 @@ export interface JavaVersionRecommendationResponse {
   alternatives: string[];
 }
 
+function buildTokenQuery(token: string = ""): string {
+  const sanitized = sanitizeApiToken(token);
+  return sanitized ? `?token=${encodeURIComponent(sanitized)}` : "";
+}
+
 // Fetch GitHub repositories
 export async function fetchRepositories(token: string): Promise<RepoInfo[]> {
-  const response = await fetch(`${API_BASE_URL}/github/repos?token=${encodeURIComponent(token)}`);
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to fetch repositories');
-  }
-  return response.json();
+  const response = await fetch(`${API_BASE_URL}/github/repos${buildTokenQuery(token)}`);
+  return parseJsonResponse<RepoInfo[]>(response, 'Failed to fetch repositories');
 }
 
 // Analyze a repository
 export async function analyzeRepository(token: string, owner: string, repo: string): Promise<RepoAnalysis> {
-  const response = await fetch(
-    `${API_BASE_URL}/github/repo/${owner}/${repo}/analyze?token=${encodeURIComponent(token)}`
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to analyze repository');
-  }
-  return response.json();
+  const response = await fetch(`${API_BASE_URL}/github/repo/${owner}/${repo}/analyze${buildTokenQuery(token)}`);
+  return parseJsonResponse<RepoAnalysis>(response, 'Failed to analyze repository');
 }
 
 // NEW: Analyze repository directly by URL (works for public repos without token)
 export async function analyzeRepoUrl(repoUrl: string, token: string = ""): Promise<RepoUrlAnalysis> {
-  const response = await fetch(
-    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
-  );
+  const response = await fetchWithTimeout(buildRepoApiUrl(repoUrl, "analyze-url", { token }));
   return parseJsonResponse<RepoUrlAnalysis>(response, 'Failed to analyze repository');
 }
 
 export async function getRepoVisibility(repoUrl: string, token: string = ""): Promise<RepoVisibilityInfo> {
-  const response = await fetch(
-    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/repo-visibility?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
-  );
+  const response = await fetchWithTimeout(buildRepoApiUrl(repoUrl, "repo-visibility", { token }));
   return parseJsonResponse<RepoVisibilityInfo>(response, 'Failed to check repository visibility');
 }
 
 // NEW: List files in a repository (works for public repos without token)
 export async function listRepoFiles(repoUrl: string, token: string = "", path: string = ""): Promise<RepoFilesResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/list-files?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}`
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to list files');
-  }
-  return response.json();
+  const response = await fetchWithTimeout(buildRepoApiUrl(repoUrl, "list-files", { token, path }));
+  return parseJsonResponse<RepoFilesResponse>(response, 'Failed to list files');
+
 }
 
 export async function listRepoBranches(repoUrl: string, token: string = ""): Promise<RepoBranchesResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/branches?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`
-  );
+  const response = await fetchWithTimeout(buildRepoApiUrl(repoUrl, "branches", { token }));
   return parseJsonResponse<RepoBranchesResponse>(response, 'Failed to list branches');
 }
 
 // NEW: Get file content (works for public repos without token)
 export async function getFileContent(repoUrl: string, filePath: string, token: string = ""): Promise<FileContentResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/${getRepoPlatform(repoUrl)}/file-content?repo_url=${encodeURIComponent(repoUrl)}&file_path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to get file content');
-  }
-  return response.json();
+  const response = await fetchWithTimeout(buildRepoApiUrl(repoUrl, "file-content", { token, file_path: filePath }));
+  return parseJsonResponse<FileContentResponse>(response, 'Failed to get file content');
+
 }
 
 // Get available Java versions
@@ -385,6 +422,19 @@ export async function getConversionTypes(): Promise<ConversionType[]> {
   return parseJsonResponse<ConversionType[]>(response, 'Failed to fetch conversion types');
 }
 
+
+function cleanMigrationRequest(request: MigrationRequest): MigrationRequest {
+  const cleaned: MigrationRequest = { ...request };
+  const tokenFields: Array<"token" | "source_token" | "target_token"> = ["token", "source_token", "target_token"];
+  tokenFields.forEach((field) => {
+    const token = sanitizeApiToken(cleaned[field] || "");
+    if (token) cleaned[field] = token;
+    else delete cleaned[field];
+  });
+  if (!cleaned.target_repo_url) delete cleaned.target_repo_url;
+  return cleaned;
+}
+
 // Start migration
 export async function startMigration(request: MigrationRequest): Promise<MigrationResult> {
   const response = await fetch(`${API_BASE_URL}/migration/start`, {
@@ -392,13 +442,9 @@ export async function startMigration(request: MigrationRequest): Promise<Migrati
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(cleanMigrationRequest(request)),
   });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to start migration');
-  }
-  return response.json();
+  return parseJsonResponse<MigrationResult>(response, 'Failed to start migration');
 }
 
 export async function previewMigration(request: MigrationRequest): Promise<MigrationPreview> {
@@ -407,7 +453,7 @@ export async function previewMigration(request: MigrationRequest): Promise<Migra
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(cleanMigrationRequest(request)),
   });
   return parseJsonResponse<MigrationPreview>(response, 'Failed to preview migration changes');
 }

@@ -266,6 +266,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     normalized = normalized.replace(/\/src\/.*$/, '');
     // Remove trailing slashes
     normalized = normalized.replace(/\/$/, '');
+    const repoSegment = normalized.split("/").pop() || "";
+    if (/\.git\w+$/i.test(repoSegment) && !/\.git$/i.test(repoSegment)) {
+      return {
+        valid: false,
+        normalizedUrl: "",
+        message: `Invalid repository suffix "${repoSegment}". Did you mean .git?`,
+      };
+    }
     // Remove .git extension
     normalized = normalized.replace(/\.git$/, '');
 
@@ -296,20 +304,27 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const isGitlabRepo = (urlValidation.normalizedUrl || repoUrl).toLowerCase().includes("gitlab.com");
   const showEnterpriseToken = repoUrl && isEnterpriseGithub(urlValidation.normalizedUrl || repoUrl);
 
+  const sanitizeRepositoryToken = (value: string = "") => {
+    const token = value.trim();
+    if (token.startsWith("http://") || token.startsWith("https://") || token.startsWith("git@")) return "";
+    return token;
+  };
+
   const getCurrentToken = () => {
-    if (showEnterpriseToken || isGitlabRepo) return patToken.trim() || githubToken.trim();
-    if (isPrivateRepo) return patToken.trim() || githubToken.trim();
-    if (githubToken.trim()) return githubToken.trim();
-    if (patToken.trim()) return patToken.trim();
-    return "";
+    const pat = sanitizeRepositoryToken(patToken);
+    const github = sanitizeRepositoryToken(githubToken);
+    if (showEnterpriseToken || isGitlabRepo) return pat || github;
+    if (isPrivateRepo) return pat || github;
+    return github || pat || "";
   };
 
   const currentToken = useMemo(getCurrentToken, [githubToken, patToken, showEnterpriseToken, isGitlabRepo, isPrivateRepo]);
   const shouldShowPatInput = showEnterpriseToken || isGitlabRepo || isPrivateRepo;
   const getRepositoryApiToken = (repoValue: string) => {
-    const isGitlabTarget = detectRepositoryPlatform(repoValue) === "gitlab";
-    if (isGitlabTarget && !patToken.trim()) return "";
-    return isGitlabTarget ? patToken.trim() : currentToken;
+    const repoPlatform = detectRepositoryPlatform(repoValue);
+    const pat = sanitizeRepositoryToken(patToken);
+    if (repoPlatform === "gitlab") return pat;
+    return currentToken;
   };
   const [repoAnalysis, setRepoAnalysis] = useState<RepoAnalysis | null>(() =>
     readSessionJson<RepoAnalysis>(WIZARD_REPO_ANALYSIS_KEY)
@@ -735,18 +750,6 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     if (!urlValidation.valid) return;
 
     const normalizedUrl = urlValidation.normalizedUrl;
-    const token = getCurrentToken().trim();
-
-    if (showEnterpriseToken && !token) {
-      alert("Please enter a GitHub Personal Access Token for repository analysis.");
-      return;
-    }
-
-    if (isPrivateRepo && !token) {
-      alert("Please enter a GitHub Personal Access Token for this private repository.");
-      return;
-    }
-
     const platform = detectRepositoryPlatform(normalizedUrl);
     const { owner, repo } = parseRepositoryOwnerAndName(normalizedUrl);
     const defaultTargetRepo = buildTargetRepoUrl(targetRepoTimestamp, platform);
@@ -1082,6 +1085,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   useEffect(() => {
     if (step === 2 && selectedRepo && !repoAnalysis) {
+      let cancelled = false;
       setAnalysisLoading(true);
       setError("");
 
@@ -1090,18 +1094,26 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         .then(async (result) => enrichAnalysisWithPomVersion(result.analysis, selectedRepo.url, repoApiToken));
 
       analyzePromise
-        .then((analysis) => applyRepositoryAnalysis(analysis))
+        .then((analysis) => {
+          if (!cancelled) applyRepositoryAnalysis(analysis);
+        })
         .catch((err) => {
+          if (cancelled) return;
           const message = err?.message || "Failed to analyze repository.";
-          if (!getCurrentToken().trim() && !showEnterpriseToken && isPrivateRepoAccessError(message)) {
+          if (isPrivateRepoAccessError(message)) {
             setIsPrivateRepo(true);
-            setStep(1);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+            setError("Private repository access denied or token missing. Check the backend .env token for this repository platform.");
             return;
           }
           setError(message);
         })
-        .finally(() => setAnalysisLoading(false));
+        .finally(() => {
+          if (!cancelled) setAnalysisLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [step, selectedRepo, repoAnalysis, currentToken]);
 
@@ -1165,7 +1177,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           if (cancelled) return;
           if (visibility.requires_token) {
             setIsPrivateRepo(true);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+            setError("");
             return;
           }
 
@@ -1177,7 +1189,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           const message = err?.message || "Failed to analyze repository.";
           if (isPrivateRepoAccessError(message)) {
             setIsPrivateRepo(true);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+            setError("");
           }
         })
         .finally(() => {
@@ -1195,13 +1207,23 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   useEffect(() => {
     if (step === 2 && selectedRepo) {
+      let cancelled = false;
       setRepoFilesLoading(true);
       listRepoFiles(selectedRepo.url, getRepositoryApiToken(selectedRepo.url), currentPath)
         .then((response) => {
-          setRepoFiles(response.files);
+          if (!cancelled) setRepoFiles(response.files);
         })
-        .catch((err) => setError(err.message || "Failed to list repository files."))
-        .finally(() => setRepoFilesLoading(false));
+        .catch((err) => {
+          if (cancelled) return;
+          setError(isPrivateRepoAccessError(err?.message || "") ? "Private repository access denied or token missing. Check the backend .env token for this repository platform." : (err.message || "Failed to list repository files."));
+        })
+        .finally(() => {
+          if (!cancelled) setRepoFilesLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [step, selectedRepo, currentPath, currentToken]);
 
@@ -1238,7 +1260,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setBranchesLoading(true);
     setBranchesError("");
 
-    listRepoBranches(targetRepoUrlValidation.normalizedUrl, targetRepoToken.trim() || currentToken)
+    listRepoBranches(targetRepoUrlValidation.normalizedUrl, sanitizeRepositoryToken(targetRepoToken))
       .then((response) => {
         if (cancelled) return;
         setExistingRepoBranches(response.branches);
@@ -1323,6 +1345,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const buildMigrationRequest = () => {
     const sourceRepoUrl = selectedRepo?.url || repoUrl;
     const repoName = selectedRepo?.name || repoUrl.split("/").pop()?.replace(".git", "") || "repo";
+    const normalizedTargetVersion = String(selectedTargetVersion || "").trim();
     const finalTargetRepoName = targetRepoName || (
       migrationApproach === "branch"
         ? buildTargetBranchName(repoName, targetRepoTimestamp)
@@ -1331,7 +1354,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const destinationPlatform = migrationApproach === "branch"
       ? detectRepositoryPlatform(targetRepoUrlValidation.normalizedUrl || targetRepoUrl)
       : targetRepoPlatform;
-    const destinationToken = migrationApproach === "branch" ? (targetRepoToken.trim() || currentToken) : "";
+    const destinationToken = migrationApproach === "branch" ? sanitizeRepositoryToken(targetRepoToken) : "";
 
     return {
       source_repo_url: sourceRepoUrl,
@@ -1340,9 +1363,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       platform: detectRepositoryPlatform(sourceRepoUrl),
       target_platform: destinationPlatform,
       source_java_version: userSelectedVersion || selectedSourceVersion,
-      target_java_version: selectedTargetVersion,
-      token: currentToken,
-      source_token: currentToken,
+      target_java_version: normalizedTargetVersion,
+      source_token: sanitizeRepositoryToken(currentToken),
       target_token: destinationToken,
       migration_approach: migrationApproach,
       conversion_types: selectedConversions,
@@ -1354,7 +1376,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   useEffect(() => {
-    if (step !== 4 || !selectedTargetVersion || (!selectedRepo && !repoUrl)) {
+    const hasValidTargetVersion = availableTargetVersions.some((version) => version.value === selectedTargetVersion);
+    if (step !== 4 || !hasValidTargetVersion || (!selectedRepo && !repoUrl)) {
       return;
     }
 
@@ -1389,6 +1412,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [
     step,
     selectedTargetVersion,
+    availableTargetVersions,
     selectedRepo,
     repoUrl,
     currentToken,
@@ -1413,8 +1437,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       return;
     }
 
-    if (!selectedTargetVersion) {
-      setError("Please select a target Java version before starting the migration.");
+    const hasValidTargetVersion = availableTargetVersions.some((version) => version.value === selectedTargetVersion);
+    if (!hasValidTargetVersion) {
+      setError("Please select a valid target Java version before starting the migration.");
       return;
     }
 
@@ -2866,7 +2891,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   // Consolidated Step 3: Strategy (Assessment + Migration Strategy + Planning)
   const renderStrategyStep = () => {
-    const canContinueFromStrategy = migrationApproach !== "branch" || (targetRepoUrlValidation.valid && targetRepoName.trim().length > 0);
+    const hasValidTargetVersion = availableTargetVersions.some((version) => version.value === selectedTargetVersion);
+    const hasValidTargetDestination = migrationApproach !== "branch" || (targetRepoUrlValidation.valid && targetRepoName.trim().length > 0);
+    const canContinueFromStrategy = hasValidTargetVersion && hasValidTargetDestination;
 
     return (
     <div style={styles.card}>
@@ -3170,7 +3197,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             <label style={styles.label}>Target Repository Access Token</label>
             <input
               type="password"
-              style={{ ...styles.input, borderColor: (targetRepoToken.trim() || currentToken) ? "#22c55e" : "#e2e8f0" }}
+              style={{ ...styles.input, borderColor: targetRepoToken.trim() ? "#22c55e" : "#e2e8f0" }}
               value={targetRepoToken}
               onChange={(e) => setTargetRepoToken(e.target.value)}
               placeholder={targetRepoUrl.toLowerCase().includes("gitlab.com") ? "Paste your GitLab access token" : "Paste your GitHub PAT"}
@@ -4856,6 +4883,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           {/* SonarQube Code Coverage */}
          {runSonar && ( <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🔍 SonarQube Code Quality & Coverage</h3>
+            {migrationJob.sonar_dashboard_url && (
+              <a href={migrationJob.sonar_dashboard_url} target="_blank" rel="noopener noreferrer" style={styles.repoLink}>
+                Open SonarQube Dashboard
+              </a>
+            )}
+            {migrationJob.sonar_build_report?.summary && (
+              <div style={{ marginTop: 12, padding: 12, backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, color: "#334155", fontSize: 14 }}>
+                {migrationJob.sonar_build_report.summary}
+              </div>
+            )}
             <div style={styles.sonarqubeGrid}>
               <div style={styles.sonarqubeItem}>
                 <div style={styles.qualityGate}>

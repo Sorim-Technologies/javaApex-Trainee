@@ -155,59 +155,51 @@ class GitLabService:
             raise Exception(f"GitLab API error: {str(e)}")
 
     async def _detect_api_endpoints_in_project(self, client: httpx.AsyncClient, headers: Dict[str, str], project_id: int, ref: str) -> List[Dict[str, Any]]:
-        """Detect REST API endpoints in a GitLab project."""
+        """Detect REST API endpoints in a GitLab project using a bounded, single-pass scan."""
         endpoints: List[Dict[str, Any]] = []
         seen = set()
         candidate_files = await self._collect_endpoint_candidate_files(client, headers, project_id, ref)
         servlet_methods_by_controller: Dict[str, List[str]] = {}
+        file_contents: Dict[str, str] = {}
 
         for file_path in candidate_files:
+            try:
+                file_response = await client.get(
+                    f"{self.api_base_url}/projects/{project_id}/repository/files/{quote(file_path, safe='')}/raw",
+                    headers=headers,
+                    params={"ref": ref}
+                )
+                if file_response.status_code == 200:
+                    file_contents[file_path] = file_response.text
+            except Exception:
+                continue
+
+        for file_path, content in file_contents.items():
             if not file_path.endswith(".java"):
                 continue
-            try:
-                file_response = await client.get(
-                    f"{self.api_base_url}/projects/{project_id}/repository/files/{quote(file_path, safe='')}/raw",
-                    headers=headers,
-                    params={"ref": ref}
-                )
-                if file_response.status_code != 200:
-                    continue
-                file_name = os.path.basename(file_path)
-                class_match = re.search(r'\bclass\s+(\w+)', file_response.text)
-                controller_name = class_match.group(1) if class_match else file_name.replace(".java", "")
-                methods = self._extract_servlet_http_methods(file_response.text)
-                if methods != ["SERVLET"]:
-                    servlet_methods_by_controller[controller_name] = methods
-                    servlet_methods_by_controller[file_name] = methods
-            except Exception:
-                continue
+            file_name = os.path.basename(file_path)
+            class_match = re.search(r'\bclass\s+(\w+)', content)
+            controller_name = class_match.group(1) if class_match else file_name.replace(".java", "")
+            methods = self._extract_servlet_http_methods(content)
+            if methods != ["SERVLET"]:
+                servlet_methods_by_controller[controller_name] = methods
+                servlet_methods_by_controller[file_name] = methods
 
-        for file_path in candidate_files:
-            try:
-                file_response = await client.get(
-                    f"{self.api_base_url}/projects/{project_id}/repository/files/{quote(file_path, safe='')}/raw",
-                    headers=headers,
-                    params={"ref": ref}
-                )
-                if file_response.status_code != 200:
+        for file_path, content in file_contents.items():
+            if file_path.endswith("web.xml"):
+                extracted_endpoints = self._extract_endpoints_from_web_xml(content, file_path, servlet_methods_by_controller)
+            else:
+                extracted_endpoints = self._extract_endpoints_from_java_content(content, file_path)
+            for endpoint in extracted_endpoints:
+                key = (endpoint["method"], endpoint["path"], endpoint["file"], endpoint.get("line_number"))
+                if key in seen:
                     continue
-
-                if file_path.endswith("web.xml"):
-                    extracted_endpoints = self._extract_endpoints_from_web_xml(file_response.text, file_path, servlet_methods_by_controller)
-                else:
-                    extracted_endpoints = self._extract_endpoints_from_java_content(file_response.text, file_path)
-                for endpoint in extracted_endpoints:
-                    key = (endpoint["method"], endpoint["path"], endpoint["file"], endpoint.get("line_number"))
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    endpoints.append(endpoint)
-            except Exception:
-                continue
+                seen.add(key)
+                endpoints.append(endpoint)
 
         return endpoints
 
-    async def _collect_endpoint_candidate_files(self, client: httpx.AsyncClient, headers: Dict[str, str], project_id: int, ref: str, max_files: int = 200) -> List[str]:
+    async def _collect_endpoint_candidate_files(self, client: httpx.AsyncClient, headers: Dict[str, str], project_id: int, ref: str, max_files: int = 50) -> List[str]:
         """Collect Java files likely to contain API endpoints."""
         java_files: List[str] = []
         seen_paths = set()
@@ -404,18 +396,32 @@ class GitLabService:
             return "/"
         return "/" + "/".join(parts)
     async def parse_repo_url(self, repo_url: str) -> tuple:
-        """Parse GitLab URL to extract owner and repo name"""
+        """Parse GitLab URL to extract owner and repo name with strict suffix validation."""
         import re
-        # Handle various GitLab URL formats
-        patterns = [
-            r'gitlab\.com[:/]+([^/]+)/([^/\s]+)',  # https://gitlab.com/owner/repo or gitlab.com/owner/repo
-            r'^([^/]+)/([^/]+)$',  # owner/repo format
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, repo_url)
-            if match:
-                return match.group(1), match.group(2).replace('.git', '')
-        raise Exception("Invalid GitLab repository URL. Use format: owner/repo or https://gitlab.com/owner/repo")
+        from urllib.parse import urlparse
+
+        raw = (repo_url or "").strip()
+        if raw.startswith(("http://", "https://")):
+            parsed = urlparse(raw)
+            if "gitlab.com" not in (parsed.netloc or "").lower():
+                raise Exception("Invalid GitLab repository URL: host must be gitlab.com.")
+            parts = [part for part in parsed.path.strip("/").split("/") if part]
+        elif re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", raw):
+            parts = raw.split("/", 1)
+        else:
+            raise Exception("Invalid GitLab repository URL. Use format: owner/repo or https://gitlab.com/owner/repo")
+
+        if len(parts) < 2:
+            raise Exception("Invalid GitLab repository URL: expected owner/repository path.")
+        owner, repo = parts[0], parts[1]
+        lowered_repo = repo.lower()
+        if lowered_repo.endswith(".git"):
+            repo = repo[:-4]
+        elif re.search(r"\.git\w+$", lowered_repo):
+            raise Exception(f"Invalid GitLab repository URL: unsupported repository suffix in '{repo}'. Did you mean '.git'?")
+        if not re.match(r"^[A-Za-z0-9_.-]+$", owner) or not re.match(r"^[A-Za-z0-9_.-]+$", repo):
+            raise Exception("Invalid GitLab repository URL: owner and repository names may contain only letters, numbers, dots, dashes, and underscores.")
+        return owner, repo
 
     async def get_repo_info(self, token: str, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository information"""
@@ -571,12 +577,12 @@ class GitLabService:
         clone_dir = os.path.join(self.work_dir, str(uuid.uuid4()))
         os.makedirs(clone_dir, exist_ok=True)
 
-        # Add token to URL for authentication
-        if "gitlab.com" in repo_url:
-            auth_url = repo_url.replace("https://", f"https://oauth2:{token}@")
+        # Add token to URL only when a token is available. Public repos must clone without auth.
+        token = (token or "").strip()
+        if token and repo_url.startswith("https://") and "gitlab.com" in repo_url:
+            auth_url = repo_url.replace("https://", f"https://oauth2:{token}@", 1)
         else:
             auth_url = repo_url
-
         try:
             # Use subprocess for better control over git clone
             import subprocess
@@ -590,7 +596,10 @@ class GitLabService:
             if result.returncode == 0:
                 return clone_dir
             else:
-                raise Exception(f"Failed to clone repository: {result.stderr}")
+                error_msg = result.stderr
+                if "Authentication failed" in error_msg or "Repository not found" in error_msg or "could not read Username" in error_msg or "403" in error_msg:
+                    raise Exception("GitLab repository access failed. If this is a private repository, configure a valid GITLAB_TOKEN in .env or provide a source token with read_repository access.")
+                raise Exception(f"Failed to clone repository: {error_msg}")
         except Exception as e:
             raise Exception(f"Failed to clone repository: {str(e)}")
 
