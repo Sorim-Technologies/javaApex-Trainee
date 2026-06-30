@@ -16,7 +16,7 @@ const glassField: React.CSSProperties = {
 };
 
 export const styles: { [key: string]: React.CSSProperties } = {
-  container: { flex: 1, display: "flex", flexDirection: "column", alignItems: "stretch", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "transparent", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "visible" },
+  container: { flex: 1, display: "flex", flexDirection: "column", alignItems: "stretch", width: "100%", maxWidth: "100vw", minHeight: 0, margin: 0, padding: 0, background: "transparent", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 40px", width: "100%", boxSizing: "border-box", background: "var(--theme-header-bg, rgba(255, 255, 255, 0.76))", borderBottom: "1px solid var(--theme-border, rgba(255, 255, 255, 0.38))", boxShadow: "0 12px 32px rgba(15, 23, 42, 0.08)", backdropFilter: "blur(16px) saturate(140%)", WebkitBackdropFilter: "blur(16px) saturate(140%)" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
   stepIndicatorContainer: { background: "var(--theme-sidebar-bg, rgba(59, 36, 22, 0.62))", borderBottom: "1px solid rgba(251, 191, 36, 0.16)", padding: "10px 0", width: "100%", boxSizing: "border-box", overflowX: "auto", overflowY: "hidden" },
@@ -24,7 +24,7 @@ export const styles: { [key: string]: React.CSSProperties } = {
   stepItem: { display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8, transition: "all 0.2s ease", cursor: "pointer", whiteSpace: "nowrap" },
   stepCircle: { width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, transition: "all 0.2s ease" },
   stepLabel: { display: "flex", flexDirection: "column" },
-  main: { flex: 1, minWidth: 0, width: "100%", maxWidth: "100vw", padding: "24px 32px", boxSizing: "border-box" },
+  main: { flex: 1, minWidth: 0, minHeight: 0, width: "100%", maxWidth: "100vw", padding: "24px 32px", boxSizing: "border-box", overflowX: "hidden", overflowY: "auto" },
   card: { ...glassSurface, borderRadius: 12, padding: "28px 32px", marginBottom: 20, width: "100%", boxSizing: "border-box", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)" },
   stepHeader: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid var(--theme-border, #e2e8f0)", flexWrap: "wrap" },
   stepIcon: { fontSize: 36 },

@@ -17,13 +17,12 @@ const APP_THEME_STORAGE_KEY = "javapex_theme";
 
 type AppTheme = "ocean" | "emerald" | "ruby" | "mustard" | "tangerine" | "ash" | "cocoa";
 type AppThemeSelection = "default" | AppTheme;
-type AppMode = "light" | "dark";
 
 const defaultThemeOption = {
   key: "default" as const,
   label: "Default Theme",
-  description: "Uses your system Light/Dark preference",
-  swatches: ["#f8fafc", "#38bdf8", "#020617"],
+  description: "Restores the original plain white interface",
+  swatches: ["#ffffff", "#f8fafc", "#2563eb"],
 };
 
 const themeOptions: Array<{
@@ -87,12 +86,6 @@ const readMockUser = (): MockUser | null => {
   }
 };
 
-const getSystemMode = (): AppMode => {
-  if (typeof window === "undefined") return "dark";
-
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-};
-
 const readAppTheme = (): AppThemeSelection => {
   if (typeof window === "undefined") return "default";
 
@@ -106,9 +99,8 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [appTheme, setAppTheme] = useState<AppThemeSelection>(() => readAppTheme());
-  const [systemMode, setSystemMode] = useState<AppMode>(() => getSystemMode());
   const [mockUser, setMockUser] = useState<MockUser | null>(() => readMockUser());
   const isDefaultTheme = appTheme === "default";
 
@@ -169,10 +161,6 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setShowThemeMenu(false);
   };
 
-  const openSettings = () => {
-    navigate("/");
-  };
-
   const toggleProfileMenu = () => {
     setShowProfileMenu((current) => !current);
     setShowThemeMenu(false);
@@ -187,35 +175,14 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [appTheme]);
 
   useEffect(() => {
-    if (!isDefaultTheme) {
-      delete document.documentElement.dataset.mode;
-      delete document.body.dataset.mode;
-      return;
-    }
-
-    document.documentElement.dataset.mode = systemMode;
-    document.body.dataset.mode = systemMode;
-
-    return () => {
-      delete document.documentElement.dataset.mode;
-      delete document.body.dataset.mode;
-    };
-  }, [isDefaultTheme, systemMode]);
-
-  useEffect(() => {
-    const modeQuery = window.matchMedia("(prefers-color-scheme: light)");
-    const handleModeChange = () => setSystemMode(getSystemMode());
-
-    handleModeChange();
-    modeQuery.addEventListener("change", handleModeChange);
-
-    return () => modeQuery.removeEventListener("change", handleModeChange);
+    delete document.documentElement.dataset.mode;
+    delete document.body.dataset.mode;
   }, []);
 
-  const activeThemeClass = isDefaultTheme ? `app-shell--mode-${systemMode}` : `app-shell--theme-${appTheme}`;
+  const activeThemeClass = `app-shell--theme-${appTheme}`;
 
   return (
-    <div className={`app-shell ${activeThemeClass}`} data-theme={appTheme} data-mode={isDefaultTheme ? systemMode : undefined}>
+    <div className={`app-shell ${activeThemeClass}`} data-theme={appTheme}>
       <header className="app-shell__header">
         <button className="app-shell__brand" type="button" onClick={() => navigate("/")}>
           <img src={apexLogo} alt="JavaAPEX" className="app-shell__logo" />
@@ -246,6 +213,23 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           <button
             type="button"
+            className={`app-shell__nav-button${showThemeMenu ? " app-shell__nav-button--active" : ""}`}
+            onClick={navigateToTheme}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v2" />
+              <path d="M12 20v2" />
+              <path d="M2 12h2" />
+              <path d="M20 12h2" />
+              <path d="m4.93 4.93 1.41 1.41" />
+              <path d="m17.66 17.66 1.41 1.41" />
+            </svg>
+            <span>Themes</span>
+          </button>
+
+          <button
+            type="button"
             className={`app-shell__profile-button${mockUser ? " app-shell__profile-button--signed-in" : ""}`}
             onClick={toggleProfileMenu}
             aria-expanded={showProfileMenu}
@@ -271,7 +255,6 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           isAuthenticated={Boolean(mockUser)}
           onLogout={handleLogout}
           navigateToTheme={navigateToTheme}
-          onOpenSettings={openSettings}
           onProfileToggle={toggleProfileMenu}
           isThemeOpen={showThemeMenu}
           isProfileOpen={showProfileMenu}
@@ -367,7 +350,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <div className="app-shell__theme-menu-header">
               <div>
                 <strong>Theme selector</strong>
-                <p>Choose Default Light/Dark or a color theme.</p>
+                <p>Choose the original default or a color theme.</p>
               </div>
               <button className="app-shell__theme-close" type="button" onClick={() => setShowThemeMenu(false)} aria-label="Close theme selector">
                 ×

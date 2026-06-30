@@ -1,4 +1,35 @@
+import type { CSSProperties } from "react";
 import type { WizardScreenContext } from "../wizard/model/wizardScreenContext";
+
+const LTS_VERSIONS = new Set(["8", "11", "17", "21", "25"]);
+
+const normalizeVersion = (value: unknown): string => {
+  if (value === undefined || value === null) return "";
+  return String(value).replace(/[^0-9]/g, "");
+};
+
+const getRiskLabel = (riskLevel: string | undefined) => {
+  const normalized = (riskLevel || "medium").toLowerCase();
+  if (normalized.includes("low")) return "Low";
+  if (normalized.includes("high")) return "High";
+  return "Medium";
+};
+
+const getRiskClass = (riskLevel: string | undefined) => {
+  const normalized = (riskLevel || "medium").toLowerCase();
+  if (normalized.includes("low")) return "strategy-insights__badge--success";
+  if (normalized.includes("high")) return "strategy-insights__badge--danger";
+  return "strategy-insights__badge--warning";
+};
+
+const getEffort = (riskLevel: string | undefined, versionGap: number) => {
+  const normalized = (riskLevel || "medium").toLowerCase();
+  if (normalized.includes("high") || versionGap >= 10) return { label: "High", value: 78 };
+  if (normalized.includes("medium") || versionGap >= 5) return { label: "Medium", value: 58 };
+  return { label: "Low", value: 34 };
+};
+
+const isUnknown = (value: unknown) => !value || String(value).toLowerCase() === "unknown";
 
 export default function StrategyWizardStep({ context }: { context: WizardScreenContext }) {
   const {
@@ -30,10 +61,42 @@ export default function StrategyWizardStep({ context }: { context: WizardScreenC
     versionRecommendationLoading,
   } = context;
 
-  // Consolidated Step 3: Strategy (Assessment + Migration Strategy + Planning)
-  const renderStrategyStep = () => (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
+  const dependencies = repoAnalysis?.dependencies || [];
+  const sourceVersion = normalizeVersion(
+    userSelectedVersion || selectedSourceVersion || repoAnalysis?.java_version || repoAnalysis?.java_version_from_build,
+  );
+  const targetVersion = normalizeVersion(selectedTargetVersion);
+  const versionGap = sourceVersion && targetVersion ? Math.max(Number(targetVersion) - Number(sourceVersion), 0) : 0;
+  const isTargetLts = LTS_VERSIONS.has(targetVersion);
+  const selectedRecommendation = rankedJavaRecommendations?.find(
+    (recommendation) => normalizeVersion(recommendation.javaVersion) === targetVersion,
+  );
+  const activeApproach = migrationApproachOptions?.find((option) => option.value === migrationApproach);
+  const riskLabel = getRiskLabel(riskLevel);
+  const effort = getEffort(riskLevel, versionGap);
+  const hasTests = Boolean(repoAnalysis?.has_tests);
+  const dependencyCount = dependencies.length;
+  const healthScore = riskLabel === "Low" ? 92 : riskLabel === "Medium" ? 78 : 62;
+  const readinessScore = Math.min(
+    96,
+    Math.max(55, healthScore - (isTargetLts ? 0 : 8) + (hasTests ? 4 : -5) + (dependencyCount > 0 ? 2 : -2)),
+  );
+
+  const sourceVersionText = userSelectedVersion
+    ? `Java ${selectedSourceVersion} (manually selected)`
+    : !isUnknown(repoAnalysis?.java_version)
+      ? `Java ${repoAnalysis?.java_version} (detected)`
+      : "Source Java version not detected";
+
+  const sourceHelpText = userSelectedVersion
+    ? "Source version manually selected in discovery step"
+    : !isUnknown(repoAnalysis?.java_version)
+      ? "Java version detected from build configuration"
+      : "No Java version found - please select a source version below";
+
+  return (
+    <div style={styles.card} className="strategy-dashboard-shell">
+      <div style={styles.stepHeader} className="strategy-dashboard-header">
         <span style={styles.stepIcon}>📋</span>
         <div>
           <h2 style={styles.title}>Assessment & Migration Strategy</h2>
@@ -41,403 +104,263 @@ export default function StrategyWizardStep({ context }: { context: WizardScreenC
         </div>
       </div>
 
-      {/* Assessment Section */}
-      {selectedRepo && repoAnalysis && (
-        <>
-          <div style={styles.sectionTitle}>📊 Application Assessment</div>
-          <div style={{ ...styles.riskBadge, backgroundColor: riskLevel === "low" ? "#dcfce7" : riskLevel === "medium" ? "#fef3c7" : "#fee2e2", color: riskLevel === "low" ? "#166534" : riskLevel === "medium" ? "#92400e" : "#991b1b" }}>
-            Risk Level: {riskLevel.toUpperCase()}
+      <div className="strategy-dashboard">
+        <section className="strategy-card strategy-assessment-card">
+          <div className="strategy-section-heading">📊 Application Assessment</div>
+          <div
+            style={{
+              ...styles.riskBadge,
+              backgroundColor: riskLevel === "low" ? "#dcfce7" : riskLevel === "medium" ? "#fef3c7" : "#fee2e2",
+              color: riskLevel === "low" ? "#166534" : riskLevel === "medium" ? "#92400e" : "#991b1b",
+            }}
+          >
+            Risk Level: {riskLabel.toUpperCase()}
           </div>
-
-          <div style={styles.assessmentGrid}>
-            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
-            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{repoAnalysis.java_version || "Unknown"}</div></div>
-            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
-            <div className="inner-card-hover assessment-inner-card" style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
+          <div className="strategy-assessment-grid">
+            <div className="strategy-metric-card"><span>Build Tool</span><strong>{repoAnalysis?.build_tool || "Not Detected"}</strong></div>
+            <div className="strategy-metric-card"><span>Java Version</span><strong>{!isUnknown(repoAnalysis?.java_version) ? repoAnalysis?.java_version : "Not Detected"}</strong></div>
+            <div className="strategy-metric-card"><span>Has Tests</span><strong>{hasTests ? "Yes" : "No"}</strong></div>
+            <div className="strategy-metric-card"><span>Dependencies</span><strong>{dependencyCount} found</strong></div>
           </div>
+        </section>
 
-          {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
-            <div
-              style={{
-                marginTop: 24,
-                padding: "28px 32px",
-                borderRadius: 18,
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                <span style={{ fontSize: 22 }}>📦</span>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
-                  Detected Dependencies ({repoAnalysis.dependencies.length})
-                </h3>
-              </div>
+        <section className="strategy-card strategy-health-card">
+          <div
+            className="strategy-insights__gauge"
+            style={{ "--score": `${readinessScore}%` } as CSSProperties}
+            aria-label={`Strategy health score ${readinessScore}%`}
+          >
+            <span>{readinessScore}%</span>
+          </div>
+          <div>
+            <h3>Strategy Health Score</h3>
+            <strong>{readinessScore >= 85 ? "Ready for Planning" : readinessScore >= 70 ? "Needs Review" : "Needs Attention"}</strong>
+            <p>Smart analysis of migration readiness and target planning.</p>
+          </div>
+        </section>
 
-              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#64748b", fontWeight: 500 }}>
-                These are the dependencies detected in your project.
-              </p>
-
-              <div style={{ height: 1, backgroundColor: "#e5e7eb", marginBottom: 14 }} />
-
-              <div
-                style={{
-                  maxHeight: 235,
-                  overflowY: "auto",
-                  overflowX: "hidden",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 12,
-                  backgroundColor: "#ffffff",
-                  padding: "0 10px",
-                  scrollBehavior: "smooth",
-                }}
-              >
-                {repoAnalysis.dependencies.map((dep, idx) => (
-                  <div
-                    key={idx}
-                    className="inner-card-hover dependency-inner-card"
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.7fr 0.55fr 0.65fr",
-                      alignItems: "center",
-                      minHeight: 72,
-                      gap: 14,
-                      padding: "14px 8px",
-                      borderBottom: idx === repoAnalysis.dependencies.length - 1 ? "none" : "1px solid #e5e7eb",
-                      backgroundColor: "#ffffff",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", wordBreak: "break-word" }}>
-                        {dep.group_id}:{dep.artifact_id}
+        <div className="strategy-main-grid">
+          <div className="strategy-left-column">
+            {selectedRepo && repoAnalysis && dependencies.length > 0 && (
+              <section className="strategy-card">
+                <div className="strategy-section-heading">📦 Detected Dependencies ({dependencies.length})</div>
+                <p className="strategy-card-subtitle">These are the dependencies detected in your project.</p>
+                <div className="strategy-dependency-list">
+                  {dependencies.map((dep, idx) => (
+                    <div key={idx} className="strategy-dependency-row">
+                      <div>
+                        <strong>{dep.group_id}:{dep.artifact_id}</strong>
+                        <span className="strategy-purple-line" />
                       </div>
-                      <div
-                        style={{
-                          width: 145,
-                          maxWidth: "60%",
-                          height: 3,
-                          marginTop: 14,
-                          borderRadius: 999,
-                          background: "linear-gradient(90deg, #7c3aed, #a855f7)",
-                        }}
-                      />
+                      <span className="strategy-dependency-version">
+                        {dep.current_version}
+                      </span>
+                      <span className={`strategy-status-pill ${isDetectedDependencyStatus(dep.status) ? "strategy-status-pill--success" : "strategy-status-pill--muted"}`}>
+                        {isDetectedDependencyStatus(dep.status) && "✓ "}{getDependencyStatusLabel(dep.status)}
+                      </span>
                     </div>
+                  ))}
+                </div>
+                <div className="strategy-scroll-note">Scroll to view all {dependencies.length} dependencies</div>
+              </section>
+            )}
 
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#475569", textAlign: "center" }}>
-                      {dep.current_version}
-                    </span>
-
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
-                        minWidth: 118,
-                        padding: "8px 14px",
-                        borderRadius: 999,
-                        backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb",
-                        color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280",
-                        fontSize: 12,
-                        fontWeight: 800,
-                        textAlign: "center",
-                      }}
-                    >
-                      {isDetectedDependencyStatus(dep.status) && <span style={{ fontSize: 15 }}>✓</span>}
-                      {getDependencyStatusLabel(dep.status)}
-                    </span>
-                  </div>
+            <section className="strategy-card strategy-approach-card">
+              <div className="strategy-section-heading">🎯 Migration Approach</div>
+              <div className="strategy-approach-options">
+                {migrationApproachOptions.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    className={`strategy-approach-option${migrationApproach === opt.value ? " strategy-approach-option--selected" : ""}`}
+                    onClick={() => setMigrationApproach(opt.value)}
+                    style={{ "--accent": opt.color } as CSSProperties}
+                  >
+                    <span>{opt.icon}</span>
+                    <div>
+                      <strong>{opt.label}</strong>
+                      <p>{opt.desc}</p>
+                    </div>
+                    <em>{migrationApproach === opt.value ? "✓" : ""}</em>
+                  </button>
                 ))}
               </div>
 
-              <div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "#64748b", fontWeight: 500 }}>
-                Scroll to view all {repoAnalysis.dependencies.length} dependencies
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Strategy Section */}
-      <div style={styles.sectionTitle}>📋 Migration Strategy</div>
-      <div style={styles.field}>
-        <label style={styles.label}>Migration Approach</label>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-          {migrationApproachOptions.map((opt) => (
-            <div key={opt.value} style={{ position: "relative" }}>
-              <div
-                onClick={() => setMigrationApproach(opt.value)}
-                style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  border: `2px solid ${migrationApproach === opt.value ? opt.color : "#e2e8f0"}`,
-                  backgroundColor: migrationApproach === opt.value ? `${opt.color}08` : "#fff",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: migrationApproach === opt.value ? `0 4px 12px ${opt.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
-                  position: "relative"
-                }}
-                onMouseEnter={(e) => {
-                  if (migrationApproach !== opt.value) {
-                    e.currentTarget.style.borderColor = opt.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${opt.color}15`;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (migrationApproach !== opt.value) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
-                  }
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  <span style={{ fontSize: 24 }}>{opt.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>{opt.label}</div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{opt.desc}</div>
-                  </div>
-                  {migrationApproach === opt.value && (
-                    <div style={{ color: opt.color, fontSize: 18, fontWeight: 700 }}>✓</div>
+              <div className="strategy-version-grid">
+                <div>
+                  <label style={styles.label}>Source Java Version</label>
+                  <div className="strategy-readonly-input">{sourceVersionText}</div>
+                  <p style={styles.helpText}>{sourceHelpText}</p>
+                  {!userSelectedVersion && isUnknown(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) && (
+                    <select
+                      value={selectedSourceVersion}
+                      onChange={(e) => {
+                        setSelectedSourceVersion(e.target.value);
+                        setUserSelectedVersion(e.target.value);
+                      }}
+                      className="strategy-select"
+                    >
+                      <option value="7">Java 7 (Legacy)</option>
+                      <option value="8">Java 8 (LTS)</option>
+                      <option value="11">Java 11 (LTS)</option>
+                      <option value="17">Java 17 (LTS)</option>
+                      <option value="21">Java 21 (LTS)</option>
+                    </select>
                   )}
                 </div>
 
-                {/* Info button for tooltip */}
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </div>
-
-                  {/* Tooltip */}
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 28,
-                      right: 0,
-                      width: 280,
-                      backgroundColor: "#1e293b",
-                      color: "#f1f5f9",
-                      padding: "12px 16px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      zIndex: 1000,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      whiteSpace: "normal"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#94a3b8" }}>
-                      {opt.label} Details
+                <div>
+                  <label style={styles.label}>Target Java Version</label>
+                  {versionRecommendationLoading && (
+                    <div style={{ ...styles.infoBox, marginBottom: 12 }}>
+                      Fetching recommendations for target Java versions based on your project analysis...
                     </div>
-                    <div>{opt.tooltip}</div>
-                    {/* Arrow */}
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      right: 16,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-        <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>Source Java Version</label>
-              <div style={{
-                padding: "12px 14px",
-                fontSize: 14,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                backgroundColor: "#f9fafb",
-                color: userSelectedVersion ? "#1e293b" : "#6b7280",
-                fontWeight: userSelectedVersion ? 600 : 500
-              }}>
-                {userSelectedVersion
-                  ? `Java ${selectedSourceVersion} (manually selected)`
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? `Java ${repoAnalysis.java_version} (detected)`
-                      : "Source don't have a java version")
-                }
-              </div>
-              <p style={styles.helpText}>
-                {userSelectedVersion
-                  ? "Source version manually selected in discovery step"
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? "Java version detected from build configuration"
-                      : "No Java version found - please select a source version below")
-                }
-              </p>
-              {/* Show version selector when not detected */}
-              {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                <div style={{ marginTop: 12 }}>
-                  <select
-                    value={selectedSourceVersion}
-                    onChange={(e) => {
-                      setSelectedSourceVersion(e.target.value);
-                      setUserSelectedVersion(e.target.value); // Mark as user-selected
-                    }}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 6,
-                      border: "1px solid #d97706",
-                      fontSize: 14,
-                      backgroundColor: "#fff",
-                      cursor: "pointer",
-                      width: "100%"
-                    }}
-                  >
-                    <option value="7">Java 7 (Legacy)</option>
-                    <option value="8">Java 8 (LTS)</option>
-                    <option value="11">Java 11 (LTS)</option>
-                    <option value="17">Java 17 (LTS)</option>
-                    <option value="21">Java 21 (LTS)</option>
+                  )}
+                  {!versionRecommendationLoading && versionRecommendationError && (
+                    <div style={{ ...styles.warningBox, marginBottom: 12, color: "#92400e", fontSize: 13 }}>
+                      Remote recommendation unavailable ({versionRecommendationError}). Showing the frontend compatibility ranking instead.
+                    </div>
+                  )}
+                  <select className="strategy-select" value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
+                    <option value="" disabled>Select Java Version</option>
+                    {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
                   </select>
-                  <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                    💡 Select the correct Java version for your project. This will be used as the source version for migration.
-                  </div>
+                  <p style={styles.helpText}>Choose a ranked recommendation below or manually select any newer supported version.</p>
                 </div>
-              )}
-            </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Target Java Version</label>
-            {versionRecommendationLoading && (
-              <div style={{ ...styles.infoBox, marginBottom: 12 }}>
-                Fetching recommmendations for target Java versions from Hugging Face based on your project analysis...
-                {/* Analyzing source version, build configuration, frameworks, dependencies, and migration risk... */}
               </div>
-            )}
+            </section>
 
-{/* newchange */}
-            {!versionRecommendationLoading && versionRecommendationError && (
-              <div style={{ ...styles.warningBox, marginBottom: 12, color: "#92400e", fontSize: 13 }}>
-                Remote recommendation unavailable ({versionRecommendationError}). Showing the frontend compatibility ranking instead.
-              </div>
-            )}
-            <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
-              <option value="" disabled>Select Java Version</option>
-              {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-            </select>
-            <p style={styles.helpText}>Choose a ranked recommendation below or manually select any newer supported version.</p>
-          </div>
-        </div>
-
-      {!versionRecommendationLoading && rankedJavaRecommendations.length > 0 && (
-        <section className="java-recommendations" aria-labelledby="java-recommendations-title">
-          <div className="java-recommendations__header">
-            <div>
-              <div className="java-recommendations__eyebrow">Migration compatibility analysis</div>
-              <h3 id="java-recommendations-title">Ranked target Java versions</h3>
-              <p>
-                Compact ranking based on source version, build setup, dependencies, LTS support,
-                security, performance, and enterprise adoption.
-              </p>
-            </div>
-            <div className="java-recommendations__count">
-              {rankedJavaRecommendations.length} options analyzed
-            </div>
-          </div>
-
-          <div className="java-recommendations__list">
-            {rankedJavaRecommendations.map((recommendation, index) => {
-              const isSelected = selectedTargetVersion === recommendation.javaVersion;
-              return (
-                <article
-                  key={recommendation.javaVersion}
-                  className={`inner-card-hover strategy-inner-card java-recommendation-card${isSelected ? " java-recommendation-card--selected" : ""}`}
-                >
-                  <div className="java-recommendation-card__top">
-                    <div className="java-recommendation-card__rank">#{index + 1}</div>
-                    <div className="java-recommendation-card__title">
-                      <span>Java {recommendation.javaVersion}</span>
-                      <span className={`java-recommendation-card__level java-recommendation-card__level--${recommendation.recommendationLevel.toLowerCase().replaceAll(" ", "-")}`}>
-                        {recommendation.recommendationLevel}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className={`java-recommendation-card__select${isSelected ? " java-recommendation-card__select--selected" : ""}`}
-                      onClick={() => setSelectedTargetVersion(recommendation.javaVersion)}
-                    >
-                      {isSelected ? "Selected" : "Select version"}
-                    </button>
+            {!versionRecommendationLoading && rankedJavaRecommendations.length > 0 && (
+              <section className="java-recommendations" aria-labelledby="java-recommendations-title">
+                <div className="java-recommendations__header">
+                  <div>
+                    <div className="java-recommendations__eyebrow">Migration compatibility analysis</div>
+                    <h3 id="java-recommendations-title">Ranked target Java versions</h3>
+                    <p>Compact ranking based on source version, build setup, dependencies, LTS support, security, performance, and enterprise adoption.</p>
                   </div>
+                  <div className="java-recommendations__count">{rankedJavaRecommendations.length} options analyzed</div>
+                </div>
 
-                  <p className="java-recommendation-card__description">
-                    {recommendation.description}
-                  </p>
+                <div className="java-recommendations__list">
+                  {rankedJavaRecommendations.map((recommendation, index) => {
+                    const isSelected = selectedTargetVersion === recommendation.javaVersion;
+                    const cardToneClass = recommendation.isLts ? " java-recommendation-card--lts" : " java-recommendation-card--non-lts";
+                    return (
+                      <article key={recommendation.javaVersion} className={`inner-card-hover strategy-inner-card java-recommendation-card${cardToneClass}${isSelected ? " java-recommendation-card--selected" : ""}`}>
+                        <div className="java-recommendation-card__top">
+                          <div className="java-recommendation-card__rank">#{index + 1}</div>
+                          <div className="java-recommendation-card__title">
+                            <span>Java {recommendation.javaVersion}</span>
+                            {recommendation.isLts && <span className="java-recommendation-card__lts-badge">LTS</span>}
+                            <span className={`java-recommendation-card__level java-recommendation-card__level--${recommendation.recommendationLevel.toLowerCase().replaceAll(" ", "-")}`}>
+                              {recommendation.recommendationLevel}
+                            </span>
+                          </div>
+                          <button type="button" className={`java-recommendation-card__select${isSelected ? " java-recommendation-card__select--selected" : ""}`} onClick={() => setSelectedTargetVersion(recommendation.javaVersion)}>
+                            {isSelected ? "Selected" : "Select Version"}
+                          </button>
+                        </div>
+                        <p className="java-recommendation-card__description">{recommendation.description}</p>
+                        <ul className="java-recommendation-card__benefits">
+                          {recommendation.keyBenefits.slice(0, 2).map((benefit) => <li key={benefit}>{benefit}</li>)}
+                        </ul>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
-                  <ul className="java-recommendation-card__benefits">
-                    {recommendation.keyBenefits.slice(0, 2).map((benefit) => <li key={benefit}>{benefit}</li>)}
-                  </ul>
-                </article>
-              );
-            })}
+            <section className="strategy-card strategy-target-card">
+              <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
+              <input
+                type="text"
+                className="strategy-target-input"
+                value={targetRepoName}
+                onChange={(e) => setTargetRepoName(e.target.value)}
+                placeholder={
+                  migrationApproach === "branch"
+                    ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
+                    : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
+                }
+              />
+              <p style={styles.helpText}>
+                Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
+                  {migrationApproach === "branch"
+                    ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
+                    : <>https://github.com/Pavithra-Sorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
+                </code> (auto-generated, editable)
+              </p>
+            </section>
           </div>
-        </section>
-      )}
-{/* // */}
 
-      <div style={styles.field}>
-        <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input 
-            type="text" 
-            style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }} 
-            value={targetRepoName} 
-            onChange={(e) => setTargetRepoName(e.target.value)} 
-            placeholder={
-              migrationApproach === "branch"
-                ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
-                : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
-            }
-          />
+          <div className="strategy-right-column">
+            <section className="strategy-card">
+              <div className="strategy-section-heading">Java Upgrade Summary</div>
+              <div className="strategy-insights__summary-grid">
+                <div><span>Source</span><strong>{sourceVersion ? `Java ${sourceVersion}` : "Unknown"}</strong></div>
+                <div><span>Target</span><strong>{targetVersion ? `Java ${targetVersion}` : "Pending"}</strong></div>
+                <div><span>Version Gap</span><strong>{targetVersion ? `${versionGap} versions` : "--"}</strong></div>
+                <div><span>LTS Status</span><strong>{isTargetLts ? "Yes" : "No"}</strong></div>
+              </div>
+            </section>
+
+            <section className="strategy-card">
+              <div className="strategy-section-heading">Risk Analysis</div>
+              <div className="strategy-insights__badge-grid">
+                <span className={`strategy-insights__badge ${getRiskClass(riskLevel)}`}>Compatibility: {riskLabel}</span>
+                <span className={`strategy-insights__badge ${dependencyCount > 20 ? "strategy-insights__badge--warning" : "strategy-insights__badge--success"}`}>Dependency: {dependencyCount > 20 ? "Medium" : "Low"}</span>
+                <span className="strategy-insights__badge strategy-insights__badge--success">Build {repoAnalysis?.build_tool ? "Ready" : "Review"}</span>
+                <span className={`strategy-insights__badge ${hasTests ? "strategy-insights__badge--success" : "strategy-insights__badge--warning"}`}>Testing {hasTests ? "Ready" : "Review"}</span>
+              </div>
+            </section>
+
+            <section className="strategy-card">
+              <div className="strategy-section-heading">Effort Estimate</div>
+              <div className="strategy-insights__effort-row"><strong>{effort.label}</strong><span>{effort.value}% planning confidence</span></div>
+              <div className="strategy-insights__meter"><span style={{ width: `${effort.value}%` }} /></div>
+            </section>
+
+            <section className="strategy-card">
+              <div className="strategy-section-heading">Migration Checklist</div>
+              <ul className="strategy-insights__checklist strategy-checklist-grid">
+                <li>Confirm source Java version</li>
+                <li>Select LTS target version</li>
+                <li>Review dependency compatibility</li>
+                <li>Confirm migration approach</li>
+                <li>Continue to Migration step</li>
+              </ul>
+            </section>
+
+            <section className="strategy-card">
+              <div className="strategy-section-heading">Recommended Actions</div>
+              <ul className="strategy-insights__checklist">
+                <li>Confirm source Java version</li>
+                <li>Select LTS target version</li>
+                <li>Review dependency compatibility</li>
+                <li>Confirm migration approach</li>
+                <li>Continue to Migration step</li>
+              </ul>
+            </section>
+
+            <section className="strategy-insights__ai-card strategy-card">
+              <strong>💡 AI Recommendation</strong>
+              <p>
+                {targetVersion
+                  ? `Java ${targetVersion}${isTargetLts ? " LTS" : ""} is ${isTargetLts ? "suitable" : "available"} for this project based on build tool, dependencies, and framework compatibility.`
+                  : "Select a target Java version to generate migration planning guidance."}
+              </p>
+              {targetRepoName && <span>Target: {targetRepoName}</span>}
+              {selectedRecommendation?.recommendationLevel && <span>{selectedRecommendation.recommendationLevel}</span>}
+            </section>
+          </div>
         </div>
-        <p style={styles.helpText}>
-          Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
-            {migrationApproach === "branch"
-              ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-              : <>https://github.com/Pavithra-Sorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
-          </code> (auto-generated, editable)
-        </p>
-      </div>
 
-      <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Migration →</button>
+        <div className="strategy-action-row">
+          <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
+          <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Migration →</button>
+        </div>
       </div>
     </div>
   );
-
-  return renderStrategyStep();
 }

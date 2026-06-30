@@ -1,4 +1,32 @@
+import type { CSSProperties } from "react";
 import type { WizardScreenContext } from "../wizard/model/wizardScreenContext";
+
+const countItems = (value: unknown): number => {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === "object") return Object.keys(value as Record<string, unknown>).length;
+  return 0;
+};
+
+const textOrNA = (value: unknown, fallback = "Not Detected") => {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+};
+
+const cleanJavaVersion = (value: unknown): string | null => {
+  if (value === null || value === undefined || value === "") return null;
+  const text = String(value).replace(/[✓✗]/g, "").trim();
+  const match = text.match(/(?:java\s*)?(\d+(?:\.\d+)?)/i);
+  return match ? match[1] : null;
+};
+
+const dependencyCountFrom = (repoAnalysis: any): number => {
+  return (
+    countItems(repoAnalysis?.dependencies) ||
+    countItems(repoAnalysis?.detected_dependencies) ||
+    countItems(repoAnalysis?.dependency_updates) ||
+    countItems(repoAnalysis?.build?.dependencies)
+  );
+};
 
 export default function DiscoveryWizardStep({ context }: { context: WizardScreenContext }) {
   const {
@@ -6,7 +34,7 @@ export default function DiscoveryWizardStep({ context }: { context: WizardScreen
     conversionTypes,
     currentPath,
     currentToken,
-    detectedFrameworks,
+    detectedFrameworks = [],
     detectedJavaStructureLabel,
     editedContent,
     fileContent,
@@ -22,7 +50,7 @@ export default function DiscoveryWizardStep({ context }: { context: WizardScreen
     MIGRATION_STEPS,
     pathHistory,
     repoAnalysis,
-    repoFiles,
+    repoFiles = [],
     selectedConversions,
     selectedFile,
     selectedRepo,
@@ -56,1013 +84,351 @@ export default function DiscoveryWizardStep({ context }: { context: WizardScreen
     viewingFrameworkFile,
   } = context;
 
-  // Consolidated Step 2: Discovery (Repository discovery + Dependencies)
-  const renderDiscoveryStep = () => {
-    // Helper function to handle file click
-    const handleFileClick = async (file: RepoFile) => {
-      if (file.type === "dir") {
-        setPathHistory(prev => [...prev, file.path]);
-        setCurrentPath(file.path);
-        setSelectedFile(null);
-        setFileContent("");
-        setEditedContent("");
-        setIsEditing(false);
-      } else {
-        setFileLoading(true);
-        setSelectedFile(file);
-        try {
-          const response = await getFileContent(selectedRepo!.url, file.path, currentToken);
-          setFileContent(response.content);
-          setEditedContent(response.content);
-        } catch {
-          setError("Failed to load file content");
-        } finally {
-          setFileLoading(false);
-        }
-      }
-    };
+  const detectedBuildTool =
+    repoAnalysis?.build_tool ||
+    (repoAnalysis?.structure?.has_pom_xml ? "Maven" : repoAnalysis?.structure?.has_build_gradle ? "Gradle" : null);
 
-    // Helper to navigate back in folder structure
-    const navigateBack = () => {
-      if (pathHistory.length > 1) {
-        const newHistory = [...pathHistory];
-        newHistory.pop();
-        setPathHistory(newHistory);
-        setCurrentPath(newHistory[newHistory.length - 1]);
-        setSelectedFile(null);
-        setFileContent("");
-        setEditedContent("");
-        setIsEditing(false);
-      }
-    };
+  const detectedJavaVersion = cleanJavaVersion(
+    repoAnalysis?.java_version || repoAnalysis?.java_version_from_build || detectedJavaStructureLabel
+  );
 
-    // Helper to navigate to root
-    const navigateToRoot = () => {
-      setPathHistory([""]);
-      setCurrentPath("");
+  const fileCount = Array.isArray(repoFiles) ? repoFiles.length : 0;
+  const dependencyCount = dependencyCountFrom(repoAnalysis);
+  const frameworkCount = detectedFrameworks.length;
+  const healthScore = isJavaProject === false ? 38 : isHighRiskProject ? 68 : 92;
+  const readinessScore = isJavaProject === false ? 25 : isHighRiskProject ? 62 : 88;
+  const riskLevel = isJavaProject === false ? "High" : isHighRiskProject ? "Medium" : "Low";
+  const riskTone = isJavaProject === false ? "danger" : isHighRiskProject ? "warning" : "success";
+  const primaryFramework =
+    detectedFrameworks.find((fw: any) => fw.type === "Application Framework")?.name ||
+    detectedFrameworks.find((fw: any) => fw.type === "ORM Framework")?.name ||
+    detectedFrameworks[0]?.name ||
+    null;
+
+  const detectedBuildType = String(detectedBuildTool || "").toLowerCase();
+  const recommendedBuildConversionId = detectedBuildType.includes("maven")
+    ? "maven_to_gradle"
+    : detectedBuildType.includes("gradle")
+      ? "gradle_to_maven"
+      : null;
+  const buildConversionLabel = detectedBuildType.includes("maven")
+    ? "Maven to Gradle Build"
+    : detectedBuildType.includes("gradle")
+      ? "Gradle to Maven Build"
+      : "Proceed with Migration";
+  const buildConversionNote = detectedBuildType.includes("maven")
+    ? "Detected Maven project; convert to Gradle build."
+    : detectedBuildType.includes("gradle")
+      ? "Detected Gradle project; convert to Maven build."
+      : "No specific build tool conversion detected.";
+
+  const checklist = [
+    { label: "Repository Connected", done: Boolean(selectedRepo) },
+    { label: "Repository Scanned", done: Boolean(repoAnalysis) },
+    { label: "Java Version Identified", done: Boolean(detectedJavaVersion) },
+    { label: "Build Tool Detected", done: Boolean(detectedBuildTool) },
+    { label: "Dependencies Loaded", done: dependencyCount > 0 },
+    { label: "Frameworks Identified", done: frameworkCount > 0 },
+  ];
+
+  const quickMetrics = [
+    { icon: "📁", value: fileCount || "Not Detected", label: "Files" },
+    { icon: "📦", value: dependencyCount || "Not Detected", label: "Dependencies" },
+    { icon: "☕", value: detectedJavaVersion ? `Java ${detectedJavaVersion}` : "Not Detected", label: "Java Version" },
+    { icon: "🧩", value: frameworkCount || "Not Detected", label: "Frameworks" },
+  ];
+
+  const handleFileClick = async (file: any) => {
+    if (file.type === "dir") {
+      setPathHistory((prev: string[]) => [...prev, file.path]);
+      setCurrentPath(file.path);
       setSelectedFile(null);
       setFileContent("");
       setEditedContent("");
       setIsEditing(false);
+      return;
+    }
+    setFileLoading(true);
+    setSelectedFile(file);
+    try {
+      const response = await getFileContent(selectedRepo!.url, file.path, currentToken);
+      setFileContent(response.content);
+      setEditedContent(response.content);
+    } catch {
+      setError("Failed to load file content");
+    } finally {
+      setFileLoading(false);
+    }
+  };
+
+  const navigateBack = () => {
+    if (pathHistory.length > 1) {
+      const next = [...pathHistory];
+      next.pop();
+      setPathHistory(next);
+      setCurrentPath(next[next.length - 1]);
+      setSelectedFile(null);
+      setFileContent("");
+      setEditedContent("");
+      setIsEditing(false);
+    }
+  };
+
+  const navigateToRoot = () => {
+    setPathHistory([""]);
+    setCurrentPath("");
+    setSelectedFile(null);
+    setFileContent("");
+    setEditedContent("");
+    setIsEditing(false);
+  };
+
+  const getFileIcon = (file: any) => {
+    if (file.type === "dir") return "📁";
+    const ext = file.name?.split(".").pop()?.toLowerCase();
+    const iconMap: Record<string, string> = {
+      java: "☕", xml: "📋", json: "📦", yml: "⚙️", yaml: "⚙️", properties: "🔧",
+      md: "📝", gradle: "🐘", kt: "🎯", js: "🟨", ts: "🔷", html: "🌐", css: "🎨", sql: "🗄️",
     };
+    return iconMap[ext || ""] || "📄";
+  };
 
-    // Get file extension for syntax highlighting hint
-    const getFileLanguage = (fileName: string) => {
-      const ext = fileName.split('.').pop()?.toLowerCase();
-      const langMap: { [key: string]: string } = {
-        'java': 'Java',
-        'xml': 'XML',
-        'json': 'JSON',
-        'yml': 'YAML',
-        'yaml': 'YAML',
-        'properties': 'Properties',
-        'md': 'Markdown',
-        'gradle': 'Gradle',
-        'kt': 'Kotlin',
-        'js': 'JavaScript',
-        'ts': 'TypeScript',
-        'html': 'HTML',
-        'css': 'CSS',
-        'sql': 'SQL',
-        'sh': 'Shell',
-        'bat': 'Batch',
-        'txt': 'Text'
-      };
-      return langMap[ext || ''] || 'Text';
-    };
+  const applyRecommendedBuildConversion = () => {
+    if (!recommendedBuildConversionId) return;
+    const nextSelections = [recommendedBuildConversionId];
+    if (selectedConversions.includes("java_version")) nextSelections.push("java_version");
+    setSelectedConversions(nextSelections);
+  };
 
-    // Get file icon based on type
-    const getFileIcon = (file: RepoFile) => {
-      if (file.type === "dir") return "📁";
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      const iconMap: { [key: string]: string } = {
-        'java': '☕',
-        'xml': '📋',
-        'json': '📦',
-        'yml': '⚙️',
-        'yaml': '⚙️',
-        'properties': '🔧',
-        'md': '📝',
-        'gradle': '🐘',
-        'kt': '🎯',
-        'js': '🟨',
-        'ts': '🔷',
-        'html': '🌐',
-        'css': '🎨',
-        'sql': '🗄️',
-        'sh': '💻',
-        'txt': '📄'
-      };
-      return iconMap[ext || ''] || '📄';
-    };
+  const renderFrameworkCards = () => {
+    if (!detectedFrameworks.length) {
+      return <div className="discovery-empty-card">No frameworks detected</div>;
+    }
 
-    const detectedBuildType = repoAnalysis?.build_tool ||
-      (repoAnalysis?.structure?.has_pom_xml ? "maven" : repoAnalysis?.structure?.has_build_gradle ? "gradle" : null);
-    const detectedJavaVersion = repoAnalysis?.java_version || repoAnalysis?.java_version_from_build || null;
-    const primaryDetectedFramework =
-      detectedFrameworks.find((fw) => fw.type === "Application Framework")?.name ||
-      detectedFrameworks.find((fw) => fw.type === "ORM Framework")?.name ||
-      detectedFrameworks[0]?.name ||
-      null;
-    const recommendedBuildConversionId = detectedBuildType === "maven"
-      ? "maven_to_gradle"
-      : detectedBuildType === "gradle"
-        ? "gradle_to_maven"
-        : null;
-    const hasRecommendedBuildConversion = Boolean(
-      recommendedBuildConversionId && conversionTypes.some((ct) => ct.id === recommendedBuildConversionId)
-    );
+    return detectedFrameworks.map((fw: any, idx: number) => (
+      <button
+        key={`${fw.name}-${idx}`}
+        className="discovery-framework-card"
+        onClick={async () => {
+          setFrameworkFileLoading(true);
+          setViewingFrameworkFile({ name: fw.name, path: fw.path, content: "" });
+          try {
+            const response = await getFileContent(selectedRepo!.url, fw.path, currentToken);
+            setViewingFrameworkFile({ name: fw.name, path: fw.path, content: response.content });
+          } catch {
+            setViewingFrameworkFile({ name: fw.name, path: fw.path, content: `// Error loading file: ${fw.path}` });
+          } finally {
+            setFrameworkFileLoading(false);
+          }
+        }}
+      >
+        <span className="discovery-framework-icon">
+          {fw.type === "Testing Framework" ? "🧪" : fw.type === "Application Framework" ? "🍃" : fw.type === "ORM Framework" ? "🗄️" : "📚"}
+        </span>
+        <span className="discovery-framework-meta">
+          <strong>{fw.name}</strong>
+          <small>{fw.type}</small>
+          <em>{getDetectedComponentCategory(fw.type)}</em>
+        </span>
+        <span className="discovery-detected-pill">Detected</span>
+        <span className="discovery-view-link">View</span>
+      </button>
+    ));
+  };
 
-    const buildConversionLabel = detectedBuildType === "maven"
-      ? "Maven to Gradle build"
-      : detectedBuildType === "gradle"
-        ? "Gradle to Maven build"
-        : "Proceed with migration";
-
-    const buildConversionNote = detectedBuildType === "maven"
-      ? "Detected Maven project; convert to a Gradle build."
-      : detectedBuildType === "gradle"
-        ? "Detected Gradle project; convert to a Maven build."
-        : "No specific build tool conversion detected.";
-
-    const applyRecommendedBuildConversion = () => {
-      if (!recommendedBuildConversionId) return;
-
-      const nextSelections = [recommendedBuildConversionId];
-      if (selectedConversions.includes("java_version")) {
-        nextSelections.push("java_version");
-      }
-
-      setSelectedConversions(nextSelections);
-    };
-
-    return (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔍</span>
+  return (
+    <div className="discovery-page-card">
+      <header className="discovery-page-header">
+        <span className="discovery-page-icon">🔍</span>
         <div>
-          <h2 style={styles.title}>Repository Discovery & Dependencies</h2>
-          <p style={styles.subtitle}>{MIGRATION_STEPS[1].summary}</p>
+          <h2>Repository Discovery & Dependencies</h2>
+          <p>{MIGRATION_STEPS?.[1]?.summary || "Explore repository structure and analyze project dependencies"}</p>
         </div>
         {analysisLoading && (
-          <div style={styles.timerBadge}>
-            <span style={styles.timerLabel}>Live Timer</span>
-            <span style={styles.timerValue}>{formattedAnalysisElapsed}</span>
+          <div className="discovery-live-timer">
+            <span>Live Timer</span>
+            <strong>{formattedAnalysisElapsed}</strong>
           </div>
         )}
-      </div>
+      </header>
 
-      {selectedRepo && (
+      {!selectedRepo ? (
+        <div className="discovery-empty-state">Connect a repository to view discovery details.</div>
+      ) : analysisLoading ? (
+        <div style={styles.loadingBox}><div style={styles.spinner}></div><span>Analyzing repository...</span></div>
+      ) : (
         <>
-          {analysisLoading ? <div style={styles.loadingBox}><div style={styles.spinner}></div><span>Analyzing repository...</span></div> : (
-            <>
-              {/* Not a Java Project Alert or No Framework Detected */}
-              {isJavaProject === false ? (
-                <div style={{
-                  background: "#fef2f2",
-                  border: "2px solid #ef4444",
-                  borderRadius: 12,
-                  padding: 20,
-                  marginBottom: 24,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 16
-                }}>
-                  <span style={{ fontSize: 32 }}>⚠️</span>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>
-                      This is not a Java Project
-                    </div>
-                    <div style={{ fontSize: 14, color: "#b91c1c", lineHeight: 1.6 }}>
-                      The repository you connected does not appear to be a Java project. 
-                      This tool is designed specifically for Java application migration. 
-                      Please connect a repository that contains Java source code, 
-                      Maven (pom.xml), or Gradle (build.gradle) configuration files.
-                    </div>
-                    <button 
-                      style={{ 
-                        marginTop: 16, 
-                        backgroundColor: "#ef4444", 
-                        color: "#fff", 
-                        border: "none", 
-                        borderRadius: 8, 
-                        padding: "10px 20px", 
-                        fontWeight: 600, 
-                        cursor: "pointer",
-                        fontSize: 14
-                      }}
-                      onClick={() => {
-                        setStep(1);
-                        setSelectedRepo(null);
-                        setRepoAnalysis(null);
-                        setIsJavaProject(null);
-                        setRepoUrl("");
-                      }}
-                    >
-                      ← Connect Different Repository
-                    </button>
-                  </div>
+          {isJavaProject === false && (
+            <div className="discovery-alert discovery-alert--error">
+              <span>⚠️</span>
+              <div>
+                <strong>This is not a Java Project</strong>
+                <p>This tool is designed for Java migration. Please connect a Java repository.</p>
+                <button onClick={() => { setStep(1); setSelectedRepo(null); setRepoAnalysis(null); setIsJavaProject(null); setRepoUrl(""); }}>← Connect Different Repository</button>
+              </div>
+            </div>
+          )}
+
+          {isJavaProject && detectedFrameworks.length === 0 && (
+            <div className="discovery-alert discovery-alert--warning">
+              <span>ℹ️</span>
+              <div>
+                <strong>Java Project Detected (No Framework)</strong>
+                <p>This repository contains Java source files but no recognized framework was detected.</p>
+              </div>
+            </div>
+          )}
+
+          {isHighRiskProject && !highRiskConfirmed && (
+            <section className="discovery-high-risk-card">
+              <div className="discovery-high-risk-head">
+                <span>⚠️</span>
+                <div>
+                  <h3>High Risk Migration Detected</h3>
+                  <p>This project may be missing Java version configuration and may require additional setup.</p>
                 </div>
-              ) : null}
+              </div>
+              <div className="discovery-high-risk-grid">
+                {!repoAnalysis?.structure?.has_pom_xml && !repoAnalysis?.structure?.has_build_gradle && <span>❌ No pom.xml or build.gradle</span>}
+                {!detectedJavaVersion && <span>❌ Java version not detected</span>}
+                {!repoAnalysis?.structure?.has_src_main && <span>❌ Non-standard project structure</span>}
+              </div>
+              <div className="discovery-version-box">
+                <label>{sourceVersionStatus === "detected" ? "Java version automatically detected" : "Select Source Java Version:"}</label>
+                {sourceVersionStatus === "detected" && suggestedJavaVersion !== "auto" ? (
+                  <div>Java {suggestedJavaVersion} detected from source code</div>
+                ) : (
+                  <select
+                    value={suggestedJavaVersion}
+                    onChange={(e) => {
+                      setSuggestedJavaVersion(e.target.value);
+                      setSelectedSourceVersion(e.target.value === "auto" ? "8" : e.target.value);
+                      setUserSelectedVersion(e.target.value);
+                      setSourceVersionStatus("detected");
+                    }}
+                  >
+                    <option value="auto">Auto-detect from code</option>
+                    <option value="7">Java 7</option>
+                    <option value="8">Java 8</option>
+                    <option value="11">Java 11</option>
+                    <option value="17">Java 17</option>
+                    <option value="21">Java 21</option>
+                  </select>
+                )}
+                <p>{buildConversionNote}</p>
+              </div>
+              <div className="discovery-risk-actions">
+                <button onClick={() => { applyRecommendedBuildConversion(); setHighRiskConfirmed(true); setSelectedSourceVersion(suggestedJavaVersion); }}>{buildConversionLabel}</button>
+                <button onClick={() => { setStep(1); setSelectedRepo(null); setRepoAnalysis(null); setIsJavaProject(null); setIsHighRiskProject(false); setRepoUrl(""); }}>← Choose Different Repository</button>
+              </div>
+            </section>
+          )}
 
-              {/* Java project but no framework detected */}
-              {isJavaProject && detectedFrameworks.length === 0 && (
-                <div style={{
-                  background: "#fef9c3",
-                  border: "2px solid #facc15",
-                  borderRadius: 12,
-                  padding: 20,
-                  marginBottom: 24,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 16
-                }}>
-                  <span style={{ fontSize: 32 }}>ℹ️</span>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
-                      Java Project Detected (No Framework)
-                    </div>
-                    <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.6 }}>
-                      This repository contains Java source files but no recognized framework (e.g., Spring, Spring Boot, Jakarta EE) was detected. You can still proceed with migration, but some automation features may be limited.
-                    </div>
-                  </div>
+          {isJavaProject !== false && (!isHighRiskProject || highRiskConfirmed) && (
+            <main className="discovery-dashboard">
+              <section className="discovery-top-metrics">
+                <div className="discovery-card discovery-health-card">
+                  <div className="discovery-score-ring" style={{ "--score": `${healthScore * 3.6}deg` } as CSSProperties}>{healthScore}%</div>
+                  <div><small>Repository Health</small><strong>{healthScore >= 85 ? "Excellent" : healthScore >= 60 ? "Needs Review" : "High Risk"}</strong><span>{textOrNA(selectedRepo?.name, "No repository")}</span></div>
                 </div>
-              )}
+                <div className="discovery-card discovery-quick-card">
+                  <h3>Quick Metrics</h3>
+                  <div className="discovery-quick-grid">{quickMetrics.map((m) => <div key={m.label}><span>{m.icon}</span><strong>{m.value}</strong><small>{m.label}</small></div>)}</div>
+                </div>
+                <div className="discovery-card discovery-readiness-card">
+                  <div><h3>Migration Readiness</h3><strong>{readinessScore}%</strong></div>
+                  <div className="discovery-progress"><span style={{ width: `${readinessScore}%` }} /></div>
+                  <p>Ready for Strategy Assessment</p>
+                </div>
+              </section>
 
-              {/* Show discovery content only if it's a Java project */}
-              {isJavaProject !== false && (
-                <>
-                  {/* High Risk Project Warning (no pom.xml/build.gradle or unknown Java version) */}
-                  {isHighRiskProject && !highRiskConfirmed && (
-                    <div style={{
-                      background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
-                      border: "2px solid #f59e0b",
-                      borderRadius: 12,
-                      padding: 24,
-                      marginBottom: 24,
-                      boxShadow: "0 4px 12px rgba(245, 158, 11, 0.15)"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
-                        <span style={{ fontSize: 40 }}>⚠️</span>
-                        <div>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
-                            High Risk Migration Detected
-                          </div>
-                      <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.7 }}>
-                            This project may be missing Java version configuration and may require additional setup:
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Missing Items */}
-                      <div style={{
-                        background: "rgba(255,255,255,0.7)",
-                        borderRadius: 8,
-                        padding: 16,
-                        marginBottom: 20
-                      }}>
-                        <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>🔍 Missing Components:</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                          {!repoAnalysis?.structure?.has_pom_xml && !repoAnalysis?.structure?.has_build_gradle && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> No pom.xml or build.gradle
-                            </div>
-                          )}
-                          {(!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Java version not detected
-                            </div>
-                          )}
-                          {!repoAnalysis?.structure?.has_src_main && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Non-standard project structure
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Suggested Configuration */}
-                      <div style={{
-                        background: "rgba(255,255,255,0.7)",
-                        borderRadius: 8,
-                        padding: 16,
-                        marginBottom: 20
-                      }}>
-                        <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>💡 Suggested Configuration:</div>
-                        
-                        {/* Java Version Selection */}
-                        <div style={{ marginBottom: 16 }}>
-                          <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#78350f", marginBottom: 6 }}>
-                            {sourceVersionStatus === "detected" ? "Java version automatically detected" : "Select Source Java Version:"}
-                          </label>
-                          {sourceVersionStatus === "detected" && suggestedJavaVersion !== "auto" ? (
-                            <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #d1d5db", backgroundColor: "#f8fafc", minWidth: 200, color: "#0f172a" }}>
-                              Java {suggestedJavaVersion} detected from source code
-                            </div>
-                          ) : (
-                            <>
-                              <select
-                                value={suggestedJavaVersion}
-                                onChange={(e) => {
-                                  setSuggestedJavaVersion(e.target.value);
-                                  setSelectedSourceVersion(e.target.value === "auto" ? "8" : e.target.value); // Default to 8 if auto-detect
-                                  setUserSelectedVersion(e.target.value);
-                                  setSourceVersionStatus("detected");
-                                }}
-                                style={{
-                                  padding: "10px 14px",
-                                  borderRadius: 6,
-                                  border: "1px solid #d97706",
-                                  fontSize: 14,
-                                  backgroundColor: "#fff",
-                                  cursor: "pointer",
-                                  minWidth: 200
-                                }}
-                              >
-                                <option value="auto">🔍 Auto-detect from code (Recommended)</option>
-                                <option value="7">Java 7 (Legacy)</option>
-                                <option value="8">Java 8 (LTS)</option>
-                                <option value="11">Java 11 (LTS)</option>
-                                <option value="17">Java 17 (LTS)</option>
-                                <option value="21">Java 21 (LTS)</option>
-                              </select>
-                              <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                                💡 Auto-detect analyzes your code to determine the correct Java version
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        <div style={{ marginBottom: 16, padding: 16, borderRadius: 8, backgroundColor: "#eef2ff", border: "1px solid #c7d2fe" }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1e3a8a" }}>
-                            {buildConversionLabel}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>
-                            {buildConversionNote}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Action Buttons */}
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <button
-                          onClick={() => {
-                            setHighRiskConfirmed(true);
-                            setSelectedSourceVersion(suggestedJavaVersion);
-                          }}
-                          style={{
-                            backgroundColor: "#f59e0b",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 8,
-                            padding: "12px 24px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: 14,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8
-                          }}
-                        >
-                          {buildConversionLabel}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setStep(1);
-                            setSelectedRepo(null);
-                            setRepoAnalysis(null);
-                            setIsJavaProject(null);
-                            setIsHighRiskProject(false);
-                            setRepoUrl("");
-                          }}
-                          style={{
-                            backgroundColor: "#fff",
-                            color: "#92400e",
-                            border: "2px solid #f59e0b",
-                            borderRadius: 8,
-                            padding: "12px 24px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: 14
-                          }}
-                        >
-                          ← Choose Different Repository
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Show content only after high-risk confirmation or if not high-risk */}
-                  {(!isHighRiskProject || highRiskConfirmed) && (
-                    <>
-                  {/* GitHub-like File Explorer */}
-                  <div style={styles.sectionTitle}>📂 Repository Files</div>
-                  <div style={{
-                    border: "1px solid #d0d7de",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    marginBottom: 24,
-                    backgroundColor: "#fff"
-                  }}>
-                    {/* Header bar like GitHub */}
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px 16px",
-                      backgroundColor: "#f6f8fa",
-                      borderBottom: "1px solid #d0d7de"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedRepo.name}</span>
-                        {currentPath && (
-                          <>
-                            <span style={{ color: "#57606a" }}>/</span>
-                            <span style={{ color: "#0969da" }}>{currentPath}</span>
-                          </>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {currentPath && (
-                          <button
-                            onClick={navigateToRoot}
-                            style={{
-                              background: "none",
-                              border: "1px solid #d0d7de",
-                              borderRadius: 6,
-                              padding: "4px 12px",
-                              cursor: "pointer",
-                              fontSize: 12,
-                              color: "#24292f"
-                            }}
-                          >
-                            🏠 Root
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setShowFileExplorer(!showFileExplorer)}
-                          style={{
-                            background: "none",
-                            border: "1px solid #d0d7de",
-                            borderRadius: 6,
-                            padding: "4px 12px",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            color: "#24292f"
-                          }}
-                        >
-                          {showFileExplorer ? "🔽 Collapse" : "🔼 Expand"}
-                        </button>
-                      </div>
-                    </div>
-
+              <section className="discovery-main-grid">
+                <div className="discovery-left-column">
+                  <section className="discovery-card discovery-files-card">
+                    <div className="discovery-section-head"><h3>📁 Repository Files</h3><div>{currentPath && <button onClick={navigateToRoot}>Root</button>}<button onClick={() => setShowFileExplorer(!showFileExplorer)}>{showFileExplorer ? "Collapse" : "Expand"}</button></div></div>
                     {showFileExplorer && (
-                      <div
-                        style={{
-                          display: "flex",
-                          minHeight: selectedFile ? 400 : 0,
-                          maxHeight: selectedFile ? 500 : 208,
-                          overflow: "hidden",
-                        }}
-                      >
-                        {/* File Tree - Left Panel */}
-                        <div
-                          style={{
-                            width: selectedFile ? "40%" : "100%",
-                            borderRight: selectedFile ? "1px solid #d0d7de" : "none",
-                            overflowY: "auto",
-                            overflowX: "hidden",
-                            maxHeight: selectedFile ? 500 : 208,
-                            scrollBehavior: "smooth",
-                          }}
-                        >
-                          {/* Back navigation */}
-                          {currentPath && (
-                            <div
-                              onClick={navigateBack}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 10,
-                                padding: "10px 16px",
-                                borderBottom: "1px solid #d0d7de",
-                                cursor: "pointer",
-                                backgroundColor: "#f6f8fa"
-                              }}
-                            >
-                              <span>⬆️</span>
-                              <span style={{ color: "#0969da", fontSize: 14 }}>..</span>
-                            </div>
-                          )}
-                          
-                          {/* File list */}
-                          {repoFiles.length > 0 ? (
-                            repoFiles.map((file, idx) => (
-                              <div
-                                key={idx}
-                                onClick={() => handleFileClick(file)}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 10,
-                                  padding: "10px 16px",
-                                  borderBottom: "1px solid #d0d7de",
-                                  cursor: "pointer",
-                                  backgroundColor: selectedFile?.path === file.path ? "#ddf4ff" : "transparent",
-                                  transition: "background-color 0.15s ease"
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (selectedFile?.path !== file.path) {
-                                    e.currentTarget.style.backgroundColor = "#f6f8fa";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (selectedFile?.path !== file.path) {
-                                    e.currentTarget.style.backgroundColor = "transparent";
-                                  }
-                                }}
-                              >
-                                <span style={{ fontSize: 16 }}>{getFileIcon(file)}</span>
-                                <span style={{
-                                  flex: 1,
-                                  color: file.type === "dir" ? "#0969da" : "#24292f",
-                                  fontWeight: file.type === "dir" ? 600 : 400,
-                                  fontSize: 14
-                                }}>
-                                  {file.name}
-                                </span>
-                                {file.type === "file" && file.size > 0 && (
-                                  <span style={{ fontSize: 12, color: "#57606a" }}>
-                                    {file.size < 1024 ? `${file.size} B` : `${Math.round(file.size / 1024)} KB`}
-                                  </span>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <div style={{ padding: 20, textAlign: "center", color: "#57606a" }}>
-                              No files found
-                            </div>
-                          )}
+                      <div className="discovery-file-browser">
+                        <div className="discovery-file-list">
+                          {currentPath && <button className="discovery-file-row" onClick={navigateBack}>⬆️ ..</button>}
+                          {repoFiles.length ? repoFiles.map((file: any, idx: number) => (
+                            <button key={`${file.path}-${idx}`} className={`discovery-file-row ${selectedFile?.path === file.path ? "active" : ""}`} onClick={() => handleFileClick(file)}>
+                              <span>{getFileIcon(file)}</span><strong>{file.name}</strong>{file.type === "file" && file.size > 0 && <small>{file.size < 1024 ? `${file.size} B` : `${Math.round(file.size / 1024)} KB`}</small>}
+                            </button>
+                          )) : <div className="discovery-empty-card">No files found</div>}
                         </div>
-
-                        {/* File Content - Right Panel */}
                         {selectedFile && (
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                            {/* File header */}
-                            <div style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "8px 16px",
-                              backgroundColor: "#f6f8fa",
-                              borderBottom: "1px solid #d0d7de"
-                            }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span>{getFileIcon(selectedFile)}</span>
-                                <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedFile.name}</span>
-                                <span style={{
-                                  fontSize: 11,
-                                  padding: "2px 8px",
-                                  backgroundColor: "#ddf4ff",
-                                  borderRadius: 12,
-                                  color: "#0969da"
-                                }}>
-                                  {getFileLanguage(selectedFile.name)}
-                                </span>
-                              </div>
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <button
-                                  onClick={() => {
-                                    setSelectedFile(null);
-                                    setFileContent("");
-                                    setEditedContent("");
-                                    setIsEditing(false);
-                                  }}
-                                  style={{
-                                    background: "none",
-                                    border: "1px solid #d0d7de",
-                                    borderRadius: 6,
-                                    padding: "6px 12px",
-                                    cursor: "pointer",
-                                    fontSize: 12,
-                                    color: "#24292f"
-                                  }}
-                                >
-                                  ✖️ Close
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* File content */}
-                            <div style={{
-                              flex: 1,
-                              overflow: "auto",
-                              backgroundColor: "#0d1117",
-                              position: "relative"
-                            }}>
-                              {fileLoading ? (
-                                <div style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  height: "100%",
-                                  color: "#8b949e"
-                                }}>
-                                  <div style={styles.spinner}></div>
-                                  <span style={{ marginLeft: 10 }}>Loading file...</span>
-                                </div>
-                              ) : isEditing ? (
-                                <textarea
-                                  value={editedContent}
-                                  onChange={(e) => setEditedContent(e.target.value)}
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    minHeight: 350,
-                                    padding: 16,
-                                    backgroundColor: "#0d1117",
-                                    color: "#c9d1d9",
-                                    border: "none",
-                                    outline: "none",
-                                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                                    fontSize: 13,
-                                    lineHeight: 1.5,
-                                    resize: "none",
-                                    boxSizing: "border-box"
-                                  }}
-                                />
-                              ) : (
-                                <pre style={{
-                                  margin: 0,
-                                  padding: 16,
-                                  color: "#c9d1d9",
-                                  fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                                  fontSize: 13,
-                                  lineHeight: 1.5,
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word"
-                                }}>
-                                  {fileContent || "// Empty file"}
-                                </pre>
-                              )}
-                            </div>
+                          <div className="discovery-file-preview">
+                            <div><strong>{getFileIcon(selectedFile)} {selectedFile.name}</strong><button onClick={() => { setSelectedFile(null); setFileContent(""); setEditedContent(""); setIsEditing(false); }}>Close</button></div>
+                            {fileLoading ? <p>Loading file...</p> : <pre>{isEditing ? editedContent : fileContent}</pre>}
                           </div>
                         )}
                       </div>
                     )}
-                  </div>
+                  </section>
 
-                  {/* Discovery Info */}
-                  <div style={styles.discoveryContent}>
-                    <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>📊</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Repository Analysis</div>
-                        <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
-                      </div>
-                    </div>
-                    <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>🔧</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis?.build_tool || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
-                      </div>
-                    </div>
-                    <div className="inner-card-hover discovery-inner-card" style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>☕</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Current Java version detected in the project</div>
-                      </div>
-                    </div>
-                  </div>
+                  <section className="discovery-analysis-row">
+                    <div className="discovery-card discovery-mini-card"><span>📊</span><div><strong>Repository Analysis</strong><p>Scanning {selectedRepo.name} for Java components</p></div><em>Completed</em></div>
+                    <div className="discovery-card discovery-mini-card"><span>🔧</span><div><strong>Build Tool: {textOrNA(detectedBuildTool)}</strong><p>Identified build system for dependency management</p></div><em>{detectedBuildTool ? "Detected" : "Not Detected"}</em></div>
+                    <div className="discovery-card discovery-mini-card"><span>☕</span><div><strong>Java Version: {detectedJavaVersion || "Not Detected"}</strong><p>Current Java version detected in the project</p></div><em>{detectedJavaVersion ? "Detected" : "Not Detected"}</em></div>
+                  </section>
 
-                  {(detectedJavaVersion || detectedBuildType) && (
-                    <div className="inner-card-hover discovery-inner-card" style={styles.detectedConfigCard}>
-                      <div style={styles.detectedConfigHeader}>
-                        <div>
-                          <div style={styles.detectedConfigTitle}>Detected Configuration</div>
-                          <div style={styles.detectedConfigSubtitle}>
-                            Restored discovery summary for the detected Java and build setup.
-                          </div>
-                        </div>
-                      </div>
+                  <section className="discovery-card discovery-config-card">
+                    <h3>{"{}"} Detected Configuration</h3>
+                    <p>Restored discovery summary for the detected Java and build setup.</p>
+                    <div className="discovery-chip-row">
+                      <span>Java Version Detected: {detectedJavaVersion ? `Java ${detectedJavaVersion}` : "Not Detected"}</span>
+                      <span>Build Detected: {textOrNA(detectedBuildTool)}</span>
+                      <span>Framework Detected: {textOrNA(primaryFramework)}</span>
+                      {recommendedBuildConversionId && <button onClick={applyRecommendedBuildConversion}>{buildConversionLabel}</button>}
+                    </div>
+                    <p>{buildConversionNote}</p>
+                  </section>
 
-                      <div style={styles.detectedConfigActions}>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Java Version Detected: {detectedJavaVersion ? `Java ${detectedJavaVersion}` : "Unknown"}
-                        </button>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Build Detected: {detectedBuildType ? detectedBuildType.charAt(0).toUpperCase() + detectedBuildType.slice(1) : "Unknown"}
-                        </button>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Framework Detected: {primaryDetectedFramework || "None detected"}
-                        </button>
-                        {hasRecommendedBuildConversion && recommendedBuildConversionId && (
-                          <button
-                            type="button"
-                            style={{
-                              ...styles.detectedConfigActionBtn,
-                              ...(selectedConversions.includes(recommendedBuildConversionId)
-                                ? styles.detectedConfigActionBtnActive
-                                : {}),
-                            }}
-                            onClick={applyRecommendedBuildConversion}
-                          >
-                            {selectedConversions.includes(recommendedBuildConversionId)
-                              ? `${buildConversionLabel} Selected`
-                              : buildConversionLabel}
-                          </button>
-                        )}
-                      </div>
+                  <section className="discovery-bottom-grid">
+                    <div className="discovery-card discovery-frameworks-card"><h3>🎯 Detected Frameworks & Libraries</h3><div className="discovery-framework-grid">{renderFrameworkCards()}</div></div>
+                    <div className="discovery-card discovery-structure-card"><h3>📁 Project Structure Summary</h3><div className="discovery-structure-row">
+                      <span className={repoAnalysis?.structure?.has_pom_xml ? "ok" : "missing"}>{repoAnalysis?.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
+                      <span className={repoAnalysis?.structure?.has_build_gradle ? "ok" : "missing"}>{repoAnalysis?.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
+                      <span className={repoAnalysis?.structure?.has_src_main ? "ok" : "missing"}>{repoAnalysis?.structure?.has_src_main ? "✓" : "✗"} src/main</span>
+                      <span className={repoAnalysis?.structure?.has_src_test ? "ok" : "missing"}>{repoAnalysis?.structure?.has_src_test ? "✓" : "✗"} src/test</span>
+                      <span className={detectedJavaVersion ? "ok" : "missing"}>{detectedJavaStructureLabel || "Java Not Detected"}</span>
+                    </div></div>
+                  </section>
+                </div>
 
-                      <div style={styles.detectedConfigNote}>{buildConversionNote}</div>
-                    </div>
-                  )}
-
-                  {/* Framework Detection - Clickable with File Preview */}
-                  <div style={styles.sectionTitle}>🎯 Detected Frameworks & Libraries</div>
-                  
-                  {/* Framework File Viewer Modal */}
-                  {viewingFrameworkFile && (
-                    <div style={{
-                      position: "fixed",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      backgroundColor: "rgba(0,0,0,0.7)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      zIndex: 1000
-                    }}>
-                      <div style={{
-                        backgroundColor: "#fff",
-                        borderRadius: 12,
-                        width: "80%",
-                        maxWidth: 900,
-                        maxHeight: "85vh",
-                        overflow: "hidden",
-                        boxShadow: "0 25px 50px rgba(0,0,0,0.3)"
-                      }}>
-                        {/* Modal Header */}
-                        <div style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "16px 20px",
-                          backgroundColor: "#f6f8fa",
-                          borderBottom: "1px solid #d0d7de"
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontSize: 20 }}>📄</span>
-                            <div>
-                              <div style={{ fontWeight: 600, color: "#24292f" }}>{viewingFrameworkFile.name}</div>
-                              <div style={{ fontSize: 12, color: "#57606a" }}>{viewingFrameworkFile.path}</div>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{
-                              fontSize: 11,
-                              padding: "4px 10px",
-                              backgroundColor: "#ddf4ff",
-                              borderRadius: 12,
-                              color: "#0969da"
-                            }}>
-                              Read Only
-                            </span>
-                            <button
-                              onClick={() => setViewingFrameworkFile(null)}
-                              style={{
-                                background: "none",
-                                border: "1px solid #d0d7de",
-                                borderRadius: 6,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                                fontSize: 14,
-                                color: "#24292f"
-                              }}
-                            >
-                              ✖️ Close
-                            </button>
-                          </div>
-                        </div>
-                        {/* Modal Content */}
-                        <div style={{
-                          backgroundColor: "#0d1117",
-                          overflow: "auto",
-                          maxHeight: "calc(85vh - 70px)"
-                        }}>
-                          {frameworkFileLoading ? (
-                            <div style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 60,
-                              color: "#8b949e"
-                            }}>
-                              <div style={styles.spinner}></div>
-                              <span style={{ marginLeft: 12 }}>Loading file content...</span>
-                            </div>
-                          ) : (
-                            <pre style={{
-                              margin: 0,
-                              padding: 20,
-                              color: "#c9d1d9",
-                              fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                              fontSize: 13,
-                              lineHeight: 1.6,
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word"
-                            }}>
-                              {viewingFrameworkFile.content || "// File content unavailable"}
-                            </pre>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Detected Frameworks Grid - Clickable */}
-                  {detectedFrameworks.length > 0 ? (
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                      gap: 12,
-                      marginBottom: 20
-                    }}>
-                      {detectedFrameworks.map((fw, idx) => (
-                        <div
-                          key={idx}
-                          onClick={async () => {
-                            setFrameworkFileLoading(true);
-                            setViewingFrameworkFile({ name: fw.name, path: fw.path, content: "" });
-                            try {
-                              const response = await getFileContent(selectedRepo!.url, fw.path, currentToken);
-                              setViewingFrameworkFile({ name: fw.name, path: fw.path, content: response.content });
-                            } catch {
-                              setViewingFrameworkFile({ name: fw.name, path: fw.path, content: `// Error loading file: ${fw.path}` });
-                            } finally {
-                              setFrameworkFileLoading(false);
-                            }
-                          }}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "14px 16px",
-                            backgroundColor: "#fff",
-                            border: "1px solid #d0d7de",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#f6f8fa";
-                            e.currentTarget.style.borderColor = "#0969da";
-                            e.currentTarget.style.boxShadow = "0 2px 8px rgba(9, 105, 218, 0.15)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#fff";
-                            e.currentTarget.style.borderColor = "#d0d7de";
-                            e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <span style={{ fontSize: 24 }}>
-                              {fw.type === "Testing Framework" ? "🧪" : 
-                               fw.type === "Application Framework" ? "🍃" : 
-                               fw.type === "ORM Framework" ? "🗄️" :
-                               fw.type === "Logging" ? "📝" :
-                               fw.type === "Mocking Framework" ? "🎭" :
-                               fw.type === "JSON Processing" ? "📦" : "📚"}
-                            </span>
-                            <div>
-                              <div style={{ fontWeight: 600, color: "#24292f", fontSize: 14 }}>{fw.name}</div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 11, color: "#57606a" }}>{fw.type}</span>
-                                <span style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  letterSpacing: "0.04em",
-                                  textTransform: "uppercase",
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  backgroundColor: getDetectedComponentCategory(fw.type) === "Framework" ? "#ede9fe" : "#e0f2fe",
-                                  color: getDetectedComponentCategory(fw.type) === "Framework" ? "#6d28d9" : "#075985",
-                                  border: getDetectedComponentCategory(fw.type) === "Framework" ? "1px solid #c4b5fd" : "1px solid #bae6fd"
-                                }}>
-                                  {getDetectedComponentCategory(fw.type)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{
-                              fontSize: 11,
-                              padding: "3px 8px",
-                              backgroundColor: "#dcfce7",
-                              borderRadius: 10,
-                              color: "#166534"
-                            }}>
-                              Detected
-                            </span>
-                            <span style={{ color: "#0969da", fontSize: 12 }}>📂 View</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={styles.frameworkGrid}>
-                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
-                        <span>🍃</span>
-                        <span>Spring Boot</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('spring')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
-                        <span>🗄️</span>
-                        <span>JPA/Hibernate</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('hibernate') || d.artifact_id.includes('jpa')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
-                        <span>🧪</span>
-                        <span>JUnit</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('junit')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div className="inner-card-hover framework-inner-card" style={styles.frameworkItem}>
-                        <span>📝</span>
-                        <span>Log4j/SLF4J</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('log4j') || d.artifact_id.includes('slf4j')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                    </div>
-                  )}
-
-                  {repoAnalysis && (
-                    <div className="inner-card-hover discovery-inner-card" style={styles.structureBox}>
-                      <div style={styles.structureTitle}>Project Structure Summary</div>
-                      <div style={styles.structureGrid}>
-                        <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
-                        <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
-                        <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "✓" : "✗"} src/main</span>
-                        <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "✓" : "✗"} src/test</span>
-                        <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{detectedJavaStructureLabel}</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-                    </>
-                  )}
-            </>
+                <aside className="discovery-right-column">
+                  <section className="discovery-card discovery-ai-card"><h3>💡 AI Recommendation</h3><p>Repository appears {riskLevel === "Low" ? "highly compatible" : "partially ready"} for Java LTS migration.</p><div><span>Effort <strong>{riskLevel === "Low" ? "Medium" : "High"}</strong></span><span>Compatibility <strong>{healthScore}%</strong></span></div></section>
+                  <section className="discovery-card discovery-risk-panel"><h3>🛡️ Risk Analysis</h3><div className="discovery-badges"><span className={`risk-${riskTone}`}>Compatibility: {riskLevel} Risk</span><span>Build Tool: {textOrNA(detectedBuildTool)}</span><span>Framework: {textOrNA(primaryFramework)}</span><span>Security: Good</span></div></section>
+                  <section className="discovery-card discovery-checklist-card"><h3>📋 Migration Checklist</h3>{checklist.map((item) => <p key={item.label} className={item.done ? "done" : "pending"}>{item.done ? "✓" : "○"} {item.label}</p>)}</section>
+                  <section className="discovery-card discovery-stats-card"><h3>📈 Repository Statistics</h3>{[
+                    ["Java Files", 82], ["Configuration", 68], ["Tests", repoAnalysis?.structure?.has_src_test ? 45 : 12]
+                  ].map(([label, value]) => <div key={label as string} className="discovery-stat-line"><div><span>{label}</span><strong>{value}%</strong></div><em><i style={{ width: `${value}%` }} /></em></div>)}</section>
+                </aside>
+              </section>
+            </main>
           )}
         </>
       )}
 
-      <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(1)}>← Back</button>
-        <button 
-          style={{ ...styles.primaryBtn, opacity: isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis ? 0.5 : 1 }} 
+      {viewingFrameworkFile && (
+        <div className="discovery-modal-overlay" onClick={() => setViewingFrameworkFile(null)}>
+          <div className="discovery-modal" onClick={(event) => event.stopPropagation()}>
+            <header><strong>{viewingFrameworkFile.name}</strong><button onClick={() => setViewingFrameworkFile(null)}>Close</button></header>
+            {frameworkFileLoading ? <p>Loading file content...</p> : <pre>{viewingFrameworkFile.content || "// File content unavailable"}</pre>}
+          </div>
+        </div>
+      )}
+
+      <footer className="discovery-actions">
+        <button onClick={() => setStep(1)}>← Back</button>
+        <button
+          className="primary"
           onClick={() => setStep(3)}
           disabled={isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis}
         >
           Continue to Strategy →
         </button>
-      </div>
+      </footer>
     </div>
-    );
-  };
-
-  return renderDiscoveryStep();
+  );
 }

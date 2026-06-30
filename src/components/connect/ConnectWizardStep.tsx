@@ -1,5 +1,159 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WizardScreenContext } from "../wizard/model/wizardScreenContext";
+import type { RepoAnalysis, RepoInfo } from "../../services/api";
 import ConnectPage from "./ConnectPage";
+import RepositoryAnalysisPanel from "./RepositoryAnalysisPanel";
+
+const looksLikeAnalysis = (value: unknown): value is RepoAnalysis => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return Boolean(
+    "build_tool" in record ||
+      "buildTool" in record ||
+      "java_version" in record ||
+      "javaVersion" in record ||
+      "java_version_from_build" in record ||
+      "dependencies" in record ||
+      "detected_dependencies" in record ||
+      "dependency_updates" in record ||
+      "frameworks" in record ||
+      "detected_frameworks" in record ||
+      "technologies" in record ||
+      "structure" in record ||
+      "api_endpoints" in record
+  );
+};
+
+const normalizeAnalysisCandidate = (value: unknown): RepoAnalysis | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+
+  const wrappedCandidates = [
+    record.analysis,
+    record.repoAnalysis,
+    record.repositoryAnalysis,
+    record.repository_analysis,
+    record.analysisData,
+    record.discoveryData,
+    record.migrationData,
+    record.data,
+    record.result,
+    record.payload,
+  ];
+
+  for (const candidate of wrappedCandidates) {
+    if (looksLikeAnalysis(candidate)) return candidate;
+    if (candidate && typeof candidate === "object") {
+      const nested = normalizeAnalysisCandidate(candidate);
+      if (nested) return nested;
+    }
+  }
+
+  return looksLikeAnalysis(value) ? value : null;
+};
+
+const pickAnalysis = (context: WizardScreenContext, currentAnalysis: RepoAnalysis | null): RepoAnalysis | null => {
+  const contextRecord = context as unknown as Record<string, unknown>;
+  const candidates = [
+    currentAnalysis,
+    context.repositoryAnalysis,
+    context.repoAnalysis,
+    context.analysisData,
+    context.repoData,
+    context.discoveryData,
+    context.migrationData,
+    contextRecord.repository_analysis,
+    contextRecord.analysis,
+    contextRecord.latestAnalysis,
+    contextRecord.scanResult,
+    contextRecord.analysisResult,
+  ];
+
+  for (const candidate of candidates) {
+    const analysis = normalizeAnalysisCandidate(candidate);
+    if (analysis) return analysis;
+  }
+
+  return null;
+};
+
+const looksLikeRepository = (value: unknown): value is RepoInfo => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return Boolean(
+    "url" in record ||
+      "html_url" in record ||
+      "clone_url" in record ||
+      "full_name" in record ||
+      "fullName" in record ||
+      "default_branch" in record ||
+      "defaultBranch" in record ||
+      "language" in record ||
+      "name" in record
+  );
+};
+
+const normalizeRepositoryCandidate = (value: unknown): RepoInfo | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const wrappedCandidates = [record.repository, record.repo, record.selectedRepo, record.repositoryData, record.data, record.result, record.payload];
+
+  for (const candidate of wrappedCandidates) {
+    if (looksLikeRepository(candidate)) return candidate as RepoInfo;
+    if (candidate && typeof candidate === "object") {
+      const nested = normalizeRepositoryCandidate(candidate);
+      if (nested) return nested;
+    }
+  }
+
+  return looksLikeRepository(value) ? (value as RepoInfo) : null;
+};
+
+const pickRepository = (
+  context: WizardScreenContext,
+  currentRepository: RepoInfo | null,
+  analysis: RepoAnalysis | null,
+  repoUrl: string
+): RepoInfo | null => {
+  const contextRecord = context as unknown as Record<string, unknown>;
+  const candidates = [
+    currentRepository,
+    context.repository,
+    context.repositoryData,
+    context.selectedRepo,
+    context.repoData,
+    context.discoveryData,
+    context.migrationData,
+    contextRecord.repository_analysis,
+    contextRecord.analysis,
+    contextRecord.latestAnalysis,
+    contextRecord.scanResult,
+    contextRecord.analysisResult,
+  ];
+
+  for (const candidate of candidates) {
+    const repository = normalizeRepositoryCandidate(candidate);
+    if (repository) return repository;
+  }
+
+  if (!analysis && !repoUrl.trim()) return null;
+
+  const analysisRecord = (analysis || {}) as Record<string, unknown>;
+  const fullName =
+    String(analysisRecord.full_name || analysisRecord.fullName || "") ||
+    repoUrl.replace(/^https?:\/\/(www\.)?(github|gitlab)\.com\//, "").replace(/\.git$/, "");
+  const name = String(analysisRecord.name || "") || fullName.split("/").filter(Boolean).pop() || "";
+  const defaultBranch = String(analysisRecord.default_branch || analysisRecord.defaultBranch || "");
+
+  return {
+    name,
+    full_name: fullName || name,
+    url: repoUrl,
+    default_branch: defaultBranch,
+    language: (analysisRecord.language as string | null | undefined) || null,
+    description: null,
+  };
+};
 
 export default function ConnectWizardStep({ context }: { context: WizardScreenContext }) {
   const {
@@ -14,7 +168,9 @@ export default function ConnectWizardStep({ context }: { context: WizardScreenCo
     patToken,
     patTokenError,
     repoAccessCheckLoading,
+    repoAnalysis,
     repoUrl,
+    selectedRepo,
     selectedZipFile,
     setError,
     setGithubToken,
@@ -40,8 +196,64 @@ export default function ConnectWizardStep({ context }: { context: WizardScreenCo
     zipUploadStatus,
   } = context;
 
-  const renderConnectStep = () => {
-    return (
+  const canContinueRepository =
+    urlValidation.valid &&
+    !repoAccessCheckLoading &&
+    (!isPrivateRepo || Boolean(currentToken.trim()));
+
+  const latestRepoAnalysis = useMemo(() => pickAnalysis(context, repoAnalysis), [context, repoAnalysis]);
+  const latestSelectedRepo = useMemo(
+    () => pickRepository(context, selectedRepo, latestRepoAnalysis, repoUrl),
+    [context, selectedRepo, latestRepoAnalysis, repoUrl]
+  );
+
+  const [displayRepoAnalysis, setDisplayRepoAnalysis] = useState<RepoAnalysis | null>(latestRepoAnalysis);
+  const [displaySelectedRepo, setDisplaySelectedRepo] = useState<RepoInfo | null>(latestSelectedRepo);
+  const [analysisRefreshPending, setAnalysisRefreshPending] = useState(false);
+
+  useEffect(() => {
+    setDisplayRepoAnalysis(latestRepoAnalysis);
+  }, [latestRepoAnalysis]);
+
+  useEffect(() => {
+    setDisplaySelectedRepo(latestSelectedRepo);
+  }, [latestSelectedRepo]);
+
+  const refreshDisplayedAnalysis = useCallback(() => {
+    const freshAnalysis = pickAnalysis(context, repoAnalysis);
+    setDisplayRepoAnalysis(freshAnalysis);
+    setDisplaySelectedRepo(pickRepository(context, selectedRepo, freshAnalysis, repoUrl));
+  }, [context, repoAnalysis, selectedRepo, repoUrl]);
+
+
+  useEffect(() => {
+    if (!repoAccessCheckLoading && urlValidation.valid) {
+      refreshDisplayedAnalysis();
+      window.setTimeout(refreshDisplayedAnalysis, 0);
+      window.setTimeout(refreshDisplayedAnalysis, 300);
+    }
+  }, [repoAccessCheckLoading, urlValidation.valid, refreshDisplayedAnalysis]);
+
+  const handleRepositoryContinueAndRefresh = useCallback(async () => {
+    setAnalysisRefreshPending(true);
+    try {
+      await handleRepositoryContinue();
+    } finally {
+      // The parent wizard mutates analysis state asynchronously in some flows.
+      // Refresh across the next few ticks so the embedded analysis section does not
+      // wait for page navigation/remount to receive the latest data.
+      refreshDisplayedAnalysis();
+      window.setTimeout(refreshDisplayedAnalysis, 0);
+      window.setTimeout(refreshDisplayedAnalysis, 300);
+      window.setTimeout(() => {
+        refreshDisplayedAnalysis();
+        setAnalysisRefreshPending(false);
+      }, 800);
+    }
+  }, [handleRepositoryContinue, refreshDisplayedAnalysis]);
+
+  return (
+    <div className="connect-layout connect-layout--merged">
       <ConnectPage
         styles={styles}
         sourceInputType={sourceInputType}
@@ -75,344 +287,24 @@ export default function ConnectWizardStep({ context }: { context: WizardScreenCo
         onZipDragActiveChange={setZipDragActive}
         onZipFileChange={handleZipFileChange}
         onZipDrop={handleZipDrop}
-        onRepositoryContinue={() => void handleRepositoryContinue()}
+        onRepositoryContinue={() => void handleRepositoryContinueAndRefresh()}
         onZipContinue={() => void handleZipContinue()}
         onPatModalContinue={handlePatModalContinue}
       />
-    );
 
-    const repositorySourceMode = sourceInputType === "zip" ? "zip" : isPrivateRepo ? "private" : "public";
-    const isGithubSelected = sourceInputType === "github";
-    const isZipSelected = sourceInputType === "zip";
-    const tokenValue = showEnterpriseToken ? githubToken : patToken;
-    const repoStatusMessage = !repoUrl
-      ? ""
-      : urlValidation.valid
-        ? "✅ Valid Repository"
-        : "❌ Invalid Repository";
-    const canContinueRepository =
-      urlValidation.valid &&
-      !repoAccessCheckLoading &&
-      (!isPrivateRepo || Boolean(currentToken.trim()));
-
-    const sourceOptionStyle = (active: boolean, accent = "#3b82f6") => ({
-      padding: "16px",
-      borderRadius: 12,
-      border: active ? `2px solid ${accent}` : "1px solid #dbe3ef",
-      background: active ? "#eff6ff" : "#ffffff",
-      cursor: "pointer",
-      textAlign: "left" as const,
-      transition: "all 0.2s ease",
-      minHeight: 104,
-    });
-
-    const sourceTitleStyle = (active: boolean, color = "#1d4ed8") => ({
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      fontWeight: 800,
-      color: active ? color : "#0f172a",
-      fontSize: 15,
-    });
-
-    return (
-      <div style={styles.card}>
-        <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>{isZipSelected ? "📦" : isPrivateRepo ? "🔒" : "🔗"}</span>
-          <div>
-            <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Choose one source and the wizard will handle access automatically.</p>
-          </div>
-        </div>
-
-        <div className="source-option-tabs" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 24 }}>
-          <button
-            type="button"
-            className={`source-option-tab ${repositorySourceMode === "public" ? "source-option-tab--active" : ""}`}
-            onClick={() => {
-              setSourceInputType("github");
-              setIsPrivateRepo(false);
-              setShowPatModal(false);
-              setPatTokenError("");
-              setError("");
-            }}
-            style={sourceOptionStyle(repositorySourceMode === "public")}
-          >
-            <div style={sourceTitleStyle(repositorySourceMode === "public")}>
-              <span>🔗</span>
-              Public GitHub Repository
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
-              Paste a repository URL and continue without a token.
-            </div>
-          </button>
-
-          <button
-            type="button"
-            className={`source-option-tab ${repositorySourceMode === "private" ? "source-option-tab--active" : ""}`}
-            onClick={() => {
-              setSourceInputType("github");
-              setIsPrivateRepo(true);
-              setError("");
-              if (urlValidation.valid && !currentToken.trim()) {
-                setPatTokenError("");
-                setShowPatModal(true);
-              }
-            }}
-            style={sourceOptionStyle(repositorySourceMode === "private")}
-          >
-            <div style={sourceTitleStyle(repositorySourceMode === "private")}>
-              <span>🔒</span>
-              Private GitHub Repository
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
-              Use a GitHub PAT only when private access is required.
-            </div>
-          </button>
-
-          <button
-            type="button"
-            className={`source-option-tab ${repositorySourceMode === "zip" ? "source-option-tab--active" : ""}`}
-            onClick={() => {
-              setSourceInputType("zip");
-              setShowPatModal(false);
-              setError("");
-            }}
-            style={sourceOptionStyle(repositorySourceMode === "zip", "#f59e0b")}
-          >
-            <div style={sourceTitleStyle(repositorySourceMode === "zip", "#b45309")}>
-              <span>📦</span>
-              Upload Local ZIP
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
-              Drop or browse for a local .zip project.
-            </div>
-          </button>
-        </div>
-
-        {isGithubSelected && (
-          <>
-            <div style={styles.field}>
-              <label style={styles.label}>Repository URL</label>
-              <input
-                type="text"
-                style={{ ...styles.input, borderColor: urlValidation.valid ? "#22c55e" : repoUrl ? "#ef4444" : "#e2e8f0" }}
-                value={repoUrl}
-                onChange={(event) => {
-                  setRepoUrl(event.target.value);
-                  setSelectedRepo(null);
-                  setRepoAnalysis(null);
-                  setError("");
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && canContinueRepository) {
-                    void handleRepositoryContinue();
-                  }
-                }}
-                placeholder="https://github.com/owner/repository"
-              />
-              {repoStatusMessage && (
-                <div style={{ fontSize: 12, color: urlValidation.valid ? "#16a34a" : "#dc2626", marginTop: 8, fontWeight: 700 }}>
-                  {repoStatusMessage}
-                </div>
-              )}
-              {repoAccessCheckLoading && (
-                <div style={{ fontSize: 12, color: "#2563eb", marginTop: 8, fontWeight: 600 }}>
-                  Checking repository access...
-                </div>
-              )}
-              {!repoAccessCheckLoading && isPrivateRepo && currentToken.trim() && (
-                <div style={{ fontSize: 12, color: "#16a34a", marginTop: 8, fontWeight: 700 }}>
-                  Token added for private repository access.
-                </div>
-              )}
-            </div>
-
-            <div style={styles.btnRow}>
-              <button
-                style={{ ...styles.primaryBtn, opacity: canContinueRepository ? 1 : 0.5 }}
-                disabled={!canContinueRepository}
-                onClick={() => void handleRepositoryContinue()}
-              >
-                Continue →
-              </button>
-            </div>
-          </>
-        )}
-
-        {isZipSelected && (
-          <>
-            <div style={styles.field}>
-              <label style={styles.label}>Upload Local ZIP</label>
-              <label
-                className={`zip-upload-box ${zipUploadStatus === "ready" ? "zip-upload-box--ready" : ""} ${zipUploadStatus === "error" ? "zip-upload-box--error" : ""} ${zipUploadStatus === "success" ? "zip-upload-box--success" : ""}`}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  if (zipUploadStatus !== "uploading") setZipDragActive(true);
-                }}
-                onDragLeave={() => setZipDragActive(false)}
-                onDrop={handleZipDrop}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
-                  minHeight: 170,
-                  padding: "26px",
-                  border: `2px dashed ${zipDragActive ? "#2563eb" : zipUploadStatus === "error" ? "#ef4444" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#22c55e" : "#cbd5e1"}`,
-                  borderRadius: 14,
-                  background: zipDragActive ? "#eff6ff" : zipUploadStatus === "error" ? "#fef2f2" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#f0fdf4" : "#f8fafc",
-                  cursor: zipUploadStatus === "uploading" ? "not-allowed" : "pointer",
-                  textAlign: "center",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                <input
-                  type="file"
-                  accept=".zip,application/zip,application/x-zip-compressed"
-                  disabled={zipUploadStatus === "uploading"}
-                  onChange={handleZipFileChange}
-                  style={{ display: "none" }}
-                />
-                <div style={{ fontSize: 34 }}>{zipUploadStatus === "success" ? "✅" : zipUploadStatus === "error" ? "⚠️" : "📦"}</div>
-                <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                  {selectedZipFile ? selectedZipFile.name : "Drop a .zip file here or click to browse"}
-                </div>
-                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-                  Only .zip files are accepted.
-                </div>
-              </label>
-
-              {(zipUploadStatus === "uploading" || zipUploadStatus === "success") && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12, color: "#475569", fontWeight: 700 }}>
-                    <span>{zipUploadStatus === "success" ? "Upload complete" : "Uploading..."}</span>
-                    <span>{zipUploadProgress}%</span>
-                  </div>
-                  <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "#e2e8f0" }}>
-                    <div style={{ width: `${zipUploadProgress}%`, height: "100%", background: "#2563eb", transition: "width 0.25s ease" }} />
-                  </div>
-                </div>
-              )}
-
-              {zipUploadMessage && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    fontSize: 12,
-                    color: zipUploadStatus === "error" ? "#dc2626" : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "#16a34a" : "#475569",
-                    fontWeight: zipUploadStatus === "error" || zipUploadStatus === "success" || zipUploadStatus === "ready" ? 700 : 500,
-                  }}
-                >
-                  {zipUploadStatus === "uploading" ? "⏳ " : zipUploadStatus === "success" || zipUploadStatus === "ready" ? "✓ " : zipUploadStatus === "error" ? "⚠️ " : ""}
-                  {zipUploadMessage}
-                </div>
-              )}
-            </div>
-
-            <div style={styles.btnRow}>
-              <button
-                style={{ ...styles.primaryBtn, opacity: selectedZipFile && zipUploadStatus !== "uploading" ? 1 : 0.5 }}
-                disabled={!selectedZipFile || zipUploadStatus === "uploading"}
-                onClick={() => void handleZipContinue()}
-              >
-                {zipUploadStatus === "uploading" ? "Uploading..." : "Upload & Continue →"}
-              </button>
-            </div>
-          </>
-        )}
-
-        {showPatModal && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="pat-modal-title"
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.45)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 20,
-              zIndex: 2000,
-            }}
-          >
-            <div style={{ width: "min(460px, 100%)", background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 24px 60px rgba(15,23,42,0.25)" }}>
-              <h3 id="pat-modal-title" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#0f172a" }}>
-                GitHub Personal Access Token
-              </h3>
-              <p style={{ margin: "8px 0 18px", fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
-                This repository needs authenticated access. Paste a PAT with repository read access to continue.
-              </p>
-              <label style={styles.label}>Personal Access Token</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  type={showPatToken ? "text" : "password"}
-                  value={tokenValue}
-                  onChange={(event) => {
-                    if (showEnterpriseToken) {
-                      setGithubToken(event.target.value);
-                    } else {
-                      setPatToken(event.target.value);
-                    }
-                    setPatTokenError("");
-                  }}
-                  placeholder="Paste your GitHub PAT"
-                  autoComplete="off"
-                  style={{ ...styles.input, flex: 1, borderColor: patTokenError ? "#ef4444" : "#e2e8f0" }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPatToken((value) => !value)}
-                  style={{
-                    minWidth: 76,
-                    border: "1px solid #dbe3ef",
-                    borderRadius: 8,
-                    background: "#fff",
-                    color: "#334155",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  {showPatToken ? "Hide" : "Show"}
-                </button>
-              </div>
-              {patTokenError && (
-                <div style={{ marginTop: 8, color: "#dc2626", fontSize: 12, fontWeight: 700 }}>
-                  {patTokenError}
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPatModal(false);
-                    setPatTokenError("");
-                    if (!currentToken.trim()) {
-                      setIsPrivateRepo(false);
-                    }
-                  }}
-                  style={{ ...styles.secondaryBtn, padding: "11px 18px" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePatModalContinue}
-                  disabled={!tokenValue.trim()}
-                  style={{ ...styles.primaryBtn, padding: "11px 18px", opacity: tokenValue.trim() ? 1 : 0.5 }}
-                >
-                  Continue
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return renderConnectStep();
+      <RepositoryAnalysisPanel
+        sourceInputType={sourceInputType}
+        repoUrl={repoUrl}
+        urlValidation={urlValidation}
+        repoAccessCheckLoading={repoAccessCheckLoading || analysisRefreshPending}
+        isPrivateRepo={isPrivateRepo}
+        canContinueRepository={canContinueRepository}
+        selectedRepo={displaySelectedRepo}
+        repoAnalysis={displayRepoAnalysis}
+        selectedZipFile={selectedZipFile}
+        zipUploadStatus={zipUploadStatus}
+        onRetry={() => void handleRepositoryContinueAndRefresh()}
+      />
+    </div>
+  );
 }

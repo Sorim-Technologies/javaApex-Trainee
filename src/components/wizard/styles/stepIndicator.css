@@ -1,6 +1,10 @@
 /* StepIndicator */
 .migration-wizard-layout {
-  display: block !important;
+  display: flex !important;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .migration-wizard-sidebar {
@@ -14,10 +18,28 @@
 }
 
 .migration-wizard-main {
+  flex: 1 1 auto;
+  min-height: 0;
   margin-left: 0;
   width: 100% !important;
   max-width: 100% !important;
   overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--theme-accent-rgb, 37, 99, 235), 0.42) transparent;
+}
+
+.migration-wizard-main::-webkit-scrollbar {
+  width: 8px;
+}
+
+.migration-wizard-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.migration-wizard-main::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(var(--theme-accent-rgb, 37, 99, 235), 0.42);
 }
 
 .wizard-step-indicator {

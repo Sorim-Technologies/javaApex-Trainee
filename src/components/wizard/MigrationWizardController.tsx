@@ -8,7 +8,6 @@ import ResultPage from "../result/ResultPage";
 import StrategyPage from "../strategy/StrategyPage";
 import { formatFileSize } from "../../utils/fileUtils";
 import { isEnterpriseGithub, isPrivateRepoAccessError, normalizeGithubUrl } from "../../utils/githubUtils";
-import StepIndicator from "./StepIndicator";
 import "./styles/index.css";
 import {
   fetchRepositories,
@@ -230,8 +229,6 @@ export default function MigrationWizardController({ onBackToHome }: { onBackToHo
   const [versionRecommendation, setVersionRecommendation] = useState<JavaVersionRecommendationResponse | null>(null);
   const [versionRecommendationLoading, setVersionRecommendationLoading] = useState(false);
   const [versionRecommendationError, setVersionRecommendationError] = useState("");
-  const currentIndicatorStep = getIndicatorStep(step);
-
   const migrationApproachOptions = [
     {
       value: "fork",
@@ -706,6 +703,25 @@ export default function MigrationWizardController({ onBackToHome }: { onBackToHo
     setStep((currentStep) => (routeStep !== currentStep ? routeStep : currentStep));
   }, [location.pathname]);
 
+  // Route guard: if user navigates to a migration step without a validated repository,
+  // redirect back to Connect and show an error message.
+  useEffect(() => {
+    const currentRoute = location.pathname.replace(/\/+$/, "") || "/";
+    const routeStep = getStepFromPath(currentRoute);
+
+    // Steps > 1 are migration steps that require a connected & analyzed repo
+    if (routeStep > 1) {
+      const hasSelectedRepo = Boolean(selectedRepo);
+      const hasRepoAnalysis = Boolean(repoAnalysis);
+      if (!hasSelectedRepo || !hasRepoAnalysis) {
+        setError("Please connect and validate a repository first.");
+        // push the user back to Connect
+        navigate("/");
+        setStep(1);
+      }
+    }
+  }, [location.pathname, selectedRepo, repoAnalysis, navigate]);
+
   useEffect(() => {
     setMaxVisitedIndicatorStep((currentMax) =>
       Math.max(currentMax, getIndicatorStep(step))
@@ -715,6 +731,11 @@ export default function MigrationWizardController({ onBackToHome }: { onBackToHo
   useEffect(() => {
     const targetRoute = STEP_ROUTES[step] || "/";
     const currentRoute = location.pathname.replace(/\/+$/, "") || "/";
+    const routeStep = getStepFromPath(currentRoute);
+
+    if (routeStep !== step) {
+      return;
+    }
 
     if (currentRoute !== targetRoute) {
       navigate(targetRoute);
@@ -1551,17 +1572,6 @@ export default function MigrationWizardController({ onBackToHome }: { onBackToHo
     }
   };
 
-  const renderStepIndicator = () => (
-    <StepIndicator
-      styles={styles}
-      steps={MIGRATION_STEPS}
-      step={step}
-      currentIndicatorStep={currentIndicatorStep}
-      maxVisitedIndicatorStep={maxVisitedIndicatorStep}
-      onStepChange={setStep}
-    />
-  );
-
   const screenContext: WizardScreenContext = {
     API_BASE_URL,
     MIGRATION_STEPS,
@@ -1694,7 +1704,6 @@ export default function MigrationWizardController({ onBackToHome }: { onBackToHo
 
   return (
     <div className="migration-wizard-layout" style={styles.container}>
-      <aside className="migration-wizard-sidebar" style={styles.stepIndicatorContainer}>{renderStepIndicator()}</aside>
       <main className="migration-wizard-main" style={styles.main}>
         {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
         {step === 1 && <ConnectWizardStep context={screenContext} />}

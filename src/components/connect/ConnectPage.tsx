@@ -92,70 +92,72 @@ export default function ConnectPage({
     (!isPrivateRepo || Boolean(currentToken.trim()));
 
   return (
-    <div className="connect-card">
-      <div className="connect-step-header">
-        <div>
-          <h2 className="connect-title">Connect Repository</h2>
-          <p className="connect-subtitle">Choose one source and the wizard will handle access automatically.</p>
+    <div className="connect-layout__form">
+        <div className="connect-card">
+          <div className="connect-step-header">
+            <div>
+              <h2 className="connect-title">Connect Repository</h2>
+              <p className="connect-subtitle">Choose one source and the wizard will handle access automatically.</p>
+            </div>
+          </div>
+
+          <RepoSourceTabs
+            repositorySourceMode={repositorySourceMode}
+            onSelectPublic={() => {
+              onSourceInputTypeChange("github");
+              onPrivateRepoChange(false);
+              onPatModalChange(false);
+              onPatTokenErrorChange("");
+              onErrorChange("");
+            }}
+            onSelectPrivate={() => {
+              onSourceInputTypeChange("github");
+              onPrivateRepoChange(true);
+              onErrorChange("");
+              if (urlValidation.valid && !currentToken.trim()) {
+                onPatTokenErrorChange("");
+                onPatModalChange(true);
+              }
+            }}
+            onSelectZip={() => {
+              onSourceInputTypeChange("zip");
+              onPatModalChange(false);
+              onErrorChange("");
+            }}
+          />
+
+          {isGithubSelected && (
+            <GitHubRepoInput
+              repoUrl={repoUrl}
+              urlValidation={urlValidation}
+              repoAccessCheckLoading={repoAccessCheckLoading}
+              isPrivateRepo={isPrivateRepo}
+              currentToken={currentToken}
+              canContinueRepository={canContinueRepository}
+              onRepoUrlChange={(value) => {
+                onRepoUrlChange(value);
+                onSelectedRepoReset();
+                onRepoAnalysisReset();
+                onErrorChange("");
+              }}
+              onContinue={onRepositoryContinue}
+            />
+          )}
+
+          {isZipSelected && (
+            <ZipUploadBox
+              selectedZipFile={selectedZipFile}
+              zipUploadStatus={zipUploadStatus}
+              zipDragActive={zipDragActive}
+              zipUploadProgress={zipUploadProgress}
+              zipUploadMessage={zipUploadMessage}
+              onDragActiveChange={onZipDragActiveChange}
+              onFileChange={onZipFileChange}
+              onDrop={onZipDrop}
+              onContinue={onZipContinue}
+            />
+          )}
         </div>
-      </div>
-
-      <RepoSourceTabs
-        repositorySourceMode={repositorySourceMode}
-        onSelectPublic={() => {
-          onSourceInputTypeChange("github");
-          onPrivateRepoChange(false);
-          onPatModalChange(false);
-          onPatTokenErrorChange("");
-          onErrorChange("");
-        }}
-        onSelectPrivate={() => {
-          onSourceInputTypeChange("github");
-          onPrivateRepoChange(true);
-          onErrorChange("");
-          if (urlValidation.valid && !currentToken.trim()) {
-            onPatTokenErrorChange("");
-            onPatModalChange(true);
-          }
-        }}
-        onSelectZip={() => {
-          onSourceInputTypeChange("zip");
-          onPatModalChange(false);
-          onErrorChange("");
-        }}
-      />
-
-      {isGithubSelected && (
-        <GitHubRepoInput
-          repoUrl={repoUrl}
-          urlValidation={urlValidation}
-          repoAccessCheckLoading={repoAccessCheckLoading}
-          isPrivateRepo={isPrivateRepo}
-          currentToken={currentToken}
-          canContinueRepository={canContinueRepository}
-          onRepoUrlChange={(value) => {
-            onRepoUrlChange(value);
-            onSelectedRepoReset();
-            onRepoAnalysisReset();
-            onErrorChange("");
-          }}
-          onContinue={onRepositoryContinue}
-        />
-      )}
-
-      {isZipSelected && (
-        <ZipUploadBox
-          selectedZipFile={selectedZipFile}
-          zipUploadStatus={zipUploadStatus}
-          zipDragActive={zipDragActive}
-          zipUploadProgress={zipUploadProgress}
-          zipUploadMessage={zipUploadMessage}
-          onDragActiveChange={onZipDragActiveChange}
-          onFileChange={onZipFileChange}
-          onDrop={onZipDrop}
-          onContinue={onZipContinue}
-        />
-      )}
 
       {showPatModal && (
         <PrivateRepoModal

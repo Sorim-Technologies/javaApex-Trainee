@@ -1,4 +1,5 @@
 import type { WizardScreenContext } from "../wizard/model/wizardScreenContext";
+import "./Result.css";
 
 export default function ResultWizardStep({ context }: { context: WizardScreenContext }) {
   const {
@@ -22,26 +23,39 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
     styles,
   } = context;
 
+  const dependencies = migrationJob?.dependencies || [];
+  const dependenciesUpdated = dependencies.filter((d: any) => d.status === "upgraded").length;
+  const qualityChecksPassed = `${migrationJob?.api_endpoints_working ?? 0} / ${migrationJob?.api_endpoints_validated ?? 0}`;
+  const completedAt = migrationJob?.completed_at ? new Date(migrationJob.completed_at).toLocaleString() : "In Progress";
+
   const renderStep11 = () => (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
+    <div style={styles.card} className="result-dashboard-shell">
+      <div style={styles.stepHeader} className="result-report-header">
         <span style={styles.stepIcon}>📄</span>
         <div>
           <h2 style={styles.title}>Migration Report</h2>
           <p style={styles.subtitle}>Complete migration summary with all results and metrics.</p>
         </div>
+        {migrationJob && (
+          <div className="result-report-status">
+            <span>Completed</span>
+            <strong>{completedAt}</strong>
+            <button type="button" aria-label="Print report" onClick={() => window.print()}>🖨️</button>
+          </div>
+        )}
       </div>
       {migrationJob && (
-        <div style={styles.reportContainer}>
+        <div className="result-analysis-layout">
+          <div className="result-main-column" style={styles.reportContainer}>
           {/* Source and Target Repository Information */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🏗️ Repository Information</h3>
             <div style={styles.reportGrid}>
               <div className="inner-card-hover result-inner-card" style={styles.reportItem}>
                 <span style={styles.reportLabel}>Source Repository</span>
                 <span style={styles.reportValue}>
                   {migrationJob.source_repo && migrationJob.source_repo.startsWith('http') ? (
-                    <a href={migrationJob.source_repo} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>
+                    <a href={migrationJob.source_repo} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--theme-accent, #2563eb)', textDecoration: 'none' }}>
                       {migrationJob.source_repo}
                     </a>
                   ) : (
@@ -72,8 +86,16 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
             </div>
           </div>
 
+          <div className="result-metrics-row" aria-label="Migration report metrics">
+            <div className="result-kpi-card result-kpi-card--blue"><span>📄</span><div><strong>{migrationJob.files_modified || 0}</strong><p>Files Modified</p></div></div>
+            <div className="result-kpi-card result-kpi-card--green"><span>✅</span><div><strong>{migrationJob.issues_fixed || 0}</strong><p>Code Changes</p></div></div>
+            <div className="result-kpi-card result-kpi-card--purple"><span>👁️</span><div><strong>{codeChanges.length || 0}</strong><p>Preview Diffs</p></div></div>
+            <div className="result-kpi-card result-kpi-card--orange"><span>📦</span><div><strong>{dependenciesUpdated}</strong><p>Dependencies Updated</p></div></div>
+            <div className="result-kpi-card result-kpi-card--cyan"><span>🛡️</span><div><strong>{qualityChecksPassed}</strong><p>Quality Checks Passed</p></div></div>
+          </div>
+
           {/* Changes Made */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🔄 Changes Made</h3>
             <div style={styles.changesGrid}>
               <div className="inner-card-hover result-inner-card" style={styles.changeItem}>
@@ -94,35 +116,35 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                 <span style={styles.changeIcon}>📦</span>
                 <div>
                   <div style={styles.changeTitle}>Dependencies Updated</div>
-                  <div style={styles.changeValue}>{migrationJob.dependencies?.filter(d => d.status === 'upgraded').length || 0} dependencies upgraded</div>
+                  <div style={styles.changeValue}>{migrationJob.dependencies?.filter((d: any) => d.status === 'upgraded').length || 0} dependencies upgraded</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Dependencies Fixed */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <div
               style={{
                 padding: "20px 24px",
                 borderRadius: 16,
-                backgroundColor: "#ffffff",
-                border: "1px solid #e5e7eb",
+                backgroundColor: "var(--theme-card-bg, #ffffff)",
+                border: "1px solid var(--theme-border, #e5e7eb)",
                 boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <span style={{ fontSize: 18 }}>📦</span>
-                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#111827" }}>
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "var(--theme-text-strong, #111827)" }}>
                   Dependencies Fixed ({migrationJob.dependencies?.length || 0})
                 </h3>
               </div>
 
-              <p style={{ margin: "0 0 14px", fontSize: 14, color: "#64748b", fontWeight: 500 }}>
+              <p style={{ margin: "0 0 14px", fontSize: 14, color: "var(--theme-muted, #64748b)", fontWeight: 500 }}>
                 These dependencies were updated or reviewed during migration.
               </p>
 
-              <div style={{ height: 1, backgroundColor: "#e5e7eb", marginBottom: 14 }} />
+              <div style={{ height: 1, backgroundColor: "var(--theme-border, #e5e7eb)", marginBottom: 14 }} />
 
               {migrationJob.dependencies && migrationJob.dependencies.length > 0 ? (
                 <>
@@ -131,14 +153,14 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                       maxHeight: 258,
                       overflowY: "auto",
                       overflowX: "hidden",
-                      border: "1px solid #e5e7eb",
+                      border: "1px solid var(--theme-border, #e5e7eb)",
                       borderRadius: 12,
-                      backgroundColor: "#ffffff",
+                      backgroundColor: "var(--theme-surface-strong, #ffffff)",
                       padding: "0 10px",
                       scrollBehavior: "smooth",
                     }}
                   >
-                    {migrationJob.dependencies.map((dep, idx) => (
+                    {migrationJob.dependencies.map((dep: any, idx: number) => (
                       <div
                         key={idx}
                         className="inner-card-hover result-inner-card"
@@ -149,8 +171,8 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                           gap: 16,
                           minHeight: 84,
                           padding: "14px 8px",
-                          borderBottom: idx === migrationJob.dependencies.length - 1 ? "none" : "1px solid #e5e7eb",
-                          backgroundColor: "#ffffff",
+                          borderBottom: idx === migrationJob.dependencies.length - 1 ? "none" : "1px solid var(--theme-border, #e5e7eb)",
+                          backgroundColor: "var(--theme-surface-strong, #ffffff)",
                         }}
                       >
                         <div>
@@ -181,7 +203,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                           style={{
                             fontSize: 15,
                             fontWeight: 700,
-                            color: "#475569",
+                            color: "var(--theme-soft-text, #475569)",
                             textAlign: "center",
                           }}
                         >
@@ -211,7 +233,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                     ))}
                   </div>
 
-                  <div style={{ marginTop: 12, textAlign: "center", fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                  <div style={{ marginTop: 12, textAlign: "center", fontSize: 13, color: "var(--theme-muted, #64748b)", fontWeight: 500 }}>
                     Scroll to view all {migrationJob.dependencies.length} dependencies
                   </div>
                 </>
@@ -222,24 +244,24 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
           </div>
 
           {/* Errors Fixed */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <div
               style={{
                 padding: "20px 24px",
                 borderRadius: 16,
-                backgroundColor: "#ffffff",
-                border: "1px solid #e5e7eb",
+                backgroundColor: "var(--theme-card-bg, #ffffff)",
+                border: "1px solid var(--theme-border, #e5e7eb)",
                 boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <span style={{ fontSize: 18 }}>🐛</span>
-                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#111827" }}>
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "var(--theme-text-strong, #111827)" }}>
                   Errors Fixed
                 </h3>
               </div>
 
-              <div style={{ height: 1, backgroundColor: "#e5e7eb", marginBottom: 16 }} />
+              <div style={{ height: 1, backgroundColor: "var(--theme-border, #e5e7eb)", marginBottom: 16 }} />
 
               <div
                 style={{
@@ -366,7 +388,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
           </div>
 
           {/* Business Logic Fixed */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🧠 Business Logic Improvements</h3>
             <div style={styles.businessLogicGrid}>
               <div className="inner-card-hover result-inner-card" style={styles.businessItem}>
@@ -401,7 +423,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
           </div>
 
           {/* GitLab-Style Code Changes Diff Viewer */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>
               <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span>📝 Code Changes (GitLab-Style Diff)</span>
@@ -424,10 +446,10 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
             
             {showCodeChanges && (
               <div className="inner-card-hover result-diff-card" style={{
-                border: "1px solid #d0d7de",
+                border: "1px solid var(--theme-border, #d0d7de)",
                 borderRadius: 8,
                 overflow: "hidden",
-                backgroundColor: "#fff"
+                backgroundColor: "var(--theme-surface-strong, #fff)"
               }}>
                 {/* File List Header */}
                 <div style={{
@@ -435,18 +457,18 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "12px 16px",
-                  backgroundColor: "#f6f8fa",
-                  borderBottom: "1px solid #d0d7de"
+                  backgroundColor: "var(--theme-tint, #f6f8fa)",
+                  borderBottom: "1px solid var(--theme-border, #d0d7de)"
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontWeight: 600, color: "#24292f" }}>
+                    <span style={{ fontWeight: 600, color: "var(--theme-text-strong, #24292f)" }}>
                       {codeChanges.length} files changed
                     </span>
                     <span style={{ color: "#22c55e", fontSize: 13 }}>
-                      +{codeChanges.reduce((sum, c) => sum + c.additions, 0)} additions
+                      +{codeChanges.reduce((sum: number, c: any) => sum + c.additions, 0)} additions
                     </span>
                     <span style={{ color: "#ef4444", fontSize: 13 }}>
-                      -{codeChanges.reduce((sum, c) => sum + c.deletions, 0)} deletions
+                      -{codeChanges.reduce((sum: number, c: any) => sum + c.deletions, 0)} deletions
                     </span>
                   </div>
                   <span style={{
@@ -462,7 +484,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
 
                 {/* File List */}
                 <div style={{ maxHeight: 600, overflowY: "auto" }}>
-                  {codeChanges.map((change, idx) => (
+                  {codeChanges.map((change: any, idx: number) => (
                     <div key={idx}>
                       {/* File Header */}
                       <div
@@ -473,19 +495,19 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                           alignItems: "center",
                           justifyContent: "space-between",
                           padding: "10px 16px",
-                          backgroundColor: selectedDiffFile === change.filePath ? "#f0f6fc" : "#fafbfc",
-                          borderBottom: "1px solid #d0d7de",
+                          backgroundColor: selectedDiffFile === change.filePath ? "rgba(var(--theme-accent-rgb, 37, 99, 235), 0.1)" : "var(--theme-input-bg, #fafbfc)",
+                          borderBottom: "1px solid var(--theme-border, #d0d7de)",
                           cursor: "pointer",
                           transition: "background-color 0.15s"
                         }}
                         onMouseEnter={(e) => {
                           if (selectedDiffFile !== change.filePath) {
-                            e.currentTarget.style.backgroundColor = "#f6f8fa";
+                            e.currentTarget.style.backgroundColor = "var(--theme-tint, #f6f8fa)";
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (selectedDiffFile !== change.filePath) {
-                            e.currentTarget.style.backgroundColor = "#fafbfc";
+                            e.currentTarget.style.backgroundColor = "var(--theme-input-bg, #fafbfc)";
                           }
                         }}
                       >
@@ -507,7 +529,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                           <span style={{
                             fontFamily: "'JetBrains Mono', 'Consolas', monospace",
                             fontSize: 13,
-                            color: "#0969da"
+                            color: "var(--theme-accent, #0969da)"
                           }}>
                             {change.filePath}
                           </span>
@@ -557,7 +579,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                             fontSize: 12,
                             lineHeight: 1.5
                           }}>
-                            {change.diffLines.map((line, lineIdx) => (
+                            {change.diffLines.map((line: any, lineIdx: number) => (
                               <div
                                 key={lineIdx}
                                 style={{
@@ -612,7 +634,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
                     <div style={{
                       padding: 40,
                       textAlign: "center",
-                      color: "#57606a"
+                      color: "var(--theme-muted, #57606a)"
                     }}>
                       No code changes to display
                     </div>
@@ -623,7 +645,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
           </div>
 
           {/* SonarQube Code Coverage */}
-         {runSonar && ( <div style={styles.reportSection}>
+         {runSonar && ( <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🔍 SonarQube Code Quality & Coverage</h3>
             <div style={styles.sonarqubeGrid}>
               <div className="inner-card-hover result-inner-card" style={styles.sonarqubeItem}>
@@ -668,7 +690,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
 
     {/* FOSSA License & Dependency Report */}
     {(runFossa || migrationJob?.fossa_policy_status != null || migrationJob?.fossa_total_dependencies != null || fossaResult) && (migrationJob || fossaResult) && (
-    <div style={styles.reportSection}>
+    <div className="result-dashboard-card" style={styles.reportSection}>
       <h3 style={styles.reportTitle}>📜 FOSSA License & Dependency Scan</h3>
 
       <div style={styles.sonarqubeGrid}>
@@ -745,7 +767,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
     )}
 
           {/* Unit Test Report */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🧪 Unit Test Report</h3>
             <div style={styles.testReportGrid}>
               <div className="inner-card-hover result-inner-card" style={styles.testMetric}>
@@ -772,7 +794,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
           </div>
 
           {/* JMeter Test Report */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🚀 JMeter Performance Test Report</h3>
             <div style={styles.jmeterGrid}>
               <div className="inner-card-hover result-inner-card" style={styles.jmeterItem}>
@@ -797,11 +819,11 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
           </div>
 
           {/* Migration Log */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>📋 Migration Log</h3>
             <div className="inner-card-hover result-log-card" style={styles.logsContainer}>
               {migrationLogs.length > 0 ? (
-                migrationLogs.map((log, index) => (
+                migrationLogs.map((log: string, index: number) => (
                   <div key={index} style={styles.logEntry}>{log}</div>
                 ))
               ) : (
@@ -811,11 +833,11 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
           </div>
 
           {/* Issues & Errors Detailed */}
-          <div style={styles.reportSection}>
+          <div className="result-dashboard-card" style={styles.reportSection}>
             <h3 style={styles.reportTitle}>⚠️ Detailed Issues & Errors</h3>
             <div style={styles.issuesContainer}>
               {migrationJob.issues && migrationJob.issues.length > 0 ? (
-                migrationJob.issues.slice(0, 10).map((issue) => (
+                migrationJob.issues.slice(0, 10).map((issue: any) => (
                   <div key={issue.id} className="inner-card-hover risk-inner-card" style={styles.issueItem}>
                     <div style={styles.issueHeader}>
                       <span style={{ ...styles.issueSeverity, backgroundColor: issue.severity === "error" ? "#fee2e2" : issue.severity === "warning" ? "#fef3c7" : "#e0f2fe" }}>
@@ -834,6 +856,7 @@ export default function ResultWizardStep({ context }: { context: WizardScreenCon
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* Download Buttons */}

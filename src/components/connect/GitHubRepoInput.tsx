@@ -65,7 +65,7 @@ export default function GitHubRepoInput({
           disabled={!canContinueRepository}
           onClick={onContinue}
         >
-          Continue
+          Continue <span className="connect-button__arrow" aria-hidden="true">-&gt;</span>
         </button>
       </div>
     </>
