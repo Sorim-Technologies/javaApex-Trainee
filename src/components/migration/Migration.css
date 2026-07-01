@@ -594,7 +594,7 @@
 
 .migration-insight-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -729,25 +729,71 @@
   display: none !important;
 }
 
-@media (max-width: 1280px) {
+/* Compact variants for right-column placement */
+.migration-compact-card {
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.migration-checklist--compact {
+  display: grid;
+  gap: 6px;
+}
+
+.migration-checklist--compact div {
+  font-size: 12px;
+  gap: 6px;
+}
+
+.migration-ai-compact {
+  margin: 0;
+  color: var(--theme-soft-text, #334155);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.migration-compact-card .migration-section-heading {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+/* Large screens: keep inner grids at 2-col since they sit inside a 2-column dashboard */
+@media (max-width: 1600px) {
   .migration-modernize-grid,
   .migration-option-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .migration-stat-grid,
-  .migration-summary-grid {
+  .migration-stat-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .migration-insight-metrics {
+  .migration-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
+@media (max-width: 1280px) {
+  .migration-stat-grid,
+  .migration-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Stack dashboard columns at this threshold; sidebar adds ~72px so effective content breakpoint is correct */
 @media (max-width: 1180px) {
   .migration-dashboard-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Medium screens: 2-col inner grids inside the now-single-column dashboard */
+@media (max-width: 900px) {
+  .migration-modernize-grid,
+  .migration-option-grid,
+  .migration-stat-grid,
+  .migration-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

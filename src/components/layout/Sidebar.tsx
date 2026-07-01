@@ -88,7 +88,8 @@ export default function Sidebar({
   ]);
 
   const isDashboardActive = normalizedPath === "/dashboard";
-  const isReportsActive = normalizedPath === "/report";
+  const isReportsActive = normalizedPath === "/reports";
+  const isSettingsActive = normalizedPath === "/settings";
   const isMigrationActive =
     migrationRoutes.has(normalizedPath) &&
     !isThemeOpen &&
@@ -150,7 +151,7 @@ export default function Sidebar({
       key: "reports",
       label: "Reports",
       icon: <span className="sidebar__icon">{"\u25a4"}</span>,
-      route: "/report",
+      route: "/reports",
       tooltip: "View migration reports",
       active: isReportsActive,
     },
@@ -169,9 +170,9 @@ export default function Sidebar({
       key: "settings",
       label: "Settings",
       icon: <span className="sidebar__icon">{"\u2699"}</span>,
-      action: onProfileToggle,
+      route: "/settings",
       tooltip: "Open account settings",
-      active: false,
+      active: isSettingsActive,
     },
     {
       key: "profile",

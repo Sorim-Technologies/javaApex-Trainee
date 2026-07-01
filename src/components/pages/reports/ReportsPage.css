@@ -1,0 +1,14 @@
+/* Page-specific overrides — base styles live in Pages.css */
+
+/* Keep the actions column compact so other columns have room */
+.reports-actions { min-width: 0; max-width: 100%; }
+
+.reports-actions button { padding: 5px 8px; font-size: 11px; }
+
+@media (max-width: 1024px) {
+  .reports-actions { min-width: 200px; }
+}
+
+@media (max-width: 820px) {
+  .reports-actions { min-width: 170px; }
+}

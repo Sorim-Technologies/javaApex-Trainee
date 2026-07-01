@@ -213,23 +213,6 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
           <button
             type="button"
-            className={`app-shell__nav-button${showThemeMenu ? " app-shell__nav-button--active" : ""}`}
-            onClick={navigateToTheme}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v2" />
-              <path d="M12 20v2" />
-              <path d="M2 12h2" />
-              <path d="M20 12h2" />
-              <path d="m4.93 4.93 1.41 1.41" />
-              <path d="m17.66 17.66 1.41 1.41" />
-            </svg>
-            <span>Themes</span>
-          </button>
-
-          <button
-            type="button"
             className={`app-shell__profile-button${mockUser ? " app-shell__profile-button--signed-in" : ""}`}
             onClick={toggleProfileMenu}
             aria-expanded={showProfileMenu}

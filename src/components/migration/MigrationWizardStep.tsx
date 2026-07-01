@@ -287,25 +287,7 @@ export default function MigrationWizardStep({ context }: { context: WizardScreen
             ))}
           </section>
 
-          <section className="migration-bottom-grid">
-            <div className="migration-card">
-              <div className="migration-section-heading">Execution Checklist</div>
-              <div className="migration-checklist">
-                {checks.map((check) => (
-                  <div key={check.label} className={check.done ? "done" : "pending"}>
-                    <span>{check.done ? "✓" : "○"}</span>{check.label}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="migration-card migration-ai-card">
-              <div className="migration-section-heading">✨ AI Recommendation</div>
-              <p>
-                Start migration after confirming the target Java version and enabling tests. The selected plan is suitable for automated modernization with controlled validation.
-                {" "}Java {selectedTargetVersion || "target"} is recommended for improved performance, latest features, and long-term support. Ensure all tests pass before executing migration.
-              </p>
-            </div>
-          </section>
+          {/* Left-column bottom cards removed — moved to right column for compact layout */}
         </main>
 
         <aside className="migration-right-column" aria-label="Migration execution insights">
@@ -361,6 +343,23 @@ export default function MigrationWizardStep({ context }: { context: WizardScreen
               <div><span>Testing</span><strong className={runTests ? "low" : "medium"}>{runTests ? "Low" : "Medium"}</strong></div>
               <div><span>Business logic</span><strong className={fixBusinessLogic ? "low" : "medium"}>{fixBusinessLogic ? "Low" : "Medium"}</strong></div>
             </div>
+          </section>
+          <section className="migration-card migration-compact-card">
+            <div className="migration-section-heading">Execution Checklist</div>
+            <div className="migration-checklist migration-checklist--compact">
+              {checks.map((check) => (
+                <div key={check.label} className={check.done ? "done" : "pending"}>
+                  <span>{check.done ? "✓" : "○"}</span>{check.label}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="migration-card migration-ai-card migration-compact-card">
+            <div className="migration-section-heading">✨ AI Recommendation</div>
+            <p className="migration-ai-compact">
+              Start migration after confirming the target Java version and enabling tests. The selected plan is suitable for automated modernization with controlled validation. Java {selectedTargetVersion || "target"} is recommended; ensure tests pass before executing migration.
+            </p>
           </section>
         </aside>
       </div>

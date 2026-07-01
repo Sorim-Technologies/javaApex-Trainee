@@ -1184,18 +1184,24 @@
 
 .repo-analysis-readiness-content {
   display: grid;
-  grid-template-columns: 126px 1fr;
+  grid-template-columns: 128px 1fr;
   align-items: center;
-  gap: 22px;
-  min-height: 170px;
+  gap: 24px;
+  min-height: 160px;
 }
 
 .connect-layout--merged .repo-analysis-circle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   width: 112px;
   height: 112px;
-  border: 8px solid rgba(226, 232, 240, 0.9);
+  justify-self: center;
+  border: 0;
   background:
-    radial-gradient(circle, #ffffff 58%, transparent 60%),
+    radial-gradient(circle, #ffffff 58%, transparent 59%),
     conic-gradient(#16a34a var(--repo-score, 0%), rgba(226, 232, 240, 0.95) 0);
   box-shadow: none;
 }
@@ -1207,21 +1213,29 @@
 }
 
 .connect-layout--merged .repo-analysis-circle small {
-  margin-top: 34px;
+  margin-top: 0;
   color: #16a34a;
   font-size: 12px;
   font-weight: 900;
 }
 
+.repo-analysis-readiness-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+}
+
 .repo-analysis-readiness-copy p {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   color: #334155;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .repo-analysis-readiness-copy ul {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1586,14 +1600,14 @@
 
 .connect-layout--merged .repo-analysis-circle--good {
   background:
-    radial-gradient(circle, #ffffff 58%, transparent 60%),
+    radial-gradient(circle, #ffffff 58%, transparent 59%),
     conic-gradient(#16a34a var(--repo-score, 0%), rgba(226, 232, 240, 0.95) 0);
 }
 
 .connect-layout--merged .repo-analysis-circle--partial,
 .connect-layout--merged .repo-analysis-circle--warning {
   background:
-    radial-gradient(circle, #ffffff 58%, transparent 60%),
+    radial-gradient(circle, #ffffff 58%, transparent 59%),
     conic-gradient(#f59e0b var(--repo-score, 0%), rgba(226, 232, 240, 0.95) 0);
 }
 
