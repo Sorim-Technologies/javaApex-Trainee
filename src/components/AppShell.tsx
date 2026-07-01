@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { NavLink } from "react-router-dom";
 import apexLogo from "../assets/logo.jpg";
 import {
   clearStoredAppToken,
@@ -60,6 +61,19 @@ const shellStyles: { [key: string]: React.CSSProperties } = {
 
 const APP_AUTH_EVENT = "javaapex:open-auth-dropdown";
 const APP_AUTH_CHANGED_EVENT = "javaapex:auth-changed";
+
+const navLinkBase: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "8px 14px",
+  borderRadius: 8,
+  color: "#475569",
+  fontSize: 14,
+  fontWeight: 700,
+  textDecoration: "none",
+  transition: "all 0.2s ease",
+};
 
 const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -319,6 +333,27 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
 
         <nav style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <NavLink
+            to="/"
+            end
+            style={({ isActive }) => ({
+              ...navLinkBase,
+              background: isActive ? "#eff6ff" : "transparent",
+              color: isActive ? "#1d4ed8" : "#475569",
+            })}
+          >
+            Migration
+          </NavLink>
+          <NavLink
+            to="/logs"
+            style={({ isActive }) => ({
+              ...navLinkBase,
+              background: isActive ? "#eff6ff" : "transparent",
+              color: isActive ? "#1d4ed8" : "#475569",
+            })}
+          >
+            Logs
+          </NavLink>
           <span title="Coming Soon" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, color: "#94a3b8", fontSize: 14, fontWeight: 500, cursor: "not-allowed", opacity: 0.6 }}>
             Docs
           </span>

@@ -49,6 +49,7 @@ from services.social_auth_service import (
     router as social_auth_router,
     validate_guest_migration_limit,
 )
+from services.logs_service import router as logs_router
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
 from database.db import Base, app_now, engine, ensure_database_exists, get_db
@@ -81,6 +82,7 @@ async def log_requests(request: Request, call_next):
 # Register auth router
 app.include_router(auth_router, prefix="/api")
 app.include_router(social_auth_router)
+app.include_router(logs_router)
 
 
 @app.on_event("startup")
@@ -179,10 +181,13 @@ class GitPlatform(str, Enum):
 class MigrationRequest(BaseModel):
     source_repo_url: str = Field(description="Repository URL (GitHub or GitLab)")
     target_repo_name: str = Field(description="Name for the new migrated repository")
+    migration_log_id: Optional[int] = Field(default=None, description="Existing migration_history row to update")
     migration_approach: Optional[str] = Field(default="fork", description="Migration destination strategy: fork or branch")
     platform: GitPlatform = Field(default=GitPlatform.GITHUB, description="Git platform (GitHub or GitLab)")
     source_java_version: str = Field(default="7", description="Current Java version")
     target_java_version: JavaVersion = Field(default=JavaVersion.JAVA_18, description="Target Java version")
+    source_spring_boot_version: Optional[str] = Field(default=None, description="Current Spring Boot version")
+    target_spring_boot_version: Optional[str] = Field(default=None, description="Target Spring Boot version")
     token: Optional[str] = Field(default="", description="Personal access token (optional - only needed for pushing to GitHub)")
     conversion_types: List[str] = Field(default=["java_version"], description="Types of conversions to perform")
     email: Optional[str] = Field(default=None, description="Email for migration summary")
@@ -194,11 +199,22 @@ class MigrationRequest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def normalize_target_java_version_fields(cls, data):
-        if isinstance(data, dict) and "target_java_version" not in data:
-            for alias in ("targetJavaVersion", "targetVersion"):
-                if alias in data:
-                    data["target_java_version"] = data[alias]
-                    break
+        if not isinstance(data, dict):
+            return data
+
+        alias_groups = {
+            "source_java_version": ("sourceJavaVersion", "current_java_version", "currentJavaVersion"),
+            "target_java_version": ("targetJavaVersion", "targetVersion", "selected_target_version", "selectedTargetVersion"),
+            "source_spring_boot_version": ("sourceSpringBootVersion", "current_spring_boot_version", "currentSpringBootVersion"),
+            "target_spring_boot_version": ("targetSpringBootVersion", "selected_spring_boot_version", "selectedSpringBootVersion"),
+        }
+
+        for canonical, aliases in alias_groups.items():
+            if canonical not in data or data.get(canonical) in (None, ""):
+                for alias in aliases:
+                    if data.get(alias) not in (None, ""):
+                        data[canonical] = data[alias]
+                        break
         return data
 
 
@@ -292,6 +308,7 @@ class RepoUrlAnalysisInfo(BaseModel):
     owner: str
     repo: str
     analysis: RepoAnalysisInfo
+    migration_log_id: Optional[int] = None
 
 
 class MigrationResult(BaseModel):
@@ -427,17 +444,144 @@ def get_repo_name_from_url(repo_url: str) -> str:
     return (repo_url or "").rstrip("/").split("/")[-1].replace(".git", "")
 
 
+def extract_repository_name(repository_url: str) -> str:
+    if not repository_url:
+        return "Unknown Repository"
+
+    repo = repository_url.rstrip("/").split("/")[-1]
+    return repo.replace(".git", "") or "Unknown Repository"
+
+
 def read_value(source: Any, key: str, default: Any = None) -> Any:
     if isinstance(source, dict):
         return source.get(key, default)
     return getattr(source, key, default)
 
 
+def get_int_value(data: Any, keys: List[str], default: int = 0) -> int:
+    for key in keys:
+        value = read_value(data, key)
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return max(int(value), 0)
+        if isinstance(value, list):
+            return len(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.isdigit():
+                return int(stripped)
+            match = re.search(r"(\d+)", stripped)
+            if match:
+                return int(match.group(1))
+    return default
+
+
+def get_str_value(data: Any, keys: List[str], default: Optional[str] = None) -> Optional[str]:
+    for key in keys:
+        value = read_value(data, key)
+        if value not in (None, ""):
+            return str(value)
+    return default
+
+
+def count_value_from_analysis(analysis: Any, keys: List[str]) -> int:
+    for key in keys:
+        value = read_value(analysis, key)
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return max(value, 0)
+        if isinstance(value, float):
+            return max(int(value), 0)
+        if isinstance(value, list):
+            return len(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.isdigit():
+                return int(stripped)
+
+    return 0
+
+
+def count_java_files_from_analysis(analysis: Any) -> int:
+    direct_count = get_int_value(analysis, ["java_file_count", "java_files_count"], 0)
+    if direct_count:
+        return direct_count
+
+    java_files = read_value(analysis, "java_files", []) or []
+    if isinstance(java_files, int):
+        return max(java_files, 0)
+    if isinstance(java_files, float):
+        return max(int(java_files), 0)
+    if isinstance(java_files, str) and java_files.strip().isdigit():
+        return int(java_files.strip())
+    if isinstance(java_files, list):
+        total = 0
+        for item in java_files:
+            if isinstance(item, str):
+                match = re.search(r"(\d+)", item)
+                if match:
+                    total += int(match.group(1))
+                elif item.endswith(".java"):
+                    total += 1
+            elif isinstance(item, dict):
+                name = str(item.get("name") or item.get("path") or "")
+                if name.endswith(".java"):
+                    total += 1
+        return total or len(java_files)
+
+    return 0
+
+
 def count_total_files_from_analysis(analysis: Any) -> int:
+    direct_count = get_int_value(
+        analysis,
+        ["total_files", "file_count", "total_file_count", "files_count", "repository_files"],
+        0,
+    )
+    if direct_count:
+        return direct_count
+
+    all_files = read_value(analysis, "all_files", []) or []
+    if isinstance(all_files, list) and all_files:
+        return len(all_files)
+
+    quality_metrics = read_value(analysis, "code_quality_metrics", {}) or {}
+    metrics_total = count_value_from_analysis(quality_metrics, ["total_files"])
+    if metrics_total:
+        return metrics_total
+
     structure = read_value(analysis, "structure")
     if isinstance(structure, dict):
         return len(structure.get("files", []) or [])
-    return len(read_value(analysis, "java_files", []) or [])
+
+    return count_java_files_from_analysis(analysis)
+
+
+def count_repository_files(project_path: Optional[str]) -> Dict[str, int]:
+    if not project_path or not os.path.exists(project_path):
+        return {"total_files": 0, "java_files": 0}
+
+    excluded_dirs = {
+        ".git", "target", "build", ".gradle", "node_modules",
+        "__pycache__", ".idea", ".vscode",
+    }
+    total_files = 0
+    java_files = 0
+
+    for root, dirs, files in os.walk(project_path):
+        dirs[:] = [directory for directory in dirs if directory not in excluded_dirs]
+        for file_name in files:
+            total_files += 1
+            if file_name.endswith(".java"):
+                java_files += 1
+
+    return {"total_files": total_files, "java_files": java_files}
 
 
 def store_repository_analysis_record(
@@ -448,20 +592,45 @@ def store_repository_analysis_record(
 ) -> None:
     endpoints = read_value(analysis, "api_endpoints", []) or []
     dependencies = read_value(analysis, "dependencies", []) or []
-    java_files = read_value(analysis, "java_files", []) or []
+    total_files = count_total_files_from_analysis(analysis)
+    java_files_count = count_java_files_from_analysis(analysis)
+    project_path = get_str_value(analysis, ["project_path", "clone_path", "repository_path", "local_path"])
+    if (total_files == 0 or java_files_count == 0) and project_path:
+        file_counts = count_repository_files(project_path)
+        total_files = total_files or file_counts["total_files"]
+        java_files_count = java_files_count or file_counts["java_files"]
+    api_endpoint_count = get_int_value(analysis, ["api_endpoint_count", "endpoint_count", "api_endpoints_count"], 0)
+    dependency_count = get_int_value(analysis, ["dependency_count", "dependencies_count"], 0)
+
+    if not api_endpoint_count and isinstance(endpoints, list):
+        api_endpoint_count = len(endpoints)
+    if not dependency_count and isinstance(dependencies, list):
+        dependency_count = len(dependencies)
+
     record = db_models.RepositoryAnalysis(
         user_id=current_user["user_id"] if current_user else None,
         session_id=current_user["session_db_id"] if current_user else None,
         repository_url=repo_url,
         repository_name=read_value(analysis, "name") or get_repo_name_from_url(repo_url),
         branch_name=read_value(analysis, "default_branch"),
-        total_files=count_total_files_from_analysis(analysis),
-        java_files=len(java_files),
-        build_tool=read_value(analysis, "build_tool"),
-        detected_java_version=read_value(analysis, "java_version") or read_value(analysis, "java_version_from_build"),
-        detected_spring_boot_version=None,
-        api_endpoint_count=len(endpoints),
-        dependency_count=len(dependencies),
+        total_files=total_files,
+        java_files=java_files_count,
+        build_tool=get_str_value(analysis, ["build_tool", "buildTool", "build_system"]),
+        detected_java_version=get_str_value(
+            analysis,
+            ["detected_java_version", "java_version", "current_java_version", "source_java_version", "java_version_from_build"],
+        ),
+        detected_spring_boot_version=get_str_value(
+            analysis,
+            [
+                "detected_spring_boot_version",
+                "spring_boot_version",
+                "current_spring_boot_version",
+                "source_spring_boot_version",
+            ],
+        ),
+        api_endpoint_count=api_endpoint_count,
+        dependency_count=dependency_count,
         analysis_status="completed",
     )
     db.add(record)
@@ -474,15 +643,80 @@ def create_migration_history_record(
     current_user: Dict[str, Any],
 ) -> int:
     now = app_now()
+    source_java_version = (
+        getattr(request, "source_java_version", None)
+        or getattr(request, "sourceJavaVersion", None)
+        or getattr(request, "current_java_version", None)
+        or getattr(request, "currentJavaVersion", None)
+    )
+    target_java_value = (
+        getattr(request, "target_java_version", None)
+        or getattr(request, "targetJavaVersion", None)
+        or getattr(request, "selected_target_version", None)
+        or getattr(request, "selectedTargetVersion", None)
+    )
+    target_java_version = getattr(target_java_value, "value", target_java_value)
+
+    if not source_java_version:
+        latest_analysis = (
+            db.query(db_models.RepositoryAnalysis)
+            .filter(
+                db_models.RepositoryAnalysis.user_id == current_user["user_id"],
+                db_models.RepositoryAnalysis.repository_url == request.source_repo_url,
+            )
+            .order_by(db_models.RepositoryAnalysis.created_at.desc())
+            .first()
+        )
+        source_java_version = latest_analysis.detected_java_version if latest_analysis else None
+
+    source_spring_boot_version = (
+        getattr(request, "source_spring_boot_version", None)
+        or getattr(request, "sourceSpringBootVersion", None)
+        or getattr(request, "current_spring_boot_version", None)
+        or getattr(request, "currentSpringBootVersion", None)
+    )
+    target_spring_boot_version = (
+        getattr(request, "target_spring_boot_version", None)
+        or getattr(request, "targetSpringBootVersion", None)
+        or getattr(request, "selected_spring_boot_version", None)
+        or getattr(request, "selectedSpringBootVersion", None)
+    )
+
+    logger.info("Migration history source_java_version: %s", source_java_version)
+    logger.info("Migration history target_java_version: %s", target_java_version)
+
+    if request.migration_log_id:
+        record = db.get(db_models.MigrationHistory, request.migration_log_id)
+        if record and (record.user_id is None or record.user_id == current_user["user_id"]):
+            record.user_id = current_user["user_id"]
+            record.session_id = current_user["session_db_id"]
+            record.repository_url = request.source_repo_url
+            record.repository_name = extract_repository_name(request.source_repo_url)
+            record.source_java_version = str(source_java_version) if source_java_version else None
+            record.target_java_version = str(target_java_version) if target_java_version else None
+            record.source_spring_boot_version = str(source_spring_boot_version) if source_spring_boot_version else None
+            record.target_spring_boot_version = str(target_spring_boot_version) if target_spring_boot_version else None
+            record.conversion_types = json.dumps(request.conversion_types or [])
+            record.status = "running"
+            record.completed_at = None
+            record.error_message = None
+            record.updated_at = now
+            db.commit()
+            db.refresh(record)
+            logger.info("Reusing migration log with status running: id=%s", record.id)
+            return record.id
+
     record = db_models.MigrationHistory(
         user_id=current_user["user_id"],
         session_id=current_user["session_db_id"],
         repository_url=request.source_repo_url,
         repository_name=get_repo_name_from_url(request.source_repo_url),
-        source_java_version=request.source_java_version,
-        target_java_version=request.target_java_version.value,
+        source_java_version=str(source_java_version) if source_java_version else None,
+        target_java_version=str(target_java_version) if target_java_version else None,
+        source_spring_boot_version=str(source_spring_boot_version) if source_spring_boot_version else None,
+        target_spring_boot_version=str(target_spring_boot_version) if target_spring_boot_version else None,
         conversion_types=json.dumps(request.conversion_types or []),
-        status="started",
+        status="running",
         started_at=now,
         created_at=now,
         updated_at=now,
@@ -490,7 +724,110 @@ def create_migration_history_record(
     db.add(record)
     db.commit()
     db.refresh(record)
+    logger.info("Migration log created with status running: id=%s", record.id)
     return record.id
+
+
+def create_running_migration_log(
+    db: Session,
+    current_user: Optional[Dict[str, Any]],
+    repository_url: str,
+) -> int:
+    now = app_now()
+    migration_log = db_models.MigrationHistory(
+        user_id=current_user.get("user_id") if current_user else None,
+        session_id=current_user.get("session_db_id") if current_user else None,
+        repository_url=repository_url,
+        repository_name=extract_repository_name(repository_url),
+        source_java_version=None,
+        target_java_version=None,
+        conversion_types=json.dumps([]),
+        status="running",
+        started_at=now,
+        completed_at=None,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(migration_log)
+    db.commit()
+    db.refresh(migration_log)
+    logger.info("Migration log created with status running: id=%s", migration_log.id)
+    return migration_log.id
+
+
+def mark_migration_log_failed(
+    db: Session,
+    migration_log_id: Optional[int],
+    error_message: str,
+) -> None:
+    if not migration_log_id:
+        return
+
+    migration_log = db.get(db_models.MigrationHistory, migration_log_id)
+    if not migration_log:
+        return
+
+    now = app_now()
+    migration_log.status = "failed"
+    migration_log.error_message = error_message
+    migration_log.completed_at = now
+    migration_log.updated_at = now
+    db.commit()
+    logger.info("Migration failed, updating status to failed: id=%s", migration_log_id)
+
+
+def create_failed_migration_history_record(
+    request: MigrationRequest,
+    current_user: Optional[Dict[str, Any]],
+    error_message: str,
+) -> Optional[int]:
+    db = next(get_db())
+    try:
+        return save_failed_migration_log(
+            db=db,
+            current_user=current_user,
+            repository_url=request.source_repo_url,
+            error_message=error_message,
+            source_java_version=request.source_java_version,
+            target_java_version=request.target_java_version,
+            conversion_types=request.conversion_types,
+        )
+    finally:
+        db.close()
+
+
+def save_failed_migration_log(
+    db: Session,
+    current_user: Optional[Dict[str, Any]],
+    repository_url: str,
+    error_message: str,
+    source_java_version: Optional[str] = None,
+    target_java_version: Optional[Any] = None,
+    conversion_types: Optional[List[str]] = None,
+) -> int:
+    logger.info("Repository discovery failed, saving failed migration log")
+    now = app_now()
+    target_java_value = getattr(target_java_version, "value", target_java_version)
+    failed_log = db_models.MigrationHistory(
+        user_id=current_user.get("user_id") if current_user else None,
+        session_id=current_user.get("session_db_id") if current_user else None,
+        repository_url=repository_url,
+        repository_name=extract_repository_name(repository_url),
+        source_java_version=str(source_java_version) if source_java_version else None,
+        target_java_version=str(target_java_value) if target_java_value else None,
+        conversion_types=json.dumps(conversion_types or []),
+        status="failed",
+        error_message=error_message,
+        started_at=now,
+        completed_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(failed_log)
+    db.commit()
+    db.refresh(failed_log)
+    logger.info("Failed migration log saved successfully: id=%s", failed_log.id)
+    return failed_log.id
 
 
 def update_migration_history_record(
@@ -508,6 +845,10 @@ def update_migration_history_record(
         record = db.get(db_models.MigrationHistory, migration_history_id)
         if not record:
             return
+        if status_value == "failed":
+            logger.info("Migration failed, updating status to failed: id=%s", migration_history_id)
+        elif status_value == "completed":
+            logger.info("Migration completed, updating status to completed: id=%s", migration_history_id)
         record.status = status_value
         record.updated_at = app_now()
         if status_value in {"completed", "failed", "blocked"}:
@@ -521,6 +862,8 @@ def update_migration_history_record(
         if error_message:
             record.error_message = error_message
         db.commit()
+        if status_value == "failed":
+            logger.info("Failed migration saved with error_message: id=%s", migration_history_id)
     finally:
         db.close()
 
@@ -547,8 +890,15 @@ async def list_github_repos(token: str):
 
 
 @app.get("/api/github/repo/{owner}/{repo}/analyze", response_model=RepoAnalysisInfo)
-async def analyze_repository(owner: str, repo: str, token: str = ""):
+async def analyze_repository(
+    owner: str,
+    repo: str,
+    token: str = "",
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_app_user),
+    db: Session = Depends(get_db),
+):
     """Analyze a repository to detect Java version, dependencies, and structure"""
+    repo_url = f"https://github.com/{owner}/{repo}"
     try:
         # Use default token if none provided to avoid rate limits
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
@@ -567,8 +917,11 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
+        save_failed_migration_log(db, current_user, repo_url, error_msg)
         raise HTTPException(status_code=status_code, detail=error_msg)
     except Exception as e:
+        error_message = str(e)
+        save_failed_migration_log(db, current_user, repo_url, error_message)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
@@ -582,6 +935,7 @@ async def analyze_repo_url(
     db: Session = Depends(get_db),
 ):
     """Analyze a repository directly by URL (token only needed for private repos or higher rate limits)"""
+    migration_log_id = create_running_migration_log(db, current_user, repo_url)
     try:
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         owner, repo = await github_service.parse_repo_url(repo_url)
@@ -591,7 +945,8 @@ async def analyze_repo_url(
             "repo_url": repo_url,
             "owner": owner,
             "repo": repo,
-            "analysis": analysis
+            "analysis": analysis,
+            "migration_log_id": migration_log_id,
         }
     except GithubException as e:
         status_code = getattr(e, 'status', 400)
@@ -609,11 +964,14 @@ async def analyze_repo_url(
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
+        mark_migration_log_failed(db, migration_log_id, error_msg)
         raise HTTPException(status_code=status_code, detail=error_msg)
     except Exception as e:
         import traceback
+        error_message = str(e)
         print(f"[analyze-url ERROR] repo_url={repo_url} token_provided={bool(token and token.strip())} error={str(e)}\nTRACE:\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)} (see backend logs for details)")
+        mark_migration_log_failed(db, migration_log_id, error_message)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {error_message} (see backend logs for details)")
 
 
 @app.get("/api/github/repo-visibility", response_model=RepoVisibilityInfo)
@@ -798,12 +1156,20 @@ async def list_gitlab_repos(token: str):
 
 
 @app.get("/api/gitlab/repo/{owner}/{repo}/analyze")
-async def analyze_gitlab_repository(owner: str, repo: str, token: str = ""):
+async def analyze_gitlab_repository(
+    owner: str,
+    repo: str,
+    token: str = "",
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_app_user),
+    db: Session = Depends(get_db),
+):
     """Analyze a GitLab repository to detect Java version, dependencies, and structure"""
+    repo_url = f"https://gitlab.com/{owner}/{repo}"
     try:
         analysis = await gitlab_service.analyze_repository(token, owner, repo)
         return analysis
     except Exception as e:
+        save_failed_migration_log(db, current_user, repo_url, str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -815,6 +1181,7 @@ async def analyze_gitlab_repo_url(
     db: Session = Depends(get_db),
 ):
     """Analyze a GitLab repository directly by URL"""
+    migration_log_id = create_running_migration_log(db, current_user, repo_url)
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
         analysis = await gitlab_service.analyze_repository(token, owner, repo)
@@ -823,9 +1190,11 @@ async def analyze_gitlab_repo_url(
             "repo_url": repo_url,
             "owner": owner,
             "repo": repo,
-            "analysis": analysis
+            "analysis": analysis,
+            "migration_log_id": migration_log_id,
         }
     except Exception as e:
+        mark_migration_log_failed(db, migration_log_id, str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -935,7 +1304,8 @@ async def start_migration(
         run_migration,
         job_id,
         request,
-        migration_history_id
+        migration_history_id,
+        current_user,
     )
     
     return job
@@ -1981,7 +2351,12 @@ async def get_conversion_types():
     ]
 
 
-async def run_migration(job_id: str, request: MigrationRequest, migration_history_id: Optional[int] = None):
+async def run_migration(
+    job_id: str,
+    request: MigrationRequest,
+    migration_history_id: Optional[int] = None,
+    current_user: Optional[Dict[str, Any]] = None,
+):
     """Background task to run the full migration pipeline"""
     job = migration_jobs[job_id]
     update_migration_history_record(migration_history_id, "running")
@@ -2208,8 +2583,13 @@ async def run_migration(job_id: str, request: MigrationRequest, migration_histor
     except Exception as e:
         job.status = MigrationStatus.FAILED
         job.error_message = str(e)
+        job.completed_at = datetime.now(timezone.utc)
         add_log(job_id, f"ERROR: {str(e)}")
-        update_migration_history_record(migration_history_id, "failed", error_message=str(e))
+        logger.exception("Migration failed for job_id=%s", job_id)
+        if migration_history_id:
+            update_migration_history_record(migration_history_id, "failed", error_message=str(e))
+        else:
+            create_failed_migration_history_record(request, current_user, str(e))
 
 
 def generate_migration_issues(

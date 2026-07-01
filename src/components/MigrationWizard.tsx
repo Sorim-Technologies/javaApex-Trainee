@@ -39,6 +39,7 @@ interface JavaVersionOption {
 
 interface PersistedWizardFormState {
   maxVisitedIndicatorStep: number;
+  migrationLogId?: number | null;
   isPrivateRepo: boolean;
   patToken: string;
   currentPath: string;
@@ -134,6 +135,7 @@ const WIZARD_REPO_URL_KEY = "migration_wizard_repo_url";
 const WIZARD_SELECTED_REPO_KEY = "migration_wizard_selected_repo";
 const WIZARD_REPO_ANALYSIS_KEY = "migration_wizard_repo_analysis";
 const WIZARD_FORM_STATE_KEY = "migration_wizard_form_state";
+const WIZARD_MIGRATION_LOG_ID_KEY = "migration_log_id";
 const APP_AUTH_DROPDOWN_EVENT = "javaapex:open-auth-dropdown";
 const APP_AUTH_CHANGED_EVENT = "javaapex:auth-changed";
 const GUEST_MIGRATION_LIMIT_TITLE = "Guest migration limit reached";
@@ -356,6 +358,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [repoAnalysis, setRepoAnalysis] = useState<RepoAnalysis | null>(() =>
     readSessionJson<RepoAnalysis>(WIZARD_REPO_ANALYSIS_KEY)
   );
+  const [migrationLogId, setMigrationLogId] = useState<number | null>(() => {
+    const persistedId = persistedFormState?.migrationLogId ?? readPersistedValue(WIZARD_MIGRATION_LOG_ID_KEY);
+    const parsedId = Number(persistedId);
+    return Number.isFinite(parsedId) && parsedId > 0 ? parsedId : null;
+  });
   const [repoFiles, setRepoFiles] = useState<RepoFile[]>([]);
   const [currentPath, setCurrentPath] = useState(persistedFormState?.currentPath ?? "");
   const [targetRepoName, setTargetRepoName] = useState(persistedFormState?.targetRepoName ?? "");
@@ -842,6 +849,18 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    if (migrationLogId) {
+      window.sessionStorage.setItem(WIZARD_MIGRATION_LOG_ID_KEY, String(migrationLogId));
+      window.localStorage.setItem(WIZARD_MIGRATION_LOG_ID_KEY, String(migrationLogId));
+    } else {
+      window.sessionStorage.removeItem(WIZARD_MIGRATION_LOG_ID_KEY);
+      window.localStorage.removeItem(WIZARD_MIGRATION_LOG_ID_KEY);
+    }
+  }, [migrationLogId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
     if (repoAnalysis) {
       const serializedAnalysis = JSON.stringify(repoAnalysis);
       window.sessionStorage.setItem(WIZARD_REPO_ANALYSIS_KEY, serializedAnalysis);
@@ -855,6 +874,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   useEffect(() => {
     writeSessionJson(WIZARD_FORM_STATE_KEY, {
       maxVisitedIndicatorStep,
+      migrationLogId,
       isPrivateRepo,
       patToken,
       currentPath,
@@ -882,6 +902,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     } satisfies PersistedWizardFormState);
   }, [
     maxVisitedIndicatorStep,
+    migrationLogId,
     isPrivateRepo,
     patToken,
     currentPath,
@@ -1159,7 +1180,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       setError("");
 
       const analyzePromise = analyzeRepoUrl(selectedRepo.url, getCurrentToken(), getStoredAppToken())
-        .then(async (result) => enrichAnalysisWithPomVersion(result.analysis, selectedRepo.url, getCurrentToken()));
+        .then(async (result) => {
+          if (result.migration_log_id) {
+            setMigrationLogId(result.migration_log_id);
+            if (typeof window !== "undefined") {
+              window.sessionStorage.setItem(WIZARD_MIGRATION_LOG_ID_KEY, String(result.migration_log_id));
+            }
+          }
+
+          return enrichAnalysisWithPomVersion(result.analysis, selectedRepo.url, getCurrentToken());
+        });
 
       analyzePromise
         .then((analysis) => applyRepositoryAnalysis(analysis))
@@ -1354,6 +1384,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const buildMigrationRequest = () => {
     const repoName = selectedRepo?.name || repoUrl.split("/").pop()?.replace(".git", "") || "repo";
+    const persistedMigrationLogId =
+      typeof window !== "undefined" ? Number(window.sessionStorage.getItem(WIZARD_MIGRATION_LOG_ID_KEY)) : NaN;
+    const activeMigrationLogId =
+      migrationLogId || (Number.isFinite(persistedMigrationLogId) && persistedMigrationLogId > 0 ? persistedMigrationLogId : null);
     const finalTargetRepoName = targetRepoName || (
       migrationApproach === "branch"
         ? buildTargetBranchName(repoName, targetRepoTimestamp)
@@ -1369,6 +1403,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     return {
       source_repo_url: selectedRepo?.url || repoUrl,
       target_repo_name: finalTargetRepoName,
+      migration_log_id: activeMigrationLogId,
       platform: detectPlatform(selectedRepo?.url || repoUrl),
       source_java_version: userSelectedVersion || selectedSourceVersion,
       target_java_version: selectedTargetVersion,
@@ -1431,6 +1466,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     fixBusinessLogic,
     selectedSourceVersion,
     userSelectedVersion,
+    migrationLogId,
   ]);
 
   const handleStartMigration = () => {
@@ -1511,6 +1547,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setRepos([]);
     setSelectedRepo(null);
     setRepoAnalysis(null);
+    setMigrationLogId(null);
     setRepoFiles([]);
     setCurrentPath("");
     setTargetRepoName("");
@@ -1555,10 +1592,12 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       window.sessionStorage.removeItem(WIZARD_REPO_URL_KEY);
       window.sessionStorage.removeItem(WIZARD_SELECTED_REPO_KEY);
       window.sessionStorage.removeItem(WIZARD_REPO_ANALYSIS_KEY);
+      window.sessionStorage.removeItem(WIZARD_MIGRATION_LOG_ID_KEY);
       window.sessionStorage.removeItem(WIZARD_FORM_STATE_KEY);
       window.localStorage.removeItem(WIZARD_REPO_URL_KEY);
       window.localStorage.removeItem(WIZARD_SELECTED_REPO_KEY);
       window.localStorage.removeItem(WIZARD_REPO_ANALYSIS_KEY);
+      window.localStorage.removeItem(WIZARD_MIGRATION_LOG_ID_KEY);
     }
   };
 

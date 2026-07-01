@@ -16,6 +16,21 @@ const runtimeOrigin =
 export const APP_BASE_URL = (configuredApiUrl || runtimeOrigin).replace(/\/+$/, "");
 export const API_BASE_URL = `${APP_BASE_URL}/api`;
 export const GITHUB_AUTH_LOGIN_URL = `${API_BASE_URL}/auth/github/login`;
+const APP_AUTH_TOKEN_KEY = "app_auth_token";
+
+function getStoredAppAuthToken() {
+  return typeof localStorage !== "undefined" ? localStorage.getItem(APP_AUTH_TOKEN_KEY) : null;
+}
+
+function appAuthHeaders(appAuthToken: string | null = getStoredAppAuthToken()) {
+  const headers: Record<string, string> = {};
+
+  if (appAuthToken) {
+    headers.Authorization = `Bearer ${appAuthToken}`;
+  }
+
+  return headers;
+}
 
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
@@ -73,6 +88,7 @@ export interface RepoUrlAnalysis {
   owner: string;
   repo: string;
   analysis: RepoAnalysis;
+  migration_log_id?: number | null;
 }
 
 export interface RepoVisibilityInfo {
@@ -181,6 +197,7 @@ export interface MigrationPreview {
 export interface MigrationRequest {
   source_repo_url: string;
   target_repo_name: string;
+  migration_log_id?: number | null;
   migration_approach?: string;
   platform?: string;
   source_java_version: string;
@@ -303,9 +320,11 @@ export async function fetchRepositories(token: string): Promise<RepoInfo[]> {
 // Analyze a repository
 export async function analyzeRepository(token: string, owner: string, repo: string): Promise<RepoAnalysis> {
   const response = await fetch(
-    `${API_BASE_URL}/github/repo/${owner}/${repo}/analyze?token=${encodeURIComponent(token)}`
+    `${API_BASE_URL}/github/repo/${owner}/${repo}/analyze?token=${encodeURIComponent(token)}`,
+    { headers: appAuthHeaders() }
   );
   if (!response.ok) {
+    console.log("Repository analysis failed, error should be stored in migration_history");
     const error = await response.json();
     throw new Error(error.detail || 'Failed to analyze repository');
   }
@@ -314,17 +333,18 @@ export async function analyzeRepository(token: string, owner: string, repo: stri
 
 // NEW: Analyze repository directly by URL (works for public repos without token)
 export async function analyzeRepoUrl(repoUrl: string, token: string = "", appAuthToken: string | null = null): Promise<RepoUrlAnalysis> {
-  const headers: Record<string, string> = {};
-
-  if (appAuthToken) {
-    headers.Authorization = `Bearer ${appAuthToken}`;
-  }
+  const headers = appAuthHeaders(appAuthToken || getStoredAppAuthToken());
 
   const response = await fetch(
     `${API_BASE_URL}/github/analyze-url?repo_url=${encodeURIComponent(repoUrl)}&token=${encodeURIComponent(token)}`,
     { headers }
   );
-  return parseJsonResponse<RepoUrlAnalysis>(response, 'Failed to analyze repository');
+  try {
+    return await parseJsonResponse<RepoUrlAnalysis>(response, 'Failed to analyze repository');
+  } catch (error) {
+    console.log("Repository analysis failed, error should be stored in migration_history");
+    throw error;
+  }
 }
 
 export async function getRepoVisibility(repoUrl: string, token: string = ""): Promise<RepoVisibilityInfo> {

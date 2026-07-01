@@ -83,6 +83,10 @@ class GitLabService:
                     "java_version": None,
                     "has_tests": False,
                     "dependencies": [],
+                    "total_files": 0,
+                    "file_count": 0,
+                    "java_file_count": 0,
+                    "java_files_count": 0,
                     "api_endpoints": [],
                     "structure": {
                         "has_pom_xml": False,
@@ -96,12 +100,18 @@ class GitLabService:
                 files_response = await client.get(
                     f"{self.api_base_url}/projects/{project['id']}/repository/tree",
                     headers=headers,
-                    params={"ref": project.get("default_branch", "main"), "per_page": "100"}
+                    params={"ref": project.get("default_branch", "main"), "per_page": "100", "recursive": "true"}
                 )
 
                 if files_response.status_code == 200:
                     files = files_response.json()
                     file_names = [f["name"] for f in files]
+                    java_file_count = len([name for name in file_names if name.endswith(".java")])
+                    analysis["total_files"] = len(files)
+                    analysis["file_count"] = len(files)
+                    analysis["java_file_count"] = java_file_count
+                    analysis["java_files_count"] = java_file_count
+                    analysis["java_files"] = [f["path"] for f in files if f.get("path", f.get("name", "")).endswith(".java")]
 
                     if "pom.xml" in file_names:
                         analysis["build_tool"] = "maven"

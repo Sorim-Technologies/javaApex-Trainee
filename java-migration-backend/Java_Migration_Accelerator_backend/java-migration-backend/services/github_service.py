@@ -141,6 +141,10 @@ class GitHubService:
                 "java_version": None,
                 "has_tests": False,
                 "dependencies": [],
+                "total_files": 0,
+                "file_count": 0,
+                "java_file_count": 0,
+                "java_files_count": 0,
                 "api_endpoints_by_method": {
                   "GET": [],
                   "POST": [],
@@ -176,6 +180,27 @@ class GitHubService:
             try:
                 contents = repository.get_contents("")
                 file_names = [c.name for c in contents]
+                analysis["total_files"] = len(file_names)
+                analysis["file_count"] = len(file_names)
+                root_java_count = len([name for name in file_names if name.endswith(".java")])
+                if root_java_count:
+                    java_files_found.append(f"root: {root_java_count} Java files")
+                    is_java_project = True
+
+                try:
+                    counted_files = await self._get_all_files_recursive(repository, "", max_depth=5)
+                    if counted_files:
+                        analysis["total_files"] = len(counted_files)
+                        analysis["file_count"] = len(counted_files)
+                        recursive_java_count = len([
+                            item for item in counted_files
+                            if str(item.get("name") or item.get("path") or "").endswith(".java")
+                        ])
+                        if recursive_java_count:
+                            analysis["java_file_count"] = recursive_java_count
+                            analysis["java_files_count"] = recursive_java_count
+                except Exception as count_error:
+                    print(f"[ANALYSIS] File count fallback used: {count_error}")
 
                 # Check for standard build files
                 if "pom.xml" in file_names:
@@ -244,6 +269,17 @@ class GitHubService:
                         analysis["build_tool"] = "standalone"
                         # Detect Java version from source files
                         analysis["java_version"] = await self._detect_java_version_from_repo(repository)
+
+                analysis["java_files"] = java_files_found
+                detected_java_count = sum(
+                    int(match.group(1))
+                    for item in java_files_found
+                    for match in [re.search(r"(\d+)", str(item))]
+                    if match
+                )
+                if detected_java_count:
+                    analysis["java_file_count"] = detected_java_count
+                analysis["java_files_count"] = analysis["java_file_count"]
 
                 if is_java_project:
                  analysis["api_endpoints"] = await self._detect_api_endpoints_in_repo(repository)
