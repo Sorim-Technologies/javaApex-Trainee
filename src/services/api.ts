@@ -238,6 +238,8 @@ export interface RepoAnalysis {
   language: string | null;
   build_tool: string | null;
   java_version: string | null;
+  java_version_from_build?: string | null;
+  java_version_detected_from_build?: boolean;
   // List of discovered Java source file paths
   java_files?: string[];
   has_tests: boolean;

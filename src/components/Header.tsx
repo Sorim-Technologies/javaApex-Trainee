@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import apexLogo from "../assets/apexlogo.png";
 
 interface HeaderProps {
@@ -7,14 +7,29 @@ interface HeaderProps {
 }
 
 export default function Header({ showBackButton = false, onBackToHome }: HeaderProps) {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
+    } catch (e) {
+      return 'light';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    } catch (e) {}
+  }, [theme]);
+
   const styles: { [key: string]: React.CSSProperties } = {
     navbar: {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
       padding: "12px 40px",
-      borderBottom: "1px solid #1e293b",
-      backgroundColor: "rgba(15, 20, 25, 0.95)",
+      borderBottom: "1px solid rgba(148, 163, 184, 0.24)",
+      backgroundColor: "rgba(255, 255, 255, 0.78)",
       backdropFilter: "blur(10px)",
       position: "relative",
     },
@@ -36,7 +51,7 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       alignItems: "center",
     },
     navLink: {
-      color: "#e2e8f0",
+      color: "#475569",
       textDecoration: "none",
       fontSize: 13,
       fontWeight: 500,
@@ -60,10 +75,25 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
       fontSize: 14,
       transition: "all 0.3s ease",
     },
+    toggleButton: {
+      width: 40,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: "transparent",
+      color: "#475569",
+      border: "1px solid rgba(148, 163, 184, 0.18)",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 14,
+      transition: "all 0.25s ease",
+      marginRight: 6,
+    },
     backButton: {
-      backgroundColor: "#f1f5f9",
+      backgroundColor: "#f8fbff",
       color: "#1e293b",
-      border: "1.5px solid #cbd5e1",
+      border: "1.5px solid #dbeafe",
       borderRadius: 8,
       padding: "8px 16px",
       fontWeight: 600,
@@ -127,6 +157,21 @@ export default function Header({ showBackButton = false, onBackToHome }: HeaderP
           </button>
         ) : null}
         
+        {/* Theme toggle */}
+        <button
+          style={styles.toggleButton}
+          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+          title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.06)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          {theme === 'light' ? '🌙' : '☀️'}
+        </button>
+
         {/* Profile Icon */}
         <button
           style={styles.iconButton}

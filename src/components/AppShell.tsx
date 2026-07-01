@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLocation } from "react-router-dom";
 import apexLogo from "../assets/logo.jpg";
 import { GITHUB_AUTH_LOGIN_URL } from "../services/api";
 
@@ -51,6 +52,11 @@ const shellStyles: { [key: string]: React.CSSProperties } = {
 
 const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const location = useLocation();
+
+  if (location.pathname === "/" || location.pathname === "") {
+    return <>{children}</>;
+  }
 
   return (
     <div style={shellStyles.root}>
