@@ -1354,7 +1354,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const destinationPlatform = migrationApproach === "branch"
       ? detectRepositoryPlatform(targetRepoUrlValidation.normalizedUrl || targetRepoUrl)
       : targetRepoPlatform;
-    const destinationToken = migrationApproach === "branch" ? sanitizeRepositoryToken(targetRepoToken) : "";
+    const destinationToken = sanitizeRepositoryToken(targetRepoToken || currentToken);
 
     return {
       source_repo_url: sourceRepoUrl,

@@ -2164,11 +2164,13 @@ async def run_migration(job_id: str, request: MigrationRequest):
         if migration_approach == "branch" and request.target_repo_url:
             destination_platform = detect_platform_from_url(request.target_repo_url)
         target_user_token = sanitize_token(request.target_token or "")
-        if not request.target_platform and not target_user_token:
+        if not target_user_token:
             target_user_token = sanitize_token(request.token or "")
+        if not target_user_token:
+            target_user_token = sanitize_token(request.source_token or "")
 
         push_token = get_effective_token(destination_platform, target_user_token)
-        token_source = "user-provided" if target_user_token else f"default {destination_platform.value} token" if push_token else "not provided"
+        token_source = "user-provided target/source token" if target_user_token else f"default {destination_platform.value} token" if push_token else "not provided"
         add_log(job_id, f"Destination platform: {destination_platform.value}")
         add_log(job_id, f"Using repository token: {token_source}")
 
