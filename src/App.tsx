@@ -1,8 +1,6 @@
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import MigrationWizard from './components/MigrationWizard';
-import AppShell from './components/AppShell';
-import AuthCallback from './components/AuthCallback';
+import { AppShell, AuthCallback, MigrationWizard } from './components/Layout';
 import './App.css';
 
 export default function App() {
@@ -11,7 +9,6 @@ export default function App() {
       <AppShell>
         <Routes>
           <Route path="/auth/callback" element={<AuthCallback />} />
-         
           <Route path="/*" element={<MigrationWizard />} />
         
         </Routes>
