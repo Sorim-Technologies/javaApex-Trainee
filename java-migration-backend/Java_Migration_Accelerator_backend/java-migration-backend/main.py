@@ -403,7 +403,8 @@ async def get_github_repo_visibility(repo_url: str, token: str = ""):
     """Check repository visibility without falling back to the server default token."""
     try:
         owner, repo = await github_service.parse_repo_url(repo_url)
-        repo_info = await github_service.get_repo_info(token.strip(), owner, repo)
+        effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
+        repo_info = await github_service.get_repo_info(effective_token, owner, repo)
 
         return {
             "owner": owner,

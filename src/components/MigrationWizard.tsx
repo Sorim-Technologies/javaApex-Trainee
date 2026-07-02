@@ -1,5 +1,36 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Box, Tab, Tabs } from "@mui/material";
+import {
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Code2,
+  Database,
+  Download,
+  FileBarChart,
+  FileCode2,
+  FileJson,
+  FileSpreadsheet,
+  FileText,
+  Gauge,
+  GitBranch,
+  History,
+  Home,
+  Link2,
+  Moon,
+  Plus,
+  RefreshCw,
+  Rocket,
+  Search,
+  Settings,
+  ShieldCheck,
+  Sun,
+} from "lucide-react";
+import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
 import "./MigrationWizard.css";
 import {
   fetchRepositories,
@@ -19,6 +50,13 @@ import {
   // Import API_BASE_URL for dynamic URL construction
 } from "../services/api";
 import { API_BASE_URL } from "../services/api";
+import DiscoveryDashboard from "./discovery/DiscoveryDashboard";
+import StrategyDashboard from "./strategy/StrategyDashboard";
+import MigrationDetails from "./MigrationDetails.jsx";
+import MigrationProcessChart from "./MigrationProcessChart.jsx";
+import LiveLogs from "./LiveLogs.jsx";
+import AnalysisReport from "./AnalysisReport.jsx";
+import QuickActions from "./QuickActions.jsx";
 import type {
   RepoInfo,
   RepoAnalysis,
@@ -78,37 +116,37 @@ const MIGRATION_STEPS = [
   {
     id: 1,
     name: "Connect",
-    icon: "🔗",
-    description: "Connect to GitHub Repository",
-    summary: "Enter your GitHub repository URL to start the migration process"
+    icon: "1",
+    description: "Connect to Repository",
+    summary: "Enter your repository URL to start the migration process"
   },
   {
     id: 2,
     name: "Discovery",
-    icon: "🔍",
-    description: "Repository Discovery & Dependencies",
+    icon: "2",
+    description: "Repository Analysis",
     summary: "Explore repository structure and analyze project dependencies"
   },
   {
     id: 3,
     name: "Strategy",
-    icon: "📋",
-    description: "Assessment & Migration Strategy",
+    icon: "3",
+    description: "Assessment & Planning",
     summary: "Review assessment results and define the migration roadmap"
   },
   {
     id: 4,
     name: "Migration",
-    icon: "⚡",
-    description: "Build Modernization & Migration",
-    summary: "Execute the upgrade using automation tools and refactor legacy components"
+    icon: "4",
+    description: "Build & Modernization",
+    summary: "Execute migration upgrade using automation tools and refactor legacy components"
   },
   {
     id: 5,
     name: "Result",
-    icon: "📊",
+    icon: "5",
     description: "Migration Results",
-    summary: "View migration report and download migrated project"
+    summary: "View migration results and download reports"
   },
 ];
 
@@ -120,7 +158,49 @@ const STEP_ROUTES: Record<number, string> = {
   5: "/migrating",
   6: "/progress",
   7: "/report",
+  12: "/repositories/pre-post",
+  13: "/repositories/all",
+  14: "/repositories/compare",
+  15: "/repositories/health",
 };
+
+const REPOSITORY_COMPARISON_METRICS = [
+  { label: "Lines of Code", before: "78,923", after: "85,642", delta: "+8.52%", improved: true },
+  { label: "Java Files", before: "842", after: "912", delta: "+8.31%", improved: true },
+  { label: "Dependencies", before: "156", after: "168", delta: "+7.69%", improved: true },
+  { label: "Classes", before: "342", after: "365", delta: "+6.73%", improved: true },
+  { label: "Methods", before: "1,248", after: "1,356", delta: "+8.66%", improved: true },
+  { label: "Issues Found", before: "12", after: "4", delta: "-66.67%", improved: true },
+];
+
+const COMPARISON_TIMELINE = [
+  { name: "May 20", before: 28000, after: 54000 },
+  { name: "May 22", before: 42000, after: 60000 },
+  { name: "May 24", before: 52000, after: 68000 },
+  { name: "May 26", before: 59000, after: 73000 },
+  { name: "May 28", before: 64000, after: 77000 },
+  { name: "May 30", before: 68923, after: 85642 },
+];
+
+const ISSUE_DISTRIBUTION = [
+  { name: "Critical", value: 2, color: "#ef4444" },
+  { name: "Major", value: 5, color: "#f59e0b" },
+  { name: "Minor", value: 3, color: "#2563eb" },
+  { name: "Info", value: 2, color: "#22c55e" },
+];
+
+const DEPENDENCY_CHANGES = [
+  { dependency: "Spring Boot", before: "2.7.5", after: "3.2.5", status: "Updated" },
+  { dependency: "Spring Framework", before: "5.3.23", after: "6.1.6", status: "Updated" },
+  { dependency: "Hibernate Core", before: "5.6.15", after: "6.4.4", status: "Updated" },
+  { dependency: "Lombok", before: "1.18.20", after: "1.18.30", status: "Updated" },
+];
+
+const RECOMMENDATIONS = [
+  { label: "Remove unused dependencies", severity: "Info" },
+  { label: "Update deprecated APIs", severity: "Medium" },
+  { label: "Optimize complex methods", severity: "Low" },
+];
 
 const getStepFromPath = (pathname: string) => {
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
@@ -179,7 +259,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const buildTargetRepoUrl = (repoName: string, timestamp: string) =>
-    `https://github.com/SrikkanthSorim/${repoName || "repo"}-Migrated${timestamp}`;
+    `https://github.com/sahana-2924/${repoName || "repo"}-Migrated${timestamp}`;
 
   const buildTargetBranchName = (repoName: string, timestamp: string) =>
     `migration/${repoName || "repo"}-Migrated${timestamp}`;
@@ -206,6 +286,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     persistedFormState?.isPrivateRepo ?? false
   );
   const [patToken, setPatToken] = useState(persistedFormState?.patToken ?? "");
+  const [repositoryMenuOpen, setRepositoryMenuOpen] = useState(true);
   // Show token input only for GitHub Enterprise
   const isEnterpriseGithub = (url: string) => {
     // Matches github.<anything>.com but not github.com
@@ -241,7 +322,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         return { 
           valid: true, 
           normalizedUrl: normalized, 
-          message: `✓ URL normalized (removed tree/blob paths)` 
+          message: ` URL normalized (removed tree/blob paths)` 
         };
       }
       return { valid: true, normalizedUrl: normalized, message: "" };
@@ -355,6 +436,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [versionRecommendation, setVersionRecommendation] = useState<JavaVersionRecommendationResponse | null>(null);
   const [versionRecommendationLoading, setVersionRecommendationLoading] = useState(false);
   const [versionRecommendationError, setVersionRecommendationError] = useState("");
+  const [activeMigrationTab, setActiveMigrationTab] = useState(0);
   const currentIndicatorStep = getIndicatorStep(step);
 
   const migrationApproachOptions = [
@@ -363,7 +445,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       label: "Create New Repository",
       desc: "Push migrated code to a new repository in your account",
       tooltip: "Creates an entirely new repository with the migrated code in your connected GitHub account.",
-      icon: "🍴",
+      icon: "",
       color: "#f59e0b",
     },
     {
@@ -371,7 +453,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       label: "Existing Repository (New Branch)",
       desc: "Push migrated code to a new branch in the source repository",
       tooltip: "Keeps the existing repository and publishes the migrated code on a separate branch for review and merge.",
-      icon: "🌿",
+      icon: "",
       color: "#22c55e",
     },
   ];
@@ -855,7 +937,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   }, [runFossa, migrationJob?.job_id, migrationJob?.fossa_policy_status, migrationJob?.fossa_total_dependencies]);
 
   const detectedJavaVersion = (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build || "").toString().trim();
-  const detectedJavaStructureLabel = detectedJavaVersion ? `✓ Java ${detectedJavaVersion}` : "✗ Java version";
+  const detectedJavaStructureLabel = detectedJavaVersion ? ` Java ${detectedJavaVersion}` : " Java version";
   const availableTargetVersions = useMemo(() => {
     const sourceVersionNumber = parseJavaVersion(selectedSourceVersion);
     if (sourceVersionNumber === null) {
@@ -1159,7 +1241,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       stuckCheckInterval = setInterval(() => {
         const timeSinceLastUpdate = Date.now() - lastUpdateTime;
         if (timeSinceLastUpdate > 30000 && migrationJob?.status === "cloning") {
-          setError("⚠️ Migration appears to be stuck on cloning. This may be due to a large repository or network issues. Please wait a bit longer or restart the migration.");
+          setError(" Migration appears to be stuck on cloning. This may be due to a large repository or network issues. Please wait a bit longer or restart the migration.");
         }
       }, 15000);
     }
@@ -1356,12 +1438,263 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
   };
 
+  const completedWorkflowSteps = Math.max(0, Math.min(4, currentIndicatorStep - 1));
+  const migrationProgressPercent = completedWorkflowSteps * 25;
+  const connectedRepositoryCount = selectedRepo ? 1 : 0;
+  const filesScannedCount = repoFiles.length || repoAnalysis?.java_files?.length || 0;
+  const javaFilesCount = repoAnalysis?.java_files?.length || 0;
+  const dependenciesCount = repoAnalysis?.dependencies?.length || migrationJob?.dependencies?.length || 0;
+  const issuesFoundCount = migrationJob
+    ? (migrationJob.total_errors || 0) + (migrationJob.total_warnings || 0)
+    : migrationJob?.issues?.length || 0;
+  const analysisStatus = repoAnalysis || migrationJob ? "Completed" : analysisLoading ? "Running" : "Pending";
+
+  const progressChartData = MIGRATION_STEPS.map((item) => {
+    const value =
+      item.id === 1
+        ? 100
+        : currentIndicatorStep > item.id
+          ? 100
+          : currentIndicatorStep === item.id
+            ? 25
+            : 0;
+
+    return {
+      name: item.name,
+      value,
+      color:
+        item.id === 1
+          ? "#10B981"
+          : item.id === 2
+            ? "#2563EB"
+            : item.id === 3
+              ? "#F59E0B"
+              : item.id === 4
+                ? "#7C3AED"
+                : "#EF4444",
+    };
+  });
+
+  const kpiCards = [
+    {
+      label: "Migration Progress",
+      value: `${migrationProgressPercent}%`,
+      detail: `${completedWorkflowSteps} of 4 steps completed`,
+      icon: Gauge,
+      tone: "blue",
+    },
+    {
+      label: "Repositories",
+      value: String(connectedRepositoryCount),
+      detail: "Total connected",
+      icon: Database,
+      tone: "blue",
+    },
+    {
+      label: "Analysis Status",
+      value: analysisStatus,
+      detail: repoAnalysis || migrationJob ? "Last run: current session" : "Awaiting repository",
+      icon: BarChart3,
+      tone: repoAnalysis || migrationJob ? "green" : "blue",
+    },
+    {
+      label: "Issues Found",
+      value: String(issuesFoundCount),
+      detail: issuesFoundCount > 0 ? "Needs attention" : "No issues reported",
+      icon: AlertTriangle,
+      tone: issuesFoundCount > 0 ? "red" : "green",
+    },
+  ];
+
+  const reportSummaryCards = [
+    { label: "Files scanned", value: filesScannedCount, icon: FileText, tone: "blue" },
+    { label: "Java files", value: javaFilesCount, icon: FileCode2, tone: "cyan" },
+    { label: "Dependencies", value: dependenciesCount, icon: Code2, tone: "purple" },
+    { label: "Issues Found", value: issuesFoundCount, icon: AlertTriangle, tone: issuesFoundCount > 0 ? "red" : "green" },
+  ];
+
+  const handleDashboardReportDownload = (format: "pdf" | "xlsx" | "json") => {
+    if (!migrationJob) return;
+
+    if (format === "pdf") {
+      const reportUrl = `${API_BASE_URL}/migration/${migrationJob.job_id}/report`;
+      window.open(reportUrl, "_blank");
+      return;
+    }
+
+    const reportPayload = {
+      repository: migrationJob.source_repo,
+      targetRepository: migrationJob.target_repo,
+      status: migrationJob.status,
+      sourceJavaVersion: migrationJob.source_java_version,
+      targetJavaVersion: migrationJob.target_java_version,
+      filesModified: migrationJob.files_modified,
+      issuesFixed: migrationJob.issues_fixed,
+      totalErrors: migrationJob.total_errors,
+      totalWarnings: migrationJob.total_warnings,
+      dependencies: migrationJob.dependencies,
+      generatedAt: new Date().toISOString(),
+    };
+
+    const content = format === "json"
+      ? JSON.stringify(reportPayload, null, 2)
+      : [
+          "Metric,Value",
+          `Repository,${migrationJob.source_repo}`,
+          `Target Repository,${migrationJob.target_repo || "N/A"}`,
+          `Status,${migrationJob.status}`,
+          `Java Version,${migrationJob.source_java_version} to ${migrationJob.target_java_version}`,
+          `Files Modified,${migrationJob.files_modified}`,
+          `Issues Fixed,${migrationJob.issues_fixed}`,
+          `Total Errors,${migrationJob.total_errors}`,
+          `Total Warnings,${migrationJob.total_warnings}`,
+        ].join("\n");
+
+    const blob = new Blob([content], { type: format === "json" ? "application/json" : "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `java-apex-analysis-report.${format === "xlsx" ? "csv" : format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const focusRepositoryInput = () => {
+    document.getElementById("repository-url-input")?.focus();
+  };
+
+  const renderSidebar = () => {
+    const isRepositoriesPage = [12, 13, 14, 15].includes(step);
+
+    return (
+      <aside className="apex-sidebar">
+        <div className="apex-brand">
+          <div className="apex-brand-mark">JA</div>
+          <div>
+            <div className="apex-brand-title">Java APEX</div>
+            <div className="apex-brand-subtitle">Full Migration</div>
+          </div>
+        </div>
+
+        <button className="apex-nav-item active" type="button" onClick={() => setStep(1)}>
+          <Home size={18} />
+          <span>Dashboard</span>
+        </button>
+
+        <div className="apex-sidebar-section">Migration Flow</div>
+        <div className="apex-flow-list">
+        {MIGRATION_STEPS.map((item) => {
+          const Icon = item.id === 1 ? Link2 : item.id === 2 ? Search : item.id === 3 ? FileBarChart : item.id === 4 ? Rocket : ShieldCheck;
+          const isActive = currentIndicatorStep === item.id;
+          const isComplete = currentIndicatorStep > item.id;
+          const isUnlocked = item.id <= maxVisitedIndicatorStep;
+
+          return (
+            <button
+              key={item.id}
+              className={`apex-flow-item${isActive ? " active" : ""}`}
+              type="button"
+              disabled={!isUnlocked}
+              onClick={() => isUnlocked && setStep(item.id)}
+            >
+              <span className="apex-flow-icon"><Icon size={16} /></span>
+              <span className="apex-flow-copy">
+                <strong>{item.name}</strong>
+                <small>Step {item.id} - {isActive ? "Active" : isComplete ? "Completed" : "Pending"}</small>
+              </span>
+              <span className={`apex-step-dot${isComplete ? " complete" : ""}`}>{isComplete ? <CheckCircle2 size={16} /> : null}</span>
+            </button>
+          );
+        })}
+      </div>
+
+        <div className="apex-sidebar-section">Management</div>
+        <nav className="apex-management-nav" aria-label="Management">
+          <button
+            type="button"
+            className={`apex-nav-item ${isRepositoriesPage ? "active" : ""}`}
+            onClick={() => setRepositoryMenuOpen((current) => !current)}
+            aria-expanded={repositoryMenuOpen}
+          >
+            <Database size={17} />
+            <span>Repositories</span>
+            <ChevronDown size={16} style={{ marginLeft: "auto", transform: repositoryMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }} />
+          </button>
+          {repositoryMenuOpen && (
+            <div className="apex-submenu">
+              <button type="button" className={`apex-sidebar-subitem ${step === 13 ? "active" : ""}`} onClick={() => setStep(13)}>All Repositories</button>
+              <button type="button" className={`apex-sidebar-subitem ${step === 14 ? "active" : ""}`} onClick={() => setStep(14)}>Compare Repositories</button>
+              <button type="button" className={`apex-sidebar-subitem ${step === 12 ? "active" : ""}`} onClick={() => setStep(12)}>Pre & Post Migration</button>
+              <button type="button" className={`apex-sidebar-subitem ${step === 15 ? "active" : ""}`} onClick={() => setStep(15)}>Repository Health</button>
+            </div>
+          )}
+          <button type="button" onClick={() => setStep(7)}><FileBarChart size={17} />Analysis Report</button>
+          <button type="button"><History size={17} />History</button>
+          <button type="button"><Settings size={17} />Settings</button>
+        </nav>
+
+      <div className="apex-sidebar-progress">
+        <div className="apex-sidebar-card-title">Migration Progress</div>
+        <div className="apex-sidebar-progress-row">
+          <div className="apex-mini-ring" style={{ background: `conic-gradient(#10B981 ${migrationProgressPercent}%, rgba(255,255,255,0.2) 0)` }}>
+            <span />
+          </div>
+          <div>
+            <strong>{migrationProgressPercent}%</strong>
+            <small>{completedWorkflowSteps} of 4 completed</small>
+          </div>
+        </div>
+        <div className="apex-sidebar-bar"><span style={{ width: `${migrationProgressPercent}%` }} /></div>
+      </div>
+
+      <div className="apex-user-card">
+        <div className="apex-avatar">A</div>
+        <div><strong>Admin</strong><span>Migration Admin</span></div>
+      </div>
+    </aside>
+  );
+  };
+
+  const renderTopHeader = () => (
+    <header className="apex-top-header">
+      <div>
+        <h1>JAVA APEX FULL MIGRATION</h1>
+        <p>Manage and track your Java migration journey</p>
+      </div>
+      <div className="apex-header-actions">
+        <button className="apex-theme-toggle" type="button" aria-label="Toggle theme"><Sun size={15} /><Moon size={15} /></button>
+        <button className="apex-icon-button" type="button" aria-label="Notifications"><Bell size={19} /><span>3</span></button>
+        <div className="apex-profile"><div className="apex-avatar">A</div><strong>Admin</strong><ChevronDown size={16} /></div>
+      </div>
+    </header>
+  );
+
+  const renderKpiCards = () => (
+    <section className="apex-kpi-grid" aria-label="Dashboard metrics">
+      {kpiCards.map((card) => {
+        const Icon = card.icon;
+        return (
+          <article className="apex-kpi-card" key={card.label}>
+            <div className={`apex-kpi-icon ${card.tone}`}><Icon size={25} /></div>
+            <div>
+              <span>{card.label}</span>
+              <strong className={card.tone === "red" ? "danger" : card.tone === "green" ? "success" : ""}>{card.value}</strong>
+              <small>{card.detail}</small>
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
   const renderStepIndicator = () => (
     <div style={styles.stepIndicator}>
       {MIGRATION_STEPS.map((s, index) => {
         const isCompleted = currentIndicatorStep > s.id;
         const isActive = currentIndicatorStep === s.id;
         const isUnlocked = s.id <= maxVisitedIndicatorStep;
+        const statusText = isCompleted ? "Completed" : isActive ? "Active" : "Pending";
 
         return (
         <React.Fragment key={s.id}>
@@ -1386,7 +1719,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               fontSize: 18,
               boxShadow: isActive ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none"
             }}>
-              {step > s.id ? "✓" : s.icon}
+              {isCompleted ? "OK" : s.icon}
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ 
@@ -1403,7 +1736,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 maxWidth: 100,
                 lineHeight: 1.3
               }}>
-                {s.description}
+                {statusText}
               </div>
             </div>
           </div>
@@ -1428,1162 +1761,244 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
   const renderStep1 = () => {
     return (
-      <div style={styles.card}>
-        <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🔗</span>
-          <div>
-            <h2 style={styles.title}>Connect Repository</h2>
-            <p style={styles.subtitle}>Enter a GitHub repository URL to start migration analysis.</p>
+      <>
+        {renderKpiCards()}
+
+        <section className="apex-dashboard-grid">
+          <article className="apex-card apex-repository-card">
+            <div className="apex-section-header">
+              <div>
+                <h2>Intelligent Repository Connection</h2>
+                <p>Initialize migration by providing a repository endpoint.</p>
+              </div>
+            </div>
+
+            <div className="apex-repository-panel">
+              <div className="apex-panel-heading">
+                <h3>Repository Information</h3>
+                <button className="apex-primary-button compact" type="button" onClick={focusRepositoryInput}>
+                  <Plus size={16} />
+                  Insert Repository
+                </button>
+              </div>
+
+              <div className="apex-form-grid">
+                <label className="apex-field-label" htmlFor="repository-source">Repository Source</label>
+                <div className="apex-select-wrap">
+                  <GitBranch size={17} />
+                  <select id="repository-source" value="GitHub" disabled aria-label="Repository Source">
+                    <option>GitHub</option>
+                  </select>
+                </div>
+                <div />
+
+                <label className="apex-field-label" htmlFor="repository-url-input">Repository URL</label>
+                <input
+                  id="repository-url-input"
+                  type="text"
+                  className={`apex-input${repoUrl && !urlValidation.valid ? " invalid" : urlValidation.valid ? " valid" : ""}`}
+                  value={repoUrl}
+                  onChange={(e) => {
+                    setRepoUrl(e.target.value);
+                    setSelectedRepo(null);
+                    setRepoAnalysis(null);
+                    setIsPrivateRepo(false);
+                    setPatToken("");
+                    setError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && urlValidation.valid) {
+                      void handleRepositoryContinue();
+                    }
+                  }}
+                  placeholder="https://github.com/owner/repository"
+                />
+                <label className="apex-token-check">
+                  <input
+                    type="checkbox"
+                    checked={isPrivateRepo}
+                    onChange={(event) => setIsPrivateRepo(event.target.checked)}
+                  />
+                  Scan Private Token
+                </label>
+              </div>
+
+              <p className="apex-helper-text">
+                Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+              </p>
+
+              {repoAccessCheckLoading && !shouldShowPatInput && (
+                <p className="apex-status-line running"><RefreshCw size={15} />Checking repository access...</p>
+              )}
+
+              {shouldShowPatInput && (
+                <div className="apex-token-panel">
+                  <label className="apex-field-label" htmlFor="pat-token-input">
+                    GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
+                  </label>
+                  <input
+                    id="pat-token-input"
+                    type="password"
+                    className={`apex-input${(showEnterpriseToken ? githubToken : patToken) ? " valid" : ""}`}
+                    value={showEnterpriseToken ? githubToken : patToken}
+                    onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
+                    placeholder="Paste your GitHub PAT here"
+                    autoComplete="off"
+                  />
+                  <p className="apex-helper-text inset">
+                    {showEnterpriseToken
+                      ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
+                      : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
+                  </p>
+                </div>
+              )}
+
+              {repoUrl && !urlValidation.valid && (
+                <p className="apex-status-line invalid"><AlertTriangle size={15} />{urlValidation.message}</p>
+              )}
+              {urlValidation.valid && (
+                <p className="apex-status-line valid"><CheckCircle2 size={15} />Valid repository URL</p>
+              )}
+
+              <div className="apex-form-actions">
+                <button
+                  className="apex-primary-button"
+                  type="button"
+                  disabled={!urlValidation.valid}
+                  onClick={() => void handleRepositoryContinue()}
+                >
+                  Start Migration Analysis
+                  <ChevronRight size={17} />
+                </button>
+              </div>
+            </div>
+          </article>
+
+          <article className="apex-card apex-progress-card">
+            <div className="apex-section-header compact">
+              <h2>Migration Progress Overview</h2>
+            </div>
+            <div className="apex-chart-layout">
+              <div className="apex-donut-wrap">
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={progressChartData} dataKey="value" innerRadius={72} outerRadius={110} paddingAngle={1} startAngle={90} endAngle={-270}>
+                      {progressChartData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="apex-donut-center"><strong>{migrationProgressPercent}%</strong><span>Completed</span></div>
+              </div>
+              <div className="apex-chart-legend">
+                {progressChartData.map((item) => (
+                  <div className="apex-legend-row" key={item.name}>
+                    <span style={{ backgroundColor: item.color }} />
+                    <strong>{item.name}</strong>
+                    <em>{item.value}%</em>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="apex-info-strip"><BarChart3 size={17} />Complete all steps to finish your migration</div>
+          </article>
+        </section>
+
+        <section className="apex-card apex-report-download-grid">
+          <div className="apex-analysis-card">
+            <div className="apex-section-header">
+              <div>
+                <h2>Analysis Report</h2>
+                <p>Download detailed analysis report and findings</p>
+              </div>
+            </div>
+
+            <div className={`apex-success-alert${repoAnalysis || migrationJob ? " ready" : ""}`}>
+              <CheckCircle2 size={24} />
+              <div>
+                <strong>{repoAnalysis || migrationJob ? "Analysis completed successfully" : "Analysis report pending"}</strong>
+                <span>{repoAnalysis || migrationJob ? "Repository analysis data is available" : "Connect a repository to generate report data"}</span>
+              </div>
+              {repoAnalysis && (
+                <button className="apex-secondary-button small" type="button" onClick={() => void handleRepositoryContinue()}>
+                  <RefreshCw size={15} />Re-run Analysis
+                </button>
+              )}
+            </div>
+
+            <div className="apex-report-stat-grid">
+              {reportSummaryCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div className="apex-report-stat" key={card.label}>
+                    <div className={`apex-report-stat-icon ${card.tone}`}><Icon size={20} /></div>
+                    <div><span>{card.label}</span><strong>{card.value}</strong></div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        <div style={styles.field}>
-          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: 8 }}>
-            Repository URL
-            {/* Info Button with Tooltip */}
-            <div style={{ position: "relative", display: "inline-block" }}>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  backgroundColor: "#e2e8f0",
-                  color: "#64748b",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "help",
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#3b82f6";
-                  e.currentTarget.style.color = "#fff";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "block";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e2e8f0";
-                  e.currentTarget.style.color = "#64748b";
-                  const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (tooltip) tooltip.style.display = "none";
-                }}
-              >
-                i
-              </span>
-              {/* Tooltip */}
-              <div
-                style={{
-                  display: "none",
-                  position: "absolute",
-                  top: 24,
-                  left: 0,
-                  backgroundColor: "#1e293b",
-                  color: "#fff",
-                  padding: "12px 16px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  whiteSpace: "nowrap",
-                  zIndex: 1000,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: "#94a3b8" }}>Supported formats:</div>
-                <div>• https://github.com/owner/repo</div>
-                <div>• github.com/owner/repo</div>
-                <div>• owner/repo</div>
-                {/* Arrow */}
-                <div style={{
-                  position: "absolute",
-                  top: -6,
-                  left: 9,
-                  width: 0,
-                  height: 0,
-                  borderLeft: "6px solid transparent",
-                  borderRight: "6px solid transparent",
-                  borderBottom: "6px solid #1e293b"
-                }} />
+          <div className="apex-download-card">
+            <div className="apex-section-header compact">
+              <div>
+                <h2>Download Report</h2>
+                <p>Get the complete analysis report in your preferred format</p>
               </div>
             </div>
-          </label>
-          <input
-            type="text"
-            style={{ ...styles.input, borderColor: urlValidation.valid ? '#22c55e' : repoUrl ? '#ef4444' : '#e2e8f0' }}
-            value={repoUrl}
-            onChange={(e) => {
-              setRepoUrl(e.target.value);
-              setSelectedRepo(null);
-              setRepoAnalysis(null);
-              setIsPrivateRepo(false);
-              setPatToken("");
-              setError("");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && urlValidation.valid) {
-                void handleRepositoryContinue();
-              }
-            }}
-            placeholder="https://github.com/owner/repository"
-          />
-          {!shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>
-              Public GitHub repositories can be analyzed without a token. If the repository is private, we&apos;ll ask for a PAT after detection.
+            <div className="apex-download-buttons">
+              <button type="button" disabled={!migrationJob} onClick={() => handleDashboardReportDownload("pdf")}><Download size={16} />PDF</button>
+              <button type="button" disabled={!migrationJob} onClick={() => handleDashboardReportDownload("xlsx")}><FileSpreadsheet size={16} />Excel</button>
+              <button type="button" disabled={!migrationJob} onClick={() => handleDashboardReportDownload("json")}><FileJson size={16} />JSON</button>
             </div>
-          )}
-          {repoAccessCheckLoading && !shouldShowPatInput && (
-            <div style={{ fontSize: 12, color: '#2563eb', marginTop: 8 }}>
-              Checking repository access...
-            </div>
-          )}
-          {shouldShowPatInput && (
-            <div style={{ marginTop: 16 }}>
-              <label style={{ ...styles.label, fontWeight: 500 }}>
-                GitHub Personal Access Token ({showEnterpriseToken || isPrivateRepo ? "required" : "optional"})
-              </label>
-              <input
-                type="password"
-                style={{ ...styles.input, borderColor: (showEnterpriseToken ? githubToken : patToken) ? '#22c55e' : '#e2e8f0' }}
-                value={showEnterpriseToken ? githubToken : patToken}
-                onChange={e => showEnterpriseToken ? setGithubToken(e.target.value) : setPatToken(e.target.value)}
-                placeholder="Paste your GitHub PAT here"
-                autoComplete="off"
-              />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                {showEnterpriseToken
-                  ? <>Required for GitHub Enterprise repository analysis. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>
-                  : <>Required because this repository appears to be private. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener noreferrer">How to create a PAT?</a></>}
-              </div>
-            </div>
-          )}
-          {repoUrl && !urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>
-              ⚠️ {urlValidation.message}
-            </div>
-          )}
-          {urlValidation.valid && (
-            <div style={{ fontSize: 12, color: '#22c55e', marginTop: 6 }}>
-              ✓ Valid repository URL
-            </div>
-          )}
-        </div>
-
-        <div style={styles.btnRow}>
-          <button
-            style={{ ...styles.primaryBtn, opacity: !urlValidation.valid ? 0.5 : 1 }}
-            disabled={!urlValidation.valid}
-            onClick={() => void handleRepositoryContinue()}
-          >
-            Continue →
-          </button>
-        </div>
-      </div>
+            <h3>Report Includes</h3>
+            <ul className="apex-report-includes">
+              <li><CheckCircle2 size={15} />Code Analysis Summary</li>
+              <li><CheckCircle2 size={15} />Dependency Analysis</li>
+              <li><CheckCircle2 size={15} />Migration Recommendations</li>
+              <li><CheckCircle2 size={15} />Issue Details</li>
+              <li><CheckCircle2 size={15} />Fix Suggestions</li>
+            </ul>
+          </div>
+        </section>
+      </>
     );
   };
-
   // Consolidated Step 2: Discovery (Repository discovery + Dependencies)
   const renderDiscoveryStep = () => {
-    // Helper function to handle file click
-    const handleFileClick = async (file: RepoFile) => {
-      if (file.type === "dir") {
-        setPathHistory(prev => [...prev, file.path]);
-        setCurrentPath(file.path);
-        setSelectedFile(null);
-        setFileContent("");
-        setEditedContent("");
-        setIsEditing(false);
-      } else {
-        setFileLoading(true);
-        setSelectedFile(file);
-        try {
-          const response = await getFileContent(selectedRepo!.url, file.path, currentToken);
-          setFileContent(response.content);
-          setEditedContent(response.content);
-        } catch (err) {
-          setError("Failed to load file content");
-        } finally {
-          setFileLoading(false);
-        }
-      }
-    };
-
-    // Helper to navigate back in folder structure
-    const navigateBack = () => {
-      if (pathHistory.length > 1) {
-        const newHistory = [...pathHistory];
-        newHistory.pop();
-        setPathHistory(newHistory);
-        setCurrentPath(newHistory[newHistory.length - 1]);
-        setSelectedFile(null);
-        setFileContent("");
-        setEditedContent("");
-        setIsEditing(false);
-      }
-    };
-
-    // Helper to navigate to root
-    const navigateToRoot = () => {
-      setPathHistory([""]);
-      setCurrentPath("");
-      setSelectedFile(null);
-      setFileContent("");
-      setEditedContent("");
-      setIsEditing(false);
-    };
-
-    // Get file extension for syntax highlighting hint
-    const getFileLanguage = (fileName: string) => {
-      const ext = fileName.split('.').pop()?.toLowerCase();
-      const langMap: { [key: string]: string } = {
-        'java': 'Java',
-        'xml': 'XML',
-        'json': 'JSON',
-        'yml': 'YAML',
-        'yaml': 'YAML',
-        'properties': 'Properties',
-        'md': 'Markdown',
-        'gradle': 'Gradle',
-        'kt': 'Kotlin',
-        'js': 'JavaScript',
-        'ts': 'TypeScript',
-        'html': 'HTML',
-        'css': 'CSS',
-        'sql': 'SQL',
-        'sh': 'Shell',
-        'bat': 'Batch',
-        'txt': 'Text'
-      };
-      return langMap[ext || ''] || 'Text';
-    };
-
-    // Get file icon based on type
-    const getFileIcon = (file: RepoFile) => {
-      if (file.type === "dir") return "📁";
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      const iconMap: { [key: string]: string } = {
-        'java': '☕',
-        'xml': '📋',
-        'json': '📦',
-        'yml': '⚙️',
-        'yaml': '⚙️',
-        'properties': '🔧',
-        'md': '📝',
-        'gradle': '🐘',
-        'kt': '🎯',
-        'js': '🟨',
-        'ts': '🔷',
-        'html': '🌐',
-        'css': '🎨',
-        'sql': '🗄️',
-        'sh': '💻',
-        'txt': '📄'
-      };
-      return iconMap[ext || ''] || '📄';
-    };
-
-    const detectedBuildType = repoAnalysis?.build_tool ||
-      (repoAnalysis?.structure?.has_pom_xml ? "maven" : repoAnalysis?.structure?.has_build_gradle ? "gradle" : null);
-    const detectedJavaVersion = repoAnalysis?.java_version || repoAnalysis?.java_version_from_build || null;
-    const primaryDetectedFramework =
-      detectedFrameworks.find((fw) => fw.type === "Application Framework")?.name ||
-      detectedFrameworks.find((fw) => fw.type === "ORM Framework")?.name ||
-      detectedFrameworks[0]?.name ||
-      null;
-    const recommendedBuildConversionId = detectedBuildType === "maven"
-      ? "maven_to_gradle"
-      : detectedBuildType === "gradle"
-        ? "gradle_to_maven"
-        : null;
-    const hasRecommendedBuildConversion = Boolean(
-      recommendedBuildConversionId && conversionTypes.some((ct) => ct.id === recommendedBuildConversionId)
-    );
-
-    const buildConversionLabel = detectedBuildType === "maven"
-      ? "Maven to Gradle build"
-      : detectedBuildType === "gradle"
-        ? "Gradle to Maven build"
-        : "Proceed with migration";
-
-    const buildConversionNote = detectedBuildType === "maven"
-      ? "Detected Maven project; convert to a Gradle build."
-      : detectedBuildType === "gradle"
-        ? "Detected Gradle project; convert to a Maven build."
-        : "No specific build tool conversion detected.";
-
-    const applyRecommendedBuildConversion = () => {
-      if (!recommendedBuildConversionId) return;
-
-      const nextSelections = [recommendedBuildConversionId];
-      if (selectedConversions.includes("java_version")) {
-        nextSelections.push("java_version");
-      }
-
-      setSelectedConversions(nextSelections);
+    const loadRepositoryPath = async (path: string) => {
+      if (!selectedRepo) return [];
+      const response = await listRepoFiles(selectedRepo.url, currentToken, path);
+      return response.files;
     };
 
     return (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔍</span>
-        <div>
-          <h2 style={styles.title}>Repository Discovery & Dependencies</h2>
-          <p style={styles.subtitle}>{MIGRATION_STEPS[1].summary}</p>
-        </div>
-        {analysisLoading && (
-          <div style={styles.timerBadge}>
-            <span style={styles.timerLabel}>Live Timer</span>
-            <span style={styles.timerValue}>{formattedAnalysisElapsed}</span>
-          </div>
-        )}
-      </div>
-
-      {selectedRepo && (
-        <>
-          {analysisLoading ? <div style={styles.loadingBox}><div style={styles.spinner}></div><span>Analyzing repository...</span></div> : (
-            <>
-              {/* Not a Java Project Alert or No Framework Detected */}
-              {isJavaProject === false ? (
-                <div style={{
-                  background: "#fef2f2",
-                  border: "2px solid #ef4444",
-                  borderRadius: 12,
-                  padding: 20,
-                  marginBottom: 24,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 16
-                }}>
-                  <span style={{ fontSize: 32 }}>⚠️</span>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>
-                      This is not a Java Project
-                    </div>
-                    <div style={{ fontSize: 14, color: "#b91c1c", lineHeight: 1.6 }}>
-                      The repository you connected does not appear to be a Java project. 
-                      This tool is designed specifically for Java application migration. 
-                      Please connect a repository that contains Java source code, 
-                      Maven (pom.xml), or Gradle (build.gradle) configuration files.
-                    </div>
-                    <button 
-                      style={{ 
-                        marginTop: 16, 
-                        backgroundColor: "#ef4444", 
-                        color: "#fff", 
-                        border: "none", 
-                        borderRadius: 8, 
-                        padding: "10px 20px", 
-                        fontWeight: 600, 
-                        cursor: "pointer",
-                        fontSize: 14
-                      }}
-                      onClick={() => {
-                        setStep(1);
-                        setSelectedRepo(null);
-                        setRepoAnalysis(null);
-                        setIsJavaProject(null);
-                        setRepoUrl("");
-                      }}
-                    >
-                      ← Connect Different Repository
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Java project but no framework detected */}
-              {isJavaProject && detectedFrameworks.length === 0 && (
-                <div style={{
-                  background: "#fef9c3",
-                  border: "2px solid #facc15",
-                  borderRadius: 12,
-                  padding: 20,
-                  marginBottom: 24,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 16
-                }}>
-                  <span style={{ fontSize: 32 }}>ℹ️</span>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
-                      Java Project Detected (No Framework)
-                    </div>
-                    <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.6 }}>
-                      This repository contains Java source files but no recognized framework (e.g., Spring, Spring Boot, Jakarta EE) was detected. You can still proceed with migration, but some automation features may be limited.
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Show discovery content only if it's a Java project */}
-              {isJavaProject !== false && (
-                <>
-                  {/* High Risk Project Warning (no pom.xml/build.gradle or unknown Java version) */}
-                  {isHighRiskProject && !highRiskConfirmed && (
-                    <div style={{
-                      background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
-                      border: "2px solid #f59e0b",
-                      borderRadius: 12,
-                      padding: 24,
-                      marginBottom: 24,
-                      boxShadow: "0 4px 12px rgba(245, 158, 11, 0.15)"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
-                        <span style={{ fontSize: 40 }}>⚠️</span>
-                        <div>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
-                            High Risk Migration Detected
-                          </div>
-                      <div style={{ fontSize: 14, color: "#a16207", lineHeight: 1.7 }}>
-                            This project may be missing Java version configuration and may require additional setup:
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Missing Items */}
-                      <div style={{
-                        background: "rgba(255,255,255,0.7)",
-                        borderRadius: 8,
-                        padding: 16,
-                        marginBottom: 20
-                      }}>
-                        <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>🔍 Missing Components:</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                          {!repoAnalysis?.structure?.has_pom_xml && !repoAnalysis?.structure?.has_build_gradle && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> No pom.xml or build.gradle
-                            </div>
-                          )}
-                          {(!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Java version not detected
-                            </div>
-                          )}
-                          {!repoAnalysis?.structure?.has_src_main && (
-                            <div style={{
-                              background: "#fef2f2",
-                              border: "1px solid #fecaca",
-                              borderRadius: 6,
-                              padding: "8px 12px",
-                              fontSize: 13,
-                              color: "#991b1b",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6
-                            }}>
-                              <span>❌</span> Non-standard project structure
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Suggested Configuration */}
-                      <div style={{
-                        background: "rgba(255,255,255,0.7)",
-                        borderRadius: 8,
-                        padding: 16,
-                        marginBottom: 20
-                      }}>
-                        <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 12 }}>💡 Suggested Configuration:</div>
-                        
-                        {/* Java Version Selection */}
-                        <div style={{ marginBottom: 16 }}>
-                          <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#78350f", marginBottom: 6 }}>
-                            {sourceVersionStatus === "detected" ? "Java version automatically detected" : "Select Source Java Version:"}
-                          </label>
-                          {sourceVersionStatus === "detected" && suggestedJavaVersion !== "auto" ? (
-                            <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #d1d5db", backgroundColor: "#f8fafc", minWidth: 200, color: "#0f172a" }}>
-                              Java {suggestedJavaVersion} detected from source code
-                            </div>
-                          ) : (
-                            <>
-                              <select
-                                value={suggestedJavaVersion}
-                                onChange={(e) => {
-                                  setSuggestedJavaVersion(e.target.value);
-                                  setSelectedSourceVersion(e.target.value === "auto" ? "8" : e.target.value); // Default to 8 if auto-detect
-                                  setUserSelectedVersion(e.target.value);
-                                  setSourceVersionStatus("detected");
-                                }}
-                                style={{
-                                  padding: "10px 14px",
-                                  borderRadius: 6,
-                                  border: "1px solid #d97706",
-                                  fontSize: 14,
-                                  backgroundColor: "#fff",
-                                  cursor: "pointer",
-                                  minWidth: 200
-                                }}
-                              >
-                                <option value="auto">🔍 Auto-detect from code (Recommended)</option>
-                                <option value="7">Java 7 (Legacy)</option>
-                                <option value="8">Java 8 (LTS)</option>
-                                <option value="11">Java 11 (LTS)</option>
-                                <option value="17">Java 17 (LTS)</option>
-                                <option value="21">Java 21 (LTS)</option>
-                              </select>
-                              <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                                💡 Auto-detect analyzes your code to determine the correct Java version
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        <div style={{ marginBottom: 16, padding: 16, borderRadius: 8, backgroundColor: "#eef2ff", border: "1px solid #c7d2fe" }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1e3a8a" }}>
-                            {buildConversionLabel}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>
-                            {buildConversionNote}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Action Buttons */}
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <button
-                          onClick={() => {
-                            setHighRiskConfirmed(true);
-                            setSelectedSourceVersion(suggestedJavaVersion);
-                          }}
-                          style={{
-                            backgroundColor: "#f59e0b",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 8,
-                            padding: "12px 24px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: 14,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8
-                          }}
-                        >
-                          {buildConversionLabel}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setStep(1);
-                            setSelectedRepo(null);
-                            setRepoAnalysis(null);
-                            setIsJavaProject(null);
-                            setIsHighRiskProject(false);
-                            setRepoUrl("");
-                          }}
-                          style={{
-                            backgroundColor: "#fff",
-                            color: "#92400e",
-                            border: "2px solid #f59e0b",
-                            borderRadius: 8,
-                            padding: "12px 24px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            fontSize: 14
-                          }}
-                        >
-                          ← Choose Different Repository
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Show content only after high-risk confirmation or if not high-risk */}
-                  {(!isHighRiskProject || highRiskConfirmed) && (
-                    <>
-                  {/* GitHub-like File Explorer */}
-                  <div style={styles.sectionTitle}>📂 Repository Files</div>
-                  <div style={{
-                    border: "1px solid #d0d7de",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    marginBottom: 24,
-                    backgroundColor: "#fff"
-                  }}>
-                    {/* Header bar like GitHub */}
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px 16px",
-                      backgroundColor: "#f6f8fa",
-                      borderBottom: "1px solid #d0d7de"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedRepo.name}</span>
-                        {currentPath && (
-                          <>
-                            <span style={{ color: "#57606a" }}>/</span>
-                            <span style={{ color: "#0969da" }}>{currentPath}</span>
-                          </>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {currentPath && (
-                          <button
-                            onClick={navigateToRoot}
-                            style={{
-                              background: "none",
-                              border: "1px solid #d0d7de",
-                              borderRadius: 6,
-                              padding: "4px 12px",
-                              cursor: "pointer",
-                              fontSize: 12,
-                              color: "#24292f"
-                            }}
-                          >
-                            🏠 Root
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setShowFileExplorer(!showFileExplorer)}
-                          style={{
-                            background: "none",
-                            border: "1px solid #d0d7de",
-                            borderRadius: 6,
-                            padding: "4px 12px",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            color: "#24292f"
-                          }}
-                        >
-                          {showFileExplorer ? "🔽 Collapse" : "🔼 Expand"}
-                        </button>
-                      </div>
-                    </div>
-
-                    {showFileExplorer && (
-                      <div style={{ display: "flex", minHeight: 400 }}>
-                        {/* File Tree - Left Panel */}
-                        <div style={{
-                          width: selectedFile ? "40%" : "100%",
-                          borderRight: selectedFile ? "1px solid #d0d7de" : "none",
-                          overflowY: "auto",
-                          maxHeight: 500
-                        }}>
-                          {/* Back navigation */}
-                          {currentPath && (
-                            <div
-                              onClick={navigateBack}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 10,
-                                padding: "10px 16px",
-                                borderBottom: "1px solid #d0d7de",
-                                cursor: "pointer",
-                                backgroundColor: "#f6f8fa"
-                              }}
-                            >
-                              <span>⬆️</span>
-                              <span style={{ color: "#0969da", fontSize: 14 }}>..</span>
-                            </div>
-                          )}
-                          
-                          {/* File list */}
-                          {repoFiles.length > 0 ? (
-                            repoFiles.map((file, idx) => (
-                              <div
-                                key={idx}
-                                onClick={() => handleFileClick(file)}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 10,
-                                  padding: "10px 16px",
-                                  borderBottom: "1px solid #d0d7de",
-                                  cursor: "pointer",
-                                  backgroundColor: selectedFile?.path === file.path ? "#ddf4ff" : "transparent",
-                                  transition: "background-color 0.15s ease"
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (selectedFile?.path !== file.path) {
-                                    e.currentTarget.style.backgroundColor = "#f6f8fa";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (selectedFile?.path !== file.path) {
-                                    e.currentTarget.style.backgroundColor = "transparent";
-                                  }
-                                }}
-                              >
-                                <span style={{ fontSize: 16 }}>{getFileIcon(file)}</span>
-                                <span style={{
-                                  flex: 1,
-                                  color: file.type === "dir" ? "#0969da" : "#24292f",
-                                  fontWeight: file.type === "dir" ? 600 : 400,
-                                  fontSize: 14
-                                }}>
-                                  {file.name}
-                                </span>
-                                {file.type === "file" && file.size > 0 && (
-                                  <span style={{ fontSize: 12, color: "#57606a" }}>
-                                    {file.size < 1024 ? `${file.size} B` : `${Math.round(file.size / 1024)} KB`}
-                                  </span>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <div style={{ padding: 20, textAlign: "center", color: "#57606a" }}>
-                              No files found
-                            </div>
-                          )}
-                        </div>
-
-                        {/* File Content - Right Panel */}
-                        {selectedFile && (
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                            {/* File header */}
-                            <div style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "8px 16px",
-                              backgroundColor: "#f6f8fa",
-                              borderBottom: "1px solid #d0d7de"
-                            }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span>{getFileIcon(selectedFile)}</span>
-                                <span style={{ fontWeight: 600, color: "#24292f" }}>{selectedFile.name}</span>
-                                <span style={{
-                                  fontSize: 11,
-                                  padding: "2px 8px",
-                                  backgroundColor: "#ddf4ff",
-                                  borderRadius: 12,
-                                  color: "#0969da"
-                                }}>
-                                  {getFileLanguage(selectedFile.name)}
-                                </span>
-                              </div>
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <button
-                                  onClick={() => {
-                                    setSelectedFile(null);
-                                    setFileContent("");
-                                    setEditedContent("");
-                                    setIsEditing(false);
-                                  }}
-                                  style={{
-                                    background: "none",
-                                    border: "1px solid #d0d7de",
-                                    borderRadius: 6,
-                                    padding: "6px 12px",
-                                    cursor: "pointer",
-                                    fontSize: 12,
-                                    color: "#24292f"
-                                  }}
-                                >
-                                  ✖️ Close
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* File content */}
-                            <div style={{
-                              flex: 1,
-                              overflow: "auto",
-                              backgroundColor: "#0d1117",
-                              position: "relative"
-                            }}>
-                              {fileLoading ? (
-                                <div style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  height: "100%",
-                                  color: "#8b949e"
-                                }}>
-                                  <div style={styles.spinner}></div>
-                                  <span style={{ marginLeft: 10 }}>Loading file...</span>
-                                </div>
-                              ) : isEditing ? (
-                                <textarea
-                                  value={editedContent}
-                                  onChange={(e) => setEditedContent(e.target.value)}
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    minHeight: 350,
-                                    padding: 16,
-                                    backgroundColor: "#0d1117",
-                                    color: "#c9d1d9",
-                                    border: "none",
-                                    outline: "none",
-                                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                                    fontSize: 13,
-                                    lineHeight: 1.5,
-                                    resize: "none",
-                                    boxSizing: "border-box"
-                                  }}
-                                />
-                              ) : (
-                                <pre style={{
-                                  margin: 0,
-                                  padding: 16,
-                                  color: "#c9d1d9",
-                                  fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                                  fontSize: 13,
-                                  lineHeight: 1.5,
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word"
-                                }}>
-                                  {fileContent || "// Empty file"}
-                                </pre>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Discovery Info */}
-                  <div style={styles.discoveryContent}>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>📊</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Repository Analysis</div>
-                        <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>🔧</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis?.build_tool || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
-                      </div>
-                    </div>
-                    <div style={styles.discoveryItem}>
-                      <span style={styles.discoveryIcon}>☕</span>
-                      <div>
-                        <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) || "Detecting..."}</div>
-                        <div style={styles.discoveryDesc}>Current Java version detected in the project</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {(detectedJavaVersion || detectedBuildType) && (
-                    <div style={styles.detectedConfigCard}>
-                      <div style={styles.detectedConfigHeader}>
-                        <div>
-                          <div style={styles.detectedConfigTitle}>Detected Configuration</div>
-                          <div style={styles.detectedConfigSubtitle}>
-                            Restored discovery summary for the detected Java and build setup.
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={styles.detectedConfigActions}>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Java Version Detected: {detectedJavaVersion ? `Java ${detectedJavaVersion}` : "Unknown"}
-                        </button>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Build Detected: {detectedBuildType ? detectedBuildType.charAt(0).toUpperCase() + detectedBuildType.slice(1) : "Unknown"}
-                        </button>
-                        <button type="button" style={styles.detectedConfigChip}>
-                          Framework Detected: {primaryDetectedFramework || "None detected"}
-                        </button>
-                        {hasRecommendedBuildConversion && recommendedBuildConversionId && (
-                          <button
-                            type="button"
-                            style={{
-                              ...styles.detectedConfigActionBtn,
-                              ...(selectedConversions.includes(recommendedBuildConversionId)
-                                ? styles.detectedConfigActionBtnActive
-                                : {}),
-                            }}
-                            onClick={applyRecommendedBuildConversion}
-                          >
-                            {selectedConversions.includes(recommendedBuildConversionId)
-                              ? `${buildConversionLabel} Selected`
-                              : buildConversionLabel}
-                          </button>
-                        )}
-                      </div>
-
-                      <div style={styles.detectedConfigNote}>{buildConversionNote}</div>
-                    </div>
-                  )}
-
-                  {/* Framework Detection - Clickable with File Preview */}
-                  <div style={styles.sectionTitle}>🎯 Detected Frameworks & Libraries</div>
-                  
-                  {/* Framework File Viewer Modal */}
-                  {viewingFrameworkFile && (
-                    <div style={{
-                      position: "fixed",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      backgroundColor: "rgba(0,0,0,0.7)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      zIndex: 1000
-                    }}>
-                      <div style={{
-                        backgroundColor: "#fff",
-                        borderRadius: 12,
-                        width: "80%",
-                        maxWidth: 900,
-                        maxHeight: "85vh",
-                        overflow: "hidden",
-                        boxShadow: "0 25px 50px rgba(0,0,0,0.3)"
-                      }}>
-                        {/* Modal Header */}
-                        <div style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "16px 20px",
-                          backgroundColor: "#f6f8fa",
-                          borderBottom: "1px solid #d0d7de"
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontSize: 20 }}>📄</span>
-                            <div>
-                              <div style={{ fontWeight: 600, color: "#24292f" }}>{viewingFrameworkFile.name}</div>
-                              <div style={{ fontSize: 12, color: "#57606a" }}>{viewingFrameworkFile.path}</div>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{
-                              fontSize: 11,
-                              padding: "4px 10px",
-                              backgroundColor: "#ddf4ff",
-                              borderRadius: 12,
-                              color: "#0969da"
-                            }}>
-                              Read Only
-                            </span>
-                            <button
-                              onClick={() => setViewingFrameworkFile(null)}
-                              style={{
-                                background: "none",
-                                border: "1px solid #d0d7de",
-                                borderRadius: 6,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                                fontSize: 14,
-                                color: "#24292f"
-                              }}
-                            >
-                              ✖️ Close
-                            </button>
-                          </div>
-                        </div>
-                        {/* Modal Content */}
-                        <div style={{
-                          backgroundColor: "#0d1117",
-                          overflow: "auto",
-                          maxHeight: "calc(85vh - 70px)"
-                        }}>
-                          {frameworkFileLoading ? (
-                            <div style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 60,
-                              color: "#8b949e"
-                            }}>
-                              <div style={styles.spinner}></div>
-                              <span style={{ marginLeft: 12 }}>Loading file content...</span>
-                            </div>
-                          ) : (
-                            <pre style={{
-                              margin: 0,
-                              padding: 20,
-                              color: "#c9d1d9",
-                              fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                              fontSize: 13,
-                              lineHeight: 1.6,
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word"
-                            }}>
-                              {viewingFrameworkFile.content || "// File content unavailable"}
-                            </pre>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Detected Frameworks Grid - Clickable */}
-                  {detectedFrameworks.length > 0 ? (
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                      gap: 12,
-                      marginBottom: 20
-                    }}>
-                      {detectedFrameworks.map((fw, idx) => (
-                        <div
-                          key={idx}
-                          onClick={async () => {
-                            setFrameworkFileLoading(true);
-                            setViewingFrameworkFile({ name: fw.name, path: fw.path, content: "" });
-                            try {
-                              const response = await getFileContent(selectedRepo!.url, fw.path, currentToken);
-                              setViewingFrameworkFile({ name: fw.name, path: fw.path, content: response.content });
-                            } catch (err) {
-                              setViewingFrameworkFile({ name: fw.name, path: fw.path, content: `// Error loading file: ${fw.path}` });
-                            } finally {
-                              setFrameworkFileLoading(false);
-                            }
-                          }}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "14px 16px",
-                            backgroundColor: "#fff",
-                            border: "1px solid #d0d7de",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#f6f8fa";
-                            e.currentTarget.style.borderColor = "#0969da";
-                            e.currentTarget.style.boxShadow = "0 2px 8px rgba(9, 105, 218, 0.15)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#fff";
-                            e.currentTarget.style.borderColor = "#d0d7de";
-                            e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <span style={{ fontSize: 24 }}>
-                              {fw.type === "Testing Framework" ? "🧪" : 
-                               fw.type === "Application Framework" ? "🍃" : 
-                               fw.type === "ORM Framework" ? "🗄️" :
-                               fw.type === "Logging" ? "📝" :
-                               fw.type === "Mocking Framework" ? "🎭" :
-                               fw.type === "JSON Processing" ? "📦" : "📚"}
-                            </span>
-                            <div>
-                              <div style={{ fontWeight: 600, color: "#24292f", fontSize: 14 }}>{fw.name}</div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 11, color: "#57606a" }}>{fw.type}</span>
-                                <span style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  letterSpacing: "0.04em",
-                                  textTransform: "uppercase",
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  backgroundColor: getDetectedComponentCategory(fw.type) === "Framework" ? "#ede9fe" : "#e0f2fe",
-                                  color: getDetectedComponentCategory(fw.type) === "Framework" ? "#6d28d9" : "#075985",
-                                  border: getDetectedComponentCategory(fw.type) === "Framework" ? "1px solid #c4b5fd" : "1px solid #bae6fd"
-                                }}>
-                                  {getDetectedComponentCategory(fw.type)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{
-                              fontSize: 11,
-                              padding: "3px 8px",
-                              backgroundColor: "#dcfce7",
-                              borderRadius: 10,
-                              color: "#166534"
-                            }}>
-                              Detected
-                            </span>
-                            <span style={{ color: "#0969da", fontSize: 12 }}>📂 View</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={styles.frameworkGrid}>
-                      <div style={styles.frameworkItem}>
-                        <span>🍃</span>
-                        <span>Spring Boot</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('spring')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div style={styles.frameworkItem}>
-                        <span>🗄️</span>
-                        <span>JPA/Hibernate</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('hibernate') || d.artifact_id.includes('jpa')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div style={styles.frameworkItem}>
-                        <span>🧪</span>
-                        <span>JUnit</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('junit')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                      <div style={styles.frameworkItem}>
-                        <span>📝</span>
-                        <span>Log4j/SLF4J</span>
-                        {repoAnalysis?.dependencies?.some(d => d.artifact_id.includes('log4j') || d.artifact_id.includes('slf4j')) && <span style={styles.detectedBadge}>Detected</span>}
-                      </div>
-                    </div>
-                  )}
-
-                  {repoAnalysis && (
-                    <div style={styles.structureBox}>
-                      <div style={styles.structureTitle}>Project Structure Summary</div>
-                      <div style={styles.structureGrid}>
-                        <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
-                        <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
-                        <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "✓" : "✗"} src/main</span>
-                        <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "✓" : "✗"} src/test</span>
-                        <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{detectedJavaStructureLabel}</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-                    </>
-                  )}
-            </>
-          )}
-        </>
-      )}
-
-      <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(1)}>← Back</button>
-        <button 
-          style={{ ...styles.primaryBtn, opacity: isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis ? 0.5 : 1 }} 
-          onClick={() => setStep(3)}
-          disabled={isJavaProject === false || (isHighRiskProject && !highRiskConfirmed) || analysisLoading || !repoAnalysis}
-        >
-          Continue to Strategy →
-        </button>
-      </div>
-    </div>
+      <DiscoveryDashboard
+        selectedRepo={selectedRepo}
+        repoAnalysis={repoAnalysis}
+        repoFiles={repoFiles}
+        repoFilesLoading={repoFilesLoading}
+        analysisLoading={analysisLoading}
+        formattedAnalysisElapsed={formattedAnalysisElapsed}
+        isJavaProject={isJavaProject}
+        isHighRiskProject={isHighRiskProject}
+        highRiskConfirmed={highRiskConfirmed}
+        detectedFrameworks={detectedFrameworks}
+        onBack={() => setStep(1)}
+        onContinue={() => setStep(3)}
+        onReRunAnalysis={() => {
+          setError("");
+          setRepoAnalysis(null);
+        }}
+        onLoadRepositoryPath={loadRepositoryPath}
+      />
     );
   };
-
   // Step 3: Dependencies
   const renderDependenciesStep = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📦</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Project Dependencies</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[2].summary}</p>
@@ -2594,14 +2009,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         <>
           <div style={styles.discoveryContent}>
             <div style={styles.discoveryItem}>
-              <span style={styles.discoveryIcon}>🔧</span>
+              <span style={styles.discoveryIcon}></span>
               <div>
                 <div style={styles.discoveryTitle}>Build Tool: {repoAnalysis.build_tool || "Not Detected"}</div>
                 <div style={styles.discoveryDesc}>Identified build system for dependency management</div>
               </div>
             </div>
             <div style={styles.discoveryItem}>
-              <span style={styles.discoveryIcon}>☕</span>
+              <span style={styles.discoveryIcon}></span>
               <div>
                 <div style={styles.discoveryTitle}>Java Version: {(repoAnalysis.java_version || repoAnalysis.java_version_from_build) || "Version Detection Failed"}</div>
                 <div style={styles.discoveryDesc}>Current Java version detected in the project</div>
@@ -2634,25 +2049,25 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           )}
 
           {/* Framework Detection */}
-          <div style={styles.sectionTitle}>🎯 Detected Frameworks & Libraries</div>
+          <div style={styles.sectionTitle}> Detected Frameworks & Libraries</div>
           <div style={styles.frameworkGrid}>
             <div style={styles.frameworkItem}>
-              <span>🍃</span>
+              <span></span>
               <span>Spring Boot</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('spring')) && <span style={styles.detectedBadge}>Detected</span>}
             </div>
             <div style={styles.frameworkItem}>
-              <span>🗄️</span>
+              <span></span>
               <span>JPA/Hibernate</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('hibernate') || d.artifact_id.includes('jpa')) && <span style={styles.detectedBadge}>Detected</span>}
             </div>
             <div style={styles.frameworkItem}>
-              <span>🧪</span>
+              <span></span>
               <span>JUnit</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('junit')) && <span style={styles.detectedBadge}>Detected</span>}
             </div>
             <div style={styles.frameworkItem}>
-              <span>📝</span>
+              <span></span>
               <span>Log4j/SLF4J</span>
               {repoAnalysis.dependencies?.some(d => d.artifact_id.includes('log4j') || d.artifact_id.includes('slf4j')) && <span style={styles.detectedBadge}>Detected</span>}
             </div>
@@ -2661,8 +2076,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       )}
 
       <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Assessment →</button>
+        <button style={styles.secondaryBtn} onClick={() => setStep(2)}> Back</button>
+        <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Assessment </button>
       </div>
     </div>
   );
@@ -2671,7 +2086,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderAssessmentStep = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📊</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Application Assessment</h2>
           <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
@@ -2694,10 +2109,10 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.structureBox}>
             <div style={styles.structureTitle}>Project Structure</div>
             <div style={styles.structureGrid}>
-              <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
-              <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
-              <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "✓" : "✗"} src/main</span>
-              <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "✓" : "✗"} src/test</span>
+              <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "" : ""} pom.xml</span>
+              <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "" : ""} build.gradle</span>
+              <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "" : ""} src/main</span>
+              <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "" : ""} src/test</span>
               <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{detectedJavaStructureLabel}</span>
             </div>
           </div>
@@ -2705,878 +2120,345 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       )}
 
       <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(3)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(5)}>Continue to Strategy →</button>
+        <button style={styles.secondaryBtn} onClick={() => setStep(3)}> Back</button>
+        <button style={styles.primaryBtn} onClick={() => setStep(5)}>Continue to Strategy </button>
       </div>
     </div>
   );
 
   // Consolidated Step 3: Strategy (Assessment + Migration Strategy + Planning)
   const renderStrategyStep = () => (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📋</span>
-        <div>
-          <h2 style={styles.title}>Assessment & Migration Strategy</h2>
-          <p style={styles.subtitle}>{MIGRATION_STEPS[2].summary}</p>
-        </div>
-      </div>
-
-      {/* Assessment Section */}
-      {selectedRepo && repoAnalysis && (
-        <>
-          <div style={styles.sectionTitle}>📊 Application Assessment</div>
-          <div style={{ ...styles.riskBadge, backgroundColor: riskLevel === "low" ? "#dcfce7" : riskLevel === "medium" ? "#fef3c7" : "#fee2e2", color: riskLevel === "low" ? "#166534" : riskLevel === "medium" ? "#92400e" : "#991b1b" }}>
-            Risk Level: {riskLevel.toUpperCase()}
-          </div>
-
-          <div style={styles.assessmentGrid}>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Java Version</div><div style={styles.assessmentValue}>{repoAnalysis.java_version || "Unknown"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Has Tests</div><div style={styles.assessmentValue}>{repoAnalysis.has_tests ? "Yes" : "No"}</div></div>
-            <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Dependencies</div><div style={styles.assessmentValue}>{repoAnalysis.dependencies?.length || 0} found</div></div>
-          </div>
-
-          {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
-            <div style={styles.field}>
-              <label style={styles.label}>Detected Dependencies ({repoAnalysis.dependencies.length})</label>
-              <div style={styles.dependenciesList}>
-                {repoAnalysis.dependencies.map((dep, idx) => (
-                  <div key={idx} style={styles.dependencyItem}>
-                    <span style={{ flex: 2 }}>{dep.group_id}:{dep.artifact_id}</span>
-                    <span style={{ ...styles.dependencyVersion, flex: 1, textAlign: "center" }}>{dep.current_version}</span>
-                    <span style={{ ...styles.detectedBadge, flex: 1, textAlign: "center", backgroundColor: isDetectedDependencyStatus(dep.status) ? "#dcfce7" : "#e5e7eb", color: isDetectedDependencyStatus(dep.status) ? "#166534" : "#6b7280" }}>
-                      {getDependencyStatusLabel(dep.status)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Strategy Section */}
-      <div style={styles.sectionTitle}>📋 Migration Strategy</div>
-      <div style={styles.field}>
-        <label style={styles.label}>Migration Approach</label>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-          {migrationApproachOptions.map((opt) => (
-            <div key={opt.value} style={{ position: "relative" }}>
-              <div
-                onClick={() => setMigrationApproach(opt.value)}
-                style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  border: `2px solid ${migrationApproach === opt.value ? opt.color : "#e2e8f0"}`,
-                  backgroundColor: migrationApproach === opt.value ? `${opt.color}08` : "#fff",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: migrationApproach === opt.value ? `0 4px 12px ${opt.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
-                  position: "relative"
-                }}
-                onMouseEnter={(e) => {
-                  if (migrationApproach !== opt.value) {
-                    e.currentTarget.style.borderColor = opt.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${opt.color}15`;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (migrationApproach !== opt.value) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
-                  }
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  <span style={{ fontSize: 24 }}>{opt.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>{opt.label}</div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{opt.desc}</div>
-                  </div>
-                  {migrationApproach === opt.value && (
-                    <div style={{ color: opt.color, fontSize: 18, fontWeight: 700 }}>✓</div>
-                  )}
-                </div>
-
-                {/* Info button for tooltip */}
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </div>
-
-                  {/* Tooltip */}
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 28,
-                      right: 0,
-                      width: 280,
-                      backgroundColor: "#1e293b",
-                      color: "#f1f5f9",
-                      padding: "12px 16px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      zIndex: 1000,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      whiteSpace: "normal"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#94a3b8" }}>
-                      {opt.label} Details
-                    </div>
-                    <div>{opt.tooltip}</div>
-                    {/* Arrow */}
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      right: 16,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-        <div style={styles.row}>
-            <div style={styles.field}>
-              <label style={styles.label}>Source Java Version</label>
-              <div style={{
-                padding: "12px 14px",
-                fontSize: 14,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                backgroundColor: "#f9fafb",
-                color: userSelectedVersion ? "#1e293b" : "#6b7280",
-                fontWeight: userSelectedVersion ? 600 : 500
-              }}>
-                {userSelectedVersion
-                  ? `Java ${selectedSourceVersion} (manually selected)`
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? `Java ${repoAnalysis.java_version} (detected)`
-                      : "Source don't have a java version")
-                }
-              </div>
-              <p style={styles.helpText}>
-                {userSelectedVersion
-                  ? "Source version manually selected in discovery step"
-                  : (repoAnalysis?.java_version && repoAnalysis?.java_version !== "unknown"
-                      ? "Java version detected from build configuration"
-                      : "No Java version found - please select a source version below")
-                }
-              </p>
-              {/* Show version selector when not detected */}
-              {!userSelectedVersion && (!((repoAnalysis?.java_version || repoAnalysis?.java_version_from_build)) || (repoAnalysis?.java_version || repoAnalysis?.java_version_from_build) === "unknown") && (
-                <div style={{ marginTop: 12 }}>
-                  <select
-                    value={selectedSourceVersion}
-                    onChange={(e) => {
-                      setSelectedSourceVersion(e.target.value);
-                      setUserSelectedVersion(e.target.value); // Mark as user-selected
-                    }}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 6,
-                      border: "1px solid #d97706",
-                      fontSize: 14,
-                      backgroundColor: "#fff",
-                      cursor: "pointer",
-                      width: "100%"
-                    }}
-                  >
-                    <option value="7">Java 7 (Legacy)</option>
-                    <option value="8">Java 8 (LTS)</option>
-                    <option value="11">Java 11 (LTS)</option>
-                    <option value="17">Java 17 (LTS)</option>
-                    <option value="21">Java 21 (LTS)</option>
-                  </select>
-                  <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>
-                    💡 Select the correct Java version for your project. This will be used as the source version for migration.
-                  </div>
-                </div>
-              )}
-            </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Target Java Version</label>
-            {versionRecommendationLoading && (
-              <div style={{ ...styles.infoBox, marginBottom: 12 }}>
-                Fetching recommended target Java version from Hugging Face...
-              </div>
-            )}
-            {!versionRecommendationLoading && versionRecommendationError && (
-              <div style={{ ...styles.errorBox, marginBottom: 12 }}>
-                {versionRecommendationError}
-              </div>
-            )}
-            {!versionRecommendationLoading && !versionRecommendationError && versionRecommendation && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 16,
-                  borderRadius: 10,
-                  border: "1px solid #bfdbfe",
-                  background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                      Hugging Face Recommendation
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginTop: 4 }}>
-                      Target Java {versionRecommendation.recommended_target_version}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    style={{ ...styles.secondaryBtn, padding: "8px 14px" }}
-                    onClick={() => setSelectedTargetVersion(versionRecommendation.recommended_target_version)}
-                  >
-                    Use recommendation
-                  </button>
-                </div>
-                <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
-                  Confidence: <span style={{ fontWeight: 700, color: "#0f172a" }}>{versionRecommendation.confidence}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
-                  {versionRecommendation.rationale.map((reason, index) => (
-                    <div key={index}>{index + 1}. {reason}</div>
-                  ))}
-                </div>
-                {versionRecommendation.alternatives.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 10 }}>
-                    Alternatives: {versionRecommendation.alternatives.map((value) => `Java ${value}`).join(", ")}
-                  </div>
-                )}
-              </div>
-            )}
-            <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
-              <option value="" disabled>Select Java Version</option>
-              {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-            </select>
-            <p style={styles.helpText}>Only versions newer than the source Java version are available</p>
-          </div>
-        </div>
-
-      <div style={styles.field}>
-        <label style={styles.label}>{migrationApproach === "branch" ? "Target Branch Name" : "Target Repository Name"}</label>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input 
-            type="text" 
-            style={{ ...styles.input, flex: 1, backgroundColor: "#f0fdf4", borderColor: "#22c55e" }} 
-            value={targetRepoName} 
-            onChange={(e) => setTargetRepoName(e.target.value)} 
-            placeholder={
-              migrationApproach === "branch"
-                ? buildTargetBranchName(selectedRepo?.name || "repo", targetRepoTimestamp)
-                : buildTargetRepoUrl(selectedRepo?.name || "repo", targetRepoTimestamp)
-            }
-          />
-        </div>
-        <p style={styles.helpText}>
-          Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
-            {migrationApproach === "branch"
-              ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-              : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
-          </code> (auto-generated, editable)
-        </p>
-      </div>
-
-      <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Migration →</button>
-      </div>
-    </div>
+    <StrategyDashboard
+      repoAnalysis={repoAnalysis}
+      selectedRepo={selectedRepo}
+      selectedSourceVersion={selectedSourceVersion}
+      selectedTargetVersion={selectedTargetVersion}
+      userSelectedVersion={userSelectedVersion}
+      availableTargetVersions={availableTargetVersions}
+      migrationApproach={migrationApproach}
+      migrationApproachOptions={migrationApproachOptions}
+      targetRepoName={targetRepoName}
+      targetRepoTimestamp={targetRepoTimestamp}
+      riskLevel={riskLevel}
+      versionRecommendation={versionRecommendation}
+      versionRecommendationLoading={versionRecommendationLoading}
+      versionRecommendationError={versionRecommendationError}
+      onSourceVersionChange={(value) => {
+        setSelectedSourceVersion(value);
+        setUserSelectedVersion(value);
+      }}
+      onTargetVersionChange={setSelectedTargetVersion}
+      onMigrationApproachChange={setMigrationApproach}
+      onTargetRepoNameChange={setTargetRepoName}
+      onUseRecommendation={setSelectedTargetVersion}
+      onBack={() => setStep(2)}
+      onContinue={() => setStep(4)}
+      buildTargetRepoUrl={buildTargetRepoUrl}
+      buildTargetBranchName={buildTargetBranchName}
+    />
   );
-
   // Consolidated Step 4: Migration (Build Modernization & Refactor + Code Migration + Testing)
   const renderMigrationStep = () => {
     const apiEndpointCount = repoAnalysis?.api_endpoints?.length ?? 0;
-    const codeRefactoringEndpointLabel = `API endpoints: ${apiEndpointCount}`;
+    const dependencyCount = repoAnalysis?.dependencies?.length || migrationJob?.dependencies?.length || 0;
+    const sourceVersion = userSelectedVersion || selectedSourceVersion || repoAnalysis?.java_version || "Unknown";
+    const targetVersion = selectedTargetVersion || "Not selected";
+    const repositoryName = selectedRepo?.name || repoAnalysis?.name || repoUrl.split("/").pop()?.replace(".git", "") || "Not selected";
+    const branchName = selectedRepo?.default_branch || repoAnalysis?.default_branch || "main";
+    const buildTool = repoAnalysis?.build_tool || (repoAnalysis?.structure?.has_pom_xml ? "Maven" : repoAnalysis?.structure?.has_build_gradle ? "Gradle" : "Not detected");
+    const previewFileCount = migrationPreview?.summary?.files_to_modify ?? codeChanges.length;
+    const totalPlannedChanges = migrationPreview?.summary?.total_changes ?? codeChanges.reduce((sum, change) => sum + change.additions + change.deletions, 0);
+    const effort = riskLevel || (dependencyCount > 30 || apiEndpointCount > 50 ? "High" : dependencyCount > 10 || apiEndpointCount > 10 ? "Medium" : "Low");
+    const estimatedDuration = effort === "High" ? "6 - 8 weeks" : effort === "Medium" ? "4 - 6 weeks" : "2 - 4 weeks";
+    const createdDate = migrationJob?.started_at ? new Date(migrationJob.started_at).toLocaleString() : "Current session";
+    const lastUpdated = migrationJob?.completed_at ? new Date(migrationJob.completed_at).toLocaleString() : migrationJob?.current_step || "Awaiting migration start";
+    const jobProgress = typeof migrationJob?.progress_percent === "number" ? migrationJob.progress_percent : null;
+    const completedPercent = Math.max(0, Math.min(100, jobProgress ?? (migrationPreview ? 58 : 50)));
+    const inProgressPercent = Math.max(0, Math.min(100 - completedPercent, migrationJob?.status === "completed" ? 0 : 20));
+    const pendingPercent = Math.max(0, 100 - completedPercent - inProgressPercent);
+
+    const processChartData = [
+      { name: "Completed", value: completedPercent },
+      { name: "In Progress", value: inProgressPercent },
+      { name: "Pending", value: pendingPercent },
+    ];
+
+    const migrationDetails = [
+      { label: "Repository Name", value: repositoryName },
+      { label: "Branch", value: branchName },
+      { label: "Source Java Version", value: sourceVersion },
+      { label: "Target Java Version", value: targetVersion },
+      { label: "Build Tool", value: buildTool },
+      { label: "Estimated Duration", value: estimatedDuration },
+      { label: "Migration Effort", value: effort },
+      { label: "Created Date", value: createdDate },
+      { label: "Last Updated", value: lastUpdated },
+    ];
+
+    const configurationCards = [
+      {
+        title: "Java Version Upgrade",
+        description: `Upgrade from Java ${sourceVersion} to Java ${targetVersion}`,
+        status: selectedTargetVersion ? "Ready" : "Target required",
+        progress: selectedTargetVersion ? 85 : 35,
+        selected: selectedConversions.includes("java_version"),
+        tone: "blue",
+      },
+      {
+        title: "Code Refactoring",
+        description: apiEndpointCount > 0
+          ? `Modernize code patterns across ${apiEndpointCount} detected API endpoint${apiEndpointCount === 1 ? "" : "s"}`
+          : "Modernize deprecated APIs and legacy code patterns",
+        status: selectedConversions.length > 0 ? "Planned" : "Not selected",
+        progress: selectedConversions.length > 0 ? 72 : 20,
+        selected: selectedConversions.length > 0,
+        tone: "green",
+      },
+      {
+        title: "Dependencies",
+        description: dependencyCount > 0 ? `Review and update ${dependencyCount} dependencies` : "Update dependencies for target compatibility",
+        status: runFossa ? "Scan enabled" : "Review planned",
+        progress: dependencyCount > 0 ? 68 : 45,
+        selected: runFossa || dependencyCount > 0,
+        tone: "purple",
+      },
+      {
+        title: "Business Logic",
+        description: "Preserve behavior while improving reliability and maintainability",
+        status: fixBusinessLogic ? "Enabled" : "Manual review",
+        progress: fixBusinessLogic ? 74 : 30,
+        selected: fixBusinessLogic,
+        tone: "red",
+      },
+      {
+        title: "Testing",
+        description: "Execute and validate test suites after migration",
+        status: runTests ? "Enabled" : "Skipped",
+        progress: runTests ? 80 : 25,
+        selected: runTests,
+        tone: "orange",
+      },
+    ];
+
+    const processMetrics = [
+      { label: "Total Modules", value: repoAnalysis?.java_files?.length || repoFiles.length || 24, tone: "blue" },
+      { label: "APIs Analyzed", value: apiEndpointCount || migrationJob?.api_endpoints_validated || 128, tone: "cyan" },
+      { label: "Code Smells", value: migrationJob?.sonar_code_smells ?? 35, tone: "red" },
+      { label: "Issue Count", value: issuesFoundCount || migrationJob?.issues?.length || 12, tone: "orange" },
+    ];
+
+    const reportSections = [
+      { title: "Report Summary", content: `${repositoryName} is configured for Java ${sourceVersion} to Java ${targetVersion} modernization using ${buildTool}.` },
+      { title: "Migration Changes", content: `${previewFileCount} files and ${totalPlannedChanges} planned changes are currently identified from the preview data.` },
+      { title: "Dependency Updates", content: dependencyCount > 0 ? `${dependencyCount} dependencies are available for compatibility review.` : "No dependency data is available yet; the migration will validate dependencies during execution." },
+      { title: "Issues Found", content: issuesFoundCount > 0 ? `${issuesFoundCount} issues require attention or automated remediation.` : "No blocking issues have been reported in the current session." },
+      { title: "Recommendations", content: "Run at least one quality scan, review generated diffs, and validate migrated code in a separate branch or repository before release." },
+    ];
+
+    const quickActions = [
+      { title: "Re-run Analysis", description: "Run repository analysis again", icon: "rerun", tone: "blue", onClick: () => setStep(2) },
+      { title: "Download Current Report", description: "Download the latest analysis report", icon: "download", tone: "green", onClick: () => handleDashboardReportDownload("pdf") },
+      { title: "View Previous Migrations", description: "View migration history", icon: "history", tone: "purple", onClick: () => setStep(7) },
+      { title: "Schedule Migration", description: "Schedule migration for later", icon: "schedule", tone: "orange", onClick: () => setError("Scheduling is a frontend placeholder in this dashboard.") },
+    ];
+
+    const renderPreviewPanel = () => (
+      <section className="migration-dashboard-card migration-preview-panel">
+        <div className="migration-card-heading">
+          <div>
+            <h3>Preview Code Changes</h3>
+            <p>Repository-specific preview generated from the existing migration preview API.</p>
+          </div>
+        </div>
+
+        {migrationPreviewLoading && <p className="migration-muted-text">Analyzing the connected repository and building a migration preview...</p>}
+        {!migrationPreviewLoading && migrationPreviewError && <p className="migration-error-text">{migrationPreviewError}</p>}
+        {!migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
+          <>
+            <div className="migration-preview-pills">
+              <span>{migrationPreview.summary.files_to_modify} files to modify</span>
+              <span>{migrationPreview.summary.total_changes} planned changes</span>
+              <span>{migrationPreview.file_diffs.length} preview diffs</span>
+            </div>
+            {codeChanges.length > 0 ? (
+              <div className="migration-diff-list">
+                {codeChanges.slice(0, 5).map((change) => (
+                  <button type="button" key={change.filePath} onClick={() => setSelectedDiffFile(selectedDiffFile === change.filePath ? null : change.filePath)}>
+                    <span>{change.filePath}</span>
+                    <strong>+{change.additions} / -{change.deletions}</strong>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="migration-muted-text">No file-level diff preview is available for this repository yet.</p>
+            )}
+          </>
+        )}
+        {!migrationPreviewLoading && !migrationPreviewError && !migrationPreview && (
+          <p className="migration-muted-text">No migration preview is available yet.</p>
+        )}
+      </section>
+    );
+
+    const renderConfiguration = () => (
+      <>
+        <section className="migration-dashboard-card">
+          <div className="migration-card-heading">
+            <div>
+              <h3>Migration Configuration</h3>
+              <p>Selected modernization scope with progress, status, and readiness indicators.</p>
+            </div>
+          </div>
+          <div className="migration-config-grid">
+            {configurationCards.map((item) => (
+              <article className={`migration-config-card ${item.tone} ${item.selected ? "selected" : ""}`} key={item.title}>
+                <div className="migration-config-topline">
+                  <strong>{item.title}</strong>
+                  <span>{item.status}</span>
+                </div>
+                <p>{item.description}</p>
+                <div className="migration-progress-track"><span style={{ width: `${item.progress}%` }} /></div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {renderPreviewPanel()}
+
+        <section className="migration-dashboard-card">
+          <div className="migration-card-heading">
+            <div>
+              <h3>Conversion Type Selection</h3>
+              <p>Choose the migration conversion to run with the existing migration engine.</p>
+            </div>
+          </div>
+          <label style={styles.label}>Conversion Types</label>
+          <select style={styles.select} value={selectedConversions[0] || ""} onChange={(e) => setSelectedConversions(e.target.value ? [e.target.value] : [])}>
+            <option value="">Select Conversion Type</option>
+            {conversionTypes.map((ct) => (
+              <option key={ct.id} value={ct.id}>{ct.name} - {ct.description}</option>
+            ))}
+          </select>
+          {selectedConversions.length > 0 && (
+            <div className="migration-selected-conversion">
+              <span>{conversionTypes.find((c) => c.id === selectedConversions[0])?.name || "Conversion"} selected</span>
+              <button type="button" onClick={() => setSelectedConversions([])}>Remove</button>
+            </div>
+          )}
+        </section>
+
+        <section className="migration-dashboard-card">
+          <div className="migration-card-heading">
+            <div>
+              <h3>Migration Options</h3>
+              <p>Enable validation and remediation features for this migration run.</p>
+            </div>
+          </div>
+          <div className="migration-option-grid">
+            {[
+              { key: "runTests", checked: runTests, onChange: setRunTests, title: "Run Test Suite", desc: "Execute automated tests after migration", color: "#10b981", recommended: true },
+              { key: "runSonar", checked: runSonar, onChange: (checked: boolean) => { setRunSonar(checked); if (checked) setRunFossa(false); }, title: "SonarQube Analysis", desc: "Run code quality and security analysis", color: "#f59e0b" },
+              { key: "runFossa", checked: runFossa, onChange: (checked: boolean) => { setRunFossa(checked); if (checked) setRunSonar(false); }, title: "FOSSA License & Dependency Scan", desc: "Run open-source dependency and license compliance analysis", color: "#8b5cf6" },
+              { key: "fixBusinessLogic", checked: fixBusinessLogic, onChange: setFixBusinessLogic, title: "Fix Business Logic Issues", desc: "Automatically improve code quality and patterns", color: "#2563eb", recommended: true },
+            ].map((option) => (
+              <label className={`migration-option-card ${option.checked ? "selected" : ""}`} style={{ borderColor: option.checked ? option.color : undefined }} key={option.key}>
+                <span>
+                  <strong>{option.title}</strong>
+                  {option.recommended && <em>Recommended</em>}
+                </span>
+                <p>{option.desc}</p>
+                <input type="checkbox" checked={option.checked} onChange={(e) => option.onChange(e.target.checked)} />
+              </label>
+            ))}
+          </div>
+        </section>
+      </>
+    );
+
+    const renderProcessAnalysis = () => (
+      <section className="migration-dashboard-card">
+        <div className="migration-card-heading">
+          <div>
+            <h3>Process Analysis</h3>
+            <p>Operational metrics from analysis data and safe dashboard fallbacks.</p>
+          </div>
+        </div>
+        <div className="process-metric-grid">
+          {processMetrics.map((metric) => (
+            <article className={`process-metric-card ${metric.tone}`} key={metric.label}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
 
     return (
-    <div style={styles.card}>
-      <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>⚡</span>
-        <div>
-          <h2 style={styles.title}>Build Modernization & Migration</h2>
-          <p style={styles.subtitle}>{MIGRATION_STEPS[3].summary}</p>
-        </div>
-      </div>
+      <div className="migration-execution-dashboard">
+        <section className="migration-page-header">
+          <div>
+            <h2>Build Modernization & Migration</h2>
+            <p>Execute migration upgrade using automation tools and refactor legacy components</p>
+          </div>
+          <Box className="migration-tabs-wrap">
+            <Tabs value={activeMigrationTab} onChange={(_, value) => setActiveMigrationTab(value)} variant="scrollable" scrollButtons="auto" aria-label="Migration dashboard tabs">
+              <Tab label="Migration Details" />
+              <Tab label="Process" />
+              <Tab label="Analysis Report" />
+              <Tab label="Live Logs" />
+            </Tabs>
+          </Box>
+        </section>
 
-      {/* Show what we plan to modernize */}
-      <div style={styles.sectionTitle}>🎯 Migration Configuration</div>
+        {error && <div className="migration-inline-alert">{error}</div>}
 
-      {/* What we'll modernize - Card Design */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-          ✨ What we'll modernize
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-          {[
-            {
-              icon: "☕",
-              title: "Java Version Upgrade",
-              desc: `From Java ${selectedSourceVersion} to Java ${selectedTargetVersion || "Select Java Version"}`,
-              color: "#2563eb"
-            },
-            {
-              icon: "🔧",
-              title: "Code Refactoring",
-              desc: apiEndpointCount > 0
-                ? `Modernize code patterns across ${apiEndpointCount} detected API endpoint${apiEndpointCount === 1 ? "" : "s"}`
-                : "Modernize code patterns and best practices",
-              color: "#059669",
-              showInfo: true,
-              tooltipContent: plannedCodeRefactoringTooltip,
-              detail: codeRefactoringEndpointLabel
-            },
-            {
-              icon: "📦",
-              title: "Dependencies",
-              desc: "Update and ensure compatibility",
-              color: "#7c3aed",
-              showInfo: true
-            },
-            {
-              icon: "🧠",
-              title: "Business Logic",
-              desc: "Improve performance and reliability",
-              color: "#dc2626",
-              showInfo: true
-            },
-            {
-              icon: "🧪",
-              title: "Testing",
-              desc: "Execute and validate test suites",
-              color: "#ea580c"
-            },
-            {
-              icon: "🔍",
-              title: "Code Quality",
-              desc: "Analysis and improvement",
-              color: "#0891b2"
-            }
-          ].filter((item) => item.title !== "Code Quality").map((item, idx) => (
-            <div
-              key={idx}
-              style={{
-                position: "relative",
-                padding: 20,
-                backgroundColor: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 12,
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                transition: "all 0.2s ease",
-                cursor: "default"
-              }}
-            >
-              {item.showInfo && (
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <button
-                    type="button"
-                    aria-label={`${item.title} information`}
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      border: "1px solid #cbd5e1",
-                      backgroundColor: "#fff",
-                      color: "#64748b",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </button>
-                  <div
-                    style={{
-                      ...styles.tooltip,
-                      left: "auto",
-                      right: 0,
-                      width: 320,
-                      minHeight: 140,
-                      background: "#fff",
-                      border: "1px solid #e2e8f0",
-                      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  >
-                    {item.tooltipContent && (
-                      <div
-                        style={{
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "flex-start",
-                          justifyContent: "flex-start",
-                          width: "100%",
-                        }}
-                      >
-                        {item.tooltipContent}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-                <div style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  backgroundColor: `${item.color}10`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 20
-                }}>
-                  {item.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>
-                    {item.title}
-                  </div>
-                  <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.4 }}>
-                    {item.desc}
-                  </div>
-                  {item.detail && (
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        marginTop: 8,
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        backgroundColor: `${item.color}12`,
-                        color: item.color,
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {item.detail}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div style={{
-                width: "100%",
-                height: 4,
-                backgroundColor: `${item.color}20`,
-                borderRadius: 2,
-                position: "relative",
-                overflow: "hidden"
-              }}>
-                <div style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  backgroundColor: item.color,
-                  borderRadius: 2
-                }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 12 }}>
-          Preview code changes
-        </div>
-        <div style={{ padding: 16, border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#fff" }}>
-          {migrationPreviewLoading && (
-            <div style={{ fontSize: 14, color: "#475569" }}>
-              Analyzing the connected repository and building a real migration preview...
-            </div>
-          )}
-
-          {!migrationPreviewLoading && migrationPreviewError && (
-            <div style={{ fontSize: 14, color: "#b91c1c" }}>
-              {migrationPreviewError}
-            </div>
-          )}
-
-          {!migrationPreviewLoading && !migrationPreviewError && migrationPreview && (
-            <>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#eff6ff", color: "#1d4ed8", fontSize: 13, fontWeight: 600 }}>
-                  {migrationPreview.summary.files_to_modify} files to modify
-                </div>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#ecfdf5", color: "#047857", fontSize: 13, fontWeight: 600 }}>
-                  {migrationPreview.summary.total_changes} planned changes
-                </div>
-                <div style={{ padding: "8px 12px", borderRadius: 999, backgroundColor: "#faf5ff", color: "#7c3aed", fontSize: 13, fontWeight: 600 }}>
-                  {migrationPreview.file_diffs.length} preview diffs
-                </div>
-              </div>
-
-              {codeChanges.length > 0 ? (
-                <div style={{ border: "1px solid #d0d7de", borderRadius: 8, overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid #d0d7de" }}>
-                    <span style={{ fontWeight: 600, color: "#1e293b" }}>Repo-specific migration diff preview</span>
-                    <span style={{ fontSize: 12, color: "#64748b" }}>Read only</span>
-                  </div>
-                  <div style={{ maxHeight: 420, overflowY: "auto" }}>
-                    {codeChanges.map((change, idx) => (
-                      <div key={idx}>
-                        <div
-                          onClick={() => setSelectedDiffFile(selectedDiffFile === change.filePath ? null : change.filePath)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "10px 16px",
-                            backgroundColor: selectedDiffFile === change.filePath ? "#f0f6fc" : "#fafbfc",
-                            borderBottom: "1px solid #d0d7de",
-                            cursor: "pointer"
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontSize: 14 }}>{selectedDiffFile === change.filePath ? "▼" : "▶"}</span>
-                            <span style={{ fontFamily: "'JetBrains Mono', 'Consolas', monospace", fontSize: 13, color: "#0969da" }}>
-                              {change.filePath}
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 600 }}>+{change.additions}</span>
-                            <span style={{ color: "#ef4444", fontSize: 12, fontWeight: 600 }}>-{change.deletions}</span>
-                          </div>
-                        </div>
-
-                        {selectedDiffFile === change.filePath && (
-                          <div style={{ backgroundColor: "#0d1117", overflowX: "auto" }}>
-                            <div style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace", fontSize: 12, lineHeight: 1.5 }}>
-                              {change.diffLines.map((line, lineIdx) => (
-                                <div
-                                  key={lineIdx}
-                                  style={{
-                                    display: "flex",
-                                    backgroundColor: line.type === "add" ? "rgba(63, 185, 80, 0.15)" : line.type === "remove" ? "rgba(248, 81, 73, 0.15)" : "transparent",
-                                    borderLeft: `4px solid ${line.type === "add" ? "#3fb950" : line.type === "remove" ? "#f85149" : "transparent"}`
-                                  }}
-                                >
-                                  <span style={{ minWidth: 50, padding: "2px 10px", textAlign: "right", color: "#6e7681", backgroundColor: "rgba(110,118,129,0.1)", userSelect: "none" }}>
-                                    {line.lineNumber}
-                                  </span>
-                                  <span style={{ width: 24, padding: "2px 6px", textAlign: "center", color: line.type === "add" ? "#3fb950" : line.type === "remove" ? "#f85149" : "#8b949e", userSelect: "none" }}>
-                                    {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
-                                  </span>
-                                  <span style={{ flex: 1, padding: "2px 12px", color: "#e6edf3", whiteSpace: "pre" }}>
-                                    {line.content}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 14, color: "#475569" }}>
-                  No file-level diff preview is available for this repository yet.
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div style={styles.field}>
-        <label style={styles.label}>Conversion Types</label>
-        <select style={styles.select} value={selectedConversions[0] || ""} onChange={(e) => {
-          setSelectedConversions(e.target.value ? [e.target.value] : []);
-        }}>
-          <option value="">-- Select Conversion Type --</option>
-          {conversionTypes.map((ct) => (
-            <option key={ct.id} value={ct.id}>{ct.name} - {ct.description}</option>
-          ))}
-        </select>
-        {selectedConversions.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", backgroundColor: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 8, marginTop: 12 }}>
-            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0c4a6e" }}>
-              ✓ {conversionTypes.find((c) => c.id === selectedConversions[0])?.name} selected
-            </span>
-            <button style={{ background: "none", border: "none", color: "#0c4a6e", cursor: "pointer", fontSize: 18, padding: 0 }} onClick={() => setSelectedConversions([])}>×</button>
+        {activeMigrationTab === 0 && (
+          <div className="migration-dashboard-layout">
+            <div className="migration-dashboard-main">{renderConfiguration()}</div>
+            <aside className="migration-dashboard-side">
+              <MigrationDetails details={migrationDetails} />
+              <MigrationProcessChart data={processChartData} />
+            </aside>
           </div>
         )}
-      </div>
 
+        {activeMigrationTab === 1 && (
+          <div className="migration-process-grid">
+            <MigrationProcessChart data={processChartData} />
+            {renderProcessAnalysis()}
+            <LiveLogs backendLogs={migrationLogs} />
+            <QuickActions actions={quickActions} />
+          </div>
+        )}
 
-      <div style={styles.field}>
-        <label style={styles.label}>Migration Options</label>
-        <div 
-        style={{display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px", alignItems: 'stretch'}}>
-          {[
-            {
-              key: "runTests",
-              checked: runTests,
-              onChange: (checked: boolean) => setRunTests(checked),
-              title: "Run Test Suite",
-              desc: "Execute automated tests after migration",
-              tooltip: "Runs the project's test suite to ensure all functionality works correctly after migration. Includes unit tests, integration tests, and any configured test frameworks. Highly recommended to verify migration success.",
-              icon: "🧪",
-              color: "#22c55e",
-              recommended: true
-            },
-            {
-              key: "runSonar",   
-              checked: runSonar,
-              onChange: (checked: boolean) => setRunSonar(checked),
-              title: "SonarQube Analysis",
-              desc: "Run code quality and security analysis",
-              tooltip: "Performs comprehensive code quality analysis using SonarQube. Checks for bugs, vulnerabilities, code smells, test coverage, and maintainability metrics. Provides detailed quality gate status.",
-              icon: "🔍",
-              color: "#f59e0b",
-              recommended: false
-            },
-            {
-              key: "runFossa",
-              checked: runFossa,
-              onChange: (checked: boolean) => setRunFossa(checked),
-              title: "FOSSA License & Dependency Scan",
-              desc: "Run open-source dependency and license compliance analysis",
-              tooltip: "Scans project dependencies to detect open-source licenses, security risks, policy violations, and supply chain vulnerabilities. Generates a Software Bill of Materials (SBOM) and compliance reports.",
-              icon: "📜",
-              color: "#f59e0b",
-              recommended: false
-            },
-            {
-              key: "fixBusinessLogic",
-              checked: fixBusinessLogic,
-              onChange: (checked: boolean) => setFixBusinessLogic(checked),
-              title: "Fix Business Logic Issues",
-              desc: "Automatically improve code quality and patterns",
-              tooltip: "Applies automated code improvements including null safety, performance optimizations, modern API usage, and best practice implementations. Enhances code maintainability and reduces technical debt.",
-              icon: "🛠️",
-              color: "#3b82f6",
-              recommended: true
-            }
-          ].map((option) => (
-            <div key={option.key} style={{ position: "relative", height: '100%' }}>
-              <div
-              onClick={() => {
-              if (option.key === "runSonar") {
-                  setRunSonar(!runSonar);
-                  setRunFossa(false);
-                  return;
-                }
-               if (option.key === "runFossa") {
-                  setRunFossa(!runFossa);
-                  setRunSonar(false);
-                  return;
-                }
+        {activeMigrationTab === 2 && (
+          <div className="migration-report-grid">
+            <AnalysisReport summary={processMetrics} sections={reportSections} onDownload={handleDashboardReportDownload} />
+            <QuickActions actions={quickActions} />
+          </div>
+        )}
 
-              option.onChange(!option.checked);
-}}
-                style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  border: `2px solid ${option.checked ? option.color : "#e2e8f0"}`,
-                  backgroundColor: option.checked ? `${option.color}08` : "#fff",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: option.checked ? `0 4px 12px ${option.color}20` : "0 2px 4px rgba(0,0,0,0.05)",
-                  position: "relative",
-                  height: "100%",
-                  minHeight: 132,       
-                  display: "flex",              
-                  flexDirection: "column"         
-                }}
-                
-                onMouseEnter={(e) => {
-                  if (!option.checked) {
-                    e.currentTarget.style.borderColor = option.color;
-                    e.currentTarget.style.boxShadow = `0 4px 12px ${option.color}15`;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!option.checked) {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
-                  }
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-                  <span style={{ fontSize: 24 }}>{option.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 16, fontWeight: 600, color: "#1e293b" }}>{option.title}</span>
-                      {option.recommended && (
-                        <span style={{
-                          fontSize: 10,
-                          padding: "2px 6px",
-                          backgroundColor: "#dcfce7",
-                          color: "#166534",
-                          borderRadius: 8,
-                          fontWeight: 600,
-                          textTransform: "uppercase"
-                        }}>
-                          Recommended
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 13, color: "#64748b" }}>{option.desc}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 64, justifyContent: "flex-end" }}>
-                    <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: option.color, fontSize: 18, fontWeight: 700 }}>
-                      {option.checked ? '✓' : null}
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={option.checked}
-                      onChange={(e) => option.onChange(e.target.checked)}
-                      style={{
-                        width: 18,
-                        height: 18,
-                        accentColor: option.color,
-                        cursor: "pointer"
-                      }}
-                    />
-                  </div>
-                </div>
+        {activeMigrationTab === 3 && (
+          <div className="migration-live-log-grid">
+            <LiveLogs backendLogs={migrationLogs} />
+            <QuickActions actions={quickActions} />
+          </div>
+        )}
 
-                {/* Info button for tooltip */}
-                <div style={{ position: "absolute", top: 12, right: 12 }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      backgroundColor: "#e2e8f0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#64748b",
-                      cursor: "help"
-                    }}
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "block";
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (tooltip) tooltip.style.display = "none";
-                    }}
-                  >
-                    i
-                  </div>
-
-                  {/* Tooltip */}
-                  <div
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: 28,
-                      right: 0,
-                      width: 320,
-                      backgroundColor: "#1e293b",
-                      color: "#f1f5f9",
-                      padding: "14px 18px",
-                      borderRadius: 10,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      zIndex: 1000,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      whiteSpace: "normal"
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 10, color: "#94a3b8", fontSize: 13 }}>
-                      {option.title} Details
-                    </div>
-                    <div style={{ marginBottom: 8 }}>{option.tooltip}</div>
-                    {option.recommended && (
-                      <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 600, marginTop: 6 }}>
-                        💡 Recommended for most migrations
-                      </div>
-                    )}
-                    {/* Arrow */}
-                    <div style={{
-                      position: "absolute",
-                      top: -6,
-                      right: 20,
-                      width: 0,
-                      height: 0,
-                      borderLeft: "6px solid transparent",
-                      borderRight: "6px solid transparent",
-                      borderBottom: "6px solid #1e293b"
-                    }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="migration-bottom-actions">
+          <button style={styles.secondaryBtn} onClick={() => setStep(3)}>Back</button>
+          <button style={{ ...styles.primaryBtn, opacity: loading ? 0.5 : 1 }} onClick={handleStartMigration} disabled={loading}>
+            {loading ? "Starting..." : "Start Migration"}
+          </button>
         </div>
       </div>
-
-      <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(3)}>← Back</button>
-        <button style={{ ...styles.primaryBtn, opacity: loading ? 0.5 : 1 }} onClick={handleStartMigration} disabled={loading}>
-          {loading ? "Starting..." : "🚀 Start Migration"}
-        </button>
-      </div>
-    </div>
-  );
-
+    );
   };
-
   const renderStep3 = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔍</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Application Discovery</h2>
           <p style={styles.subtitle}>Analyzing the application structure and components.</p>
@@ -3585,21 +2467,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       {selectedRepo && (
         <div style={styles.discoveryContent}>
           <div style={styles.discoveryItem}>
-            <span style={styles.discoveryIcon}>📊</span>
+            <span style={styles.discoveryIcon}></span>
             <div>
               <div style={styles.discoveryTitle}>Repository Analysis</div>
               <div style={styles.discoveryDesc}>Scanning {selectedRepo.name} for Java components</div>
             </div>
           </div>
           <div style={styles.discoveryItem}>
-            <span style={styles.discoveryIcon}>🔧</span>
+            <span style={styles.discoveryIcon}></span>
             <div>
               <div style={styles.discoveryTitle}>Build Tools Detection</div>
               <div style={styles.discoveryDesc}>Identifying Maven, Gradle, or other build systems</div>
             </div>
           </div>
           <div style={styles.discoveryItem}>
-            <span style={styles.discoveryIcon}>📦</span>
+            <span style={styles.discoveryIcon}></span>
             <div>
               <div style={styles.discoveryTitle}>Dependencies Scan</div>
               <div style={styles.discoveryDesc}>Analyzing project dependencies and versions</div>
@@ -3608,8 +2490,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       )}
       <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(2)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Assessment →</button>
+        <button style={styles.secondaryBtn} onClick={() => setStep(2)}> Back</button>
+        <button style={styles.primaryBtn} onClick={() => setStep(4)}>Continue to Assessment </button>
       </div>
     </div>
   );
@@ -3617,7 +2499,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderStep4 = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📊</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Application Assessment</h2>
           <p style={styles.subtitle}>Review the detailed assessment report.</p>
@@ -3627,7 +2509,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         <>
           {analysisLoading ? <div style={styles.loadingBox}><div style={styles.spinner}></div><span>Analyzing repository...</span></div> : repoAnalysis ? (
             <>
-              <div style={styles.sectionTitle}>📊 Assessment Report</div>
+              <div style={styles.sectionTitle}> Assessment Report</div>
               <div style={{ ...styles.riskBadge, backgroundColor: riskLevel === "low" ? "#dcfce7" : riskLevel === "medium" ? "#fef3c7" : "#fee2e2", color: riskLevel === "low" ? "#166534" : riskLevel === "medium" ? "#92400e" : "#991b1b" }}>Risk Level: {riskLevel.toUpperCase()}</div>
               <div style={styles.assessmentGrid}>
                 <div style={styles.assessmentItem}><div style={styles.assessmentLabel}>Build Tool</div><div style={styles.assessmentValue}>{repoAnalysis.build_tool || "Not Detected"}</div></div>
@@ -3638,16 +2520,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               <div style={styles.structureBox}>
                 <div style={styles.structureTitle}>Project Structure</div>
                 <div style={styles.structureGrid}>
-                  <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "✓" : "✗"} pom.xml</span>
-                  <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "✓" : "✗"} build.gradle</span>
-                  <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "✓" : "✗"} src/main</span>
-                  <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "✓" : "✗"} src/test</span>
+                  <span style={repoAnalysis.structure?.has_pom_xml ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_pom_xml ? "" : ""} pom.xml</span>
+                  <span style={repoAnalysis.structure?.has_build_gradle ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_build_gradle ? "" : ""} build.gradle</span>
+                  <span style={repoAnalysis.structure?.has_src_main ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_main ? "" : ""} src/main</span>
+                  <span style={repoAnalysis.structure?.has_src_test ? styles.structureFound : styles.structureMissing}>{repoAnalysis.structure?.has_src_test ? "" : ""} src/test</span>
                   <span style={detectedJavaVersion ? styles.structureFound : styles.structureMissing}>{detectedJavaStructureLabel}</span>
                 </div>
               </div>
               {repoAnalysis.dependencies && repoAnalysis.dependencies.length > 0 && (
                 <div style={styles.dependenciesBox}>
-                  <div style={styles.sectionTitle}>📦 Dependencies ({repoAnalysis.dependencies.length})</div>
+                  <div style={styles.sectionTitle}> Dependencies ({repoAnalysis.dependencies.length})</div>
                   <div style={styles.dependenciesList}>
                     {repoAnalysis.dependencies.slice(0, 5).map((dep, idx) => (
                       <div key={idx} style={styles.dependencyItem}>
@@ -3671,16 +2553,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                   setStep(2);
                 }}
               >
-                ← Go Back
+                 Go Back
               </button>
             </div>
           )}
         </>
       )}
       <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(3)}>← Back</button>
+        <button style={styles.secondaryBtn} onClick={() => setStep(3)}> Back</button>
         <button style={{ ...styles.primaryBtn, opacity: repoAnalysis ? 1 : 0.5 }} onClick={() => repoAnalysis && setStep(5)} disabled={!repoAnalysis}>
-          Continue to Strategy →
+          Continue to Strategy 
         </button>
       </div>
     </div>
@@ -3689,7 +2571,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderStep5 = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📋</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Migration Strategy</h2>
           <p style={styles.subtitle}>Define your migration approach and target configuration.</p>
@@ -3732,7 +2614,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     <div style={{ fontSize: 13, color: "#64748b" }}>{opt.desc}</div>
                   </div>
                   {migrationApproach === opt.value && (
-                    <div style={{ color: opt.color, fontSize: 18, fontWeight: 700 }}>✓</div>
+                    <div style={{ color: opt.color, fontSize: 18, fontWeight: 700 }}></div>
                   )}
                 </div>
 
@@ -3806,8 +2688,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       </div>
       <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(4)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(6)}>Continue to Planning →</button>
+        <button style={styles.secondaryBtn} onClick={() => setStep(4)}> Back</button>
+        <button style={styles.primaryBtn} onClick={() => setStep(6)}>Continue to Planning </button>
       </div>
     </div>
   );
@@ -3816,7 +2698,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     return (
       <div style={styles.card}>
         <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>🎯</span>
+          <span style={styles.stepIcon}></span>
           <div>
             <h2 style={styles.title}>Migration Planning</h2>
             <p style={styles.subtitle}>Configure Java versions and target settings.</p>
@@ -3858,22 +2740,22 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             Format: <code style={{ backgroundColor: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>
               {migrationApproach === "branch"
                 ? <>migration/{'{source-repo}'}-Migrated{'{timestamp}'}</>
-                : <>https://github.com/SrikkanthSorim/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
+                : <>https://github.com/sahana-2924/{'{source-repo}'}-Migrated{'{timestamp}'}</>}
             </code>
           </p>
         </div>
         <div style={styles.btnRow}>
-          <button style={styles.secondaryBtn} onClick={() => setStep(5)}>← Back</button>
-          <button style={styles.primaryBtn} onClick={() => setStep(7)}>Continue to Dependencies →</button>
+          <button style={styles.secondaryBtn} onClick={() => setStep(5)}> Back</button>
+          <button style={styles.primaryBtn} onClick={() => setStep(7)}>Continue to Dependencies </button>
         </div>
       </div>
     );
-  }
+  };
 
   const renderStep7 = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📦</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Dependencies Analysis</h2>
           <p style={styles.subtitle}>Review and plan dependency updates.</p>
@@ -3901,9 +2783,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         <div style={styles.frameworkGrid}>
           {[
             { id: "spring", name: "Spring Framework", detected: true },
-            { id: "spring-boot", name: "Spring Boot 2.x → 3.x", detected: true },
+            { id: "spring-boot", name: "Spring Boot 2.x  3.x", detected: true },
             { id: "hibernate", name: "Hibernate / JPA", detected: false },
-            { id: "junit", name: "JUnit 4 → 5", detected: true },
+            { id: "junit", name: "JUnit 4  5", detected: true },
           ].map((fw) => (
             <label key={fw.id} style={styles.frameworkItem}>
               <input type="checkbox" checked={selectedFrameworks.includes(fw.id)} onChange={() => handleFrameworkToggle(fw.id)} style={styles.checkbox} />
@@ -3914,8 +2796,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       </div>
       <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(6)}>← Back</button>
-        <button style={styles.primaryBtn} onClick={() => setStep(8)}>Continue to Build & Refactor →</button>
+        <button style={styles.secondaryBtn} onClick={() => setStep(6)}> Back</button>
+        <button style={styles.primaryBtn} onClick={() => setStep(8)}>Continue to Build & Refactor </button>
       </div>
     </div>
   );
@@ -3923,7 +2805,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderStep8 = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🔧</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Build Modernization & Refactor</h2>
           <p style={styles.subtitle}>Configure conversions and prepare for migration.</p>
@@ -3942,14 +2824,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         {selectedConversions.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", backgroundColor: "#dbeafe", border: "1px solid #93c5fd", borderRadius: 8, marginTop: 12 }}>
             <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0c4a6e" }}>
-              ✓ {conversionTypes.find((c) => c.id === selectedConversions[0])?.name} selected
+               {conversionTypes.find((c) => c.id === selectedConversions[0])?.name} selected
             </span>
-            <button style={{ background: "none", border: "none", color: "#0c4a6e", cursor: "pointer", fontSize: 18, padding: 0 }} onClick={() => setSelectedConversions([])}>×</button>
+            <button style={{ background: "none", border: "none", color: "#0c4a6e", cursor: "pointer", fontSize: 18, padding: 0 }} onClick={() => setSelectedConversions([])}></button>
           </div>
         )}
       </div>
       <div style={styles.warningBox}>
-        <div style={styles.warningTitle}>⚠️ Common Issues to Watch</div>
+        <div style={styles.warningTitle}> Common Issues to Watch</div>
         <ul style={styles.warningList}>
           <li><strong>javax.xml.bind</strong> - Missing in Java 11+</li>
           <li><strong>Illegal reflective access</strong> - Warnings become errors</li>
@@ -3999,9 +2881,9 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       </div>
 
       <div style={styles.btnRow}>
-        <button style={styles.secondaryBtn} onClick={() => setStep(7)}>← Back</button>
+        <button style={styles.secondaryBtn} onClick={() => setStep(7)}> Back</button>
         <button style={{ ...styles.primaryBtn, opacity: loading ? 0.5 : 1 }} onClick={handleStartMigration} disabled={loading}>
-          {loading ? "Starting..." : "Start Migration 🚀"}
+          {loading ? "Starting..." : "Start Migration "}
         </button>
       </div>
     </div>
@@ -4010,7 +2892,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderMigrationAnimation = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>🚀</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Migration in Progress</h2>
           <p style={styles.subtitle}>Your project is being migrated... Please wait.</p>
@@ -4023,40 +2905,40 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.animationHeader}>
             <div style={styles.migratingText}>Migrating Java Project</div>
             <div style={styles.versionTransition}>
-              Java {selectedSourceVersion} → Java {selectedTargetVersion || "Select Java Version"}
+              Java {selectedSourceVersion}  Java {selectedTargetVersion || "Select Java Version"}
             </div>
           </div>
 
           {/* Animated Steps */}
           <div style={styles.animationSteps}>
             <div style={{ ...styles.animationStep, opacity: animationProgress >= 10 ? 1 : 0.3, transition: "opacity 0.3s ease" }}>
-              <div style={styles.stepIconAnimated}>📂</div>
+              <div style={styles.stepIconAnimated}></div>
               <div style={styles.stepText}>Analyzing Source Code</div>
-              {animationProgress >= 10 && <div style={styles.checkMarkAnimated}>✓</div>}
+              {animationProgress >= 10 && <div style={styles.checkMarkAnimated}></div>}
             </div>
 
             <div style={{ ...styles.animationStep, opacity: animationProgress >= 30 ? 1 : 0.3, transition: "opacity 0.3s ease" }}>
-              <div style={styles.stepIconAnimated}>⚙️</div>
+              <div style={styles.stepIconAnimated}></div>
               <div style={styles.stepText}>Updating Dependencies</div>
-              {animationProgress >= 30 && <div style={styles.checkMarkAnimated}>✓</div>}
+              {animationProgress >= 30 && <div style={styles.checkMarkAnimated}></div>}
             </div>
 
             <div style={{ ...styles.animationStep, opacity: animationProgress >= 50 ? 1 : 0.3, transition: "opacity 0.3s ease" }}>
-              <div style={styles.stepIconAnimated}>🔧</div>
+              <div style={styles.stepIconAnimated}></div>
               <div style={styles.stepText}>Applying Code Transformations</div>
-              {animationProgress >= 50 && <div style={styles.checkMarkAnimated}>✓</div>}
+              {animationProgress >= 50 && <div style={styles.checkMarkAnimated}></div>}
             </div>
 
             <div style={{ ...styles.animationStep, opacity: animationProgress >= 70 ? 1 : 0.3, transition: "opacity 0.3s ease" }}>
-              <div style={styles.stepIconAnimated}>🧪</div>
+              <div style={styles.stepIconAnimated}></div>
               <div style={styles.stepText}>Running Tests & Quality Checks</div>
-              {animationProgress >= 70 && <div style={styles.checkMarkAnimated}>✓</div>}
+              {animationProgress >= 70 && <div style={styles.checkMarkAnimated}></div>}
             </div>
 
             <div style={{ ...styles.animationStep, opacity: animationProgress >= 90 ? 1 : 0.3, transition: "opacity 0.3s ease" }}>
-              <div style={styles.stepIconAnimated}>📊</div>
+              <div style={styles.stepIconAnimated}></div>
               <div style={styles.stepText}>Generating Migration Report</div>
-              {animationProgress >= 90 && <div style={styles.checkMarkAnimated}>✓</div>}
+              {animationProgress >= 90 && <div style={styles.checkMarkAnimated}></div>}
             </div>
           </div>
 
@@ -4090,7 +2972,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             )}
             {migrationJob?.status === "cloning" && (
               <div style={{ ...styles.recentLog, color: '#f59e0b', fontSize: 12 }}>
-                ℹ️ Cloning repository... this may take a few minutes for large repositories. Please wait.
+                 Cloning repository... this may take a few minutes for large repositories. Please wait.
               </div>
             )}
           </div>
@@ -4104,7 +2986,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     return (
       <div style={styles.card}>
         <div style={styles.stepHeader}>
-          <span style={styles.stepIcon}>{migrationJob?.status === "completed" ? "✅" : migrationJob?.status === "failed" ? "❌" : "⏳"}</span>
+          <span style={styles.stepIcon}>{migrationJob?.status === "completed" ? "" : migrationJob?.status === "failed" ? "" : ""}</span>
           <div>
             <h2 style={styles.title}>{migrationJob?.status === "completed" ? "Migration Completed!" : migrationJob?.status === "failed" ? "Migration Failed" : "Migration in Progress"}</h2>
             <p style={styles.subtitle}>{migrationJob?.current_step || "Processing..."}</p>
@@ -4112,7 +2994,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
         {migrationJob?.status === "failed" && (
           <div style={{ ...styles.errorBox, padding: 20, marginBottom: 20, borderRadius: 8, backgroundColor: '#fee2e2', borderLeft: '4px solid #dc2626' }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#7f1d1d', marginBottom: 10 }}>❌ Migration Failed</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#7f1d1d', marginBottom: 10 }}> Migration Failed</div>
             {migrationJob?.error_message && (
               <div style={{ color: '#991b1b', marginBottom: 10, fontFamily: 'monospace', fontSize: 14, padding: 10, backgroundColor: '#fecaca', borderRadius: 4 }}>
                 {migrationJob?.error_message}
@@ -4123,7 +3005,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#7f1d1d', marginBottom: 8 }}>Recent Logs:</div>
                 <div style={{ fontSize: 12, color: '#7f1d1d', fontFamily: 'monospace', maxHeight: 150, overflow: 'auto' }}>
                   {migrationJob!.migration_log.slice(-5).map((log, idx) => (
-                    <div key={idx} style={{ marginBottom: 4 }}>• {log}</div>
+                    <div key={idx} style={{ marginBottom: 4 }}> {log}</div>
                   ))}
                 </div>
               </div>
@@ -4142,8 +3024,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
         {migrationJob.status === "completed" && migrationJob.target_repo && (
           <div style={styles.successBox}>
-            <div style={styles.successTitle}>🎉 Migration Successful!</div>
-            <a href={getRepositoryLink(migrationJob.target_repo) || "#"} target="_blank" rel="noreferrer" style={styles.repoLink}>View Migrated Repository →</a>
+            <div style={styles.successTitle}> Migration Successful!</div>
+            <a href={getRepositoryLink(migrationJob.target_repo) || "#"} target="_blank" rel="noreferrer" style={styles.repoLink}>View Migrated Repository </a>
           </div>
         )}
         <div style={styles.btnRow}>
@@ -4155,7 +3037,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 resetWizard();
               }}
             >
-              ⏹️ Cancel Migration
+               Cancel Migration
             </button>
           )}
           {migrationJob.status === "failed" && (
@@ -4166,11 +3048,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                 resetWizard();
               }}
             >
-              🔄 Try Again
+               Try Again
             </button>
           )}
           {migrationJob.status !== "cloning" && migrationJob.status !== "analyzing" && migrationJob.status !== "migrating" && migrationJob.status !== "pending" && migrationJob.status !== "failed" && (
-            <button style={styles.primaryBtn} onClick={() => setStep(7)}>View Migration Report →</button>
+            <button style={styles.primaryBtn} onClick={() => setStep(7)}>View Migration Report </button>
           )}
         </div>
       </div>
@@ -4180,7 +3062,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const renderStep11 = () => (
     <div style={styles.card}>
       <div style={styles.stepHeader}>
-        <span style={styles.stepIcon}>📄</span>
+        <span style={styles.stepIcon}></span>
         <div>
           <h2 style={styles.title}>Migration Report</h2>
           <p style={styles.subtitle}>Complete migration summary with all results and metrics.</p>
@@ -4190,7 +3072,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         <div style={styles.reportContainer}>
           {/* Source and Target Repository Information */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🏗️ Repository Information</h3>
+            <h3 style={styles.reportTitle}> Repository Information</h3>
             <div style={styles.reportGrid}>
               <div style={styles.reportItem}>
                 <span style={styles.reportLabel}>Source Repository</span>
@@ -4218,7 +3100,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
               <div style={styles.reportItem}>
                 <span style={styles.reportLabel}>Java Version Migration</span>
-                <span style={styles.reportValue}>{migrationJob.source_java_version} → {migrationJob.target_java_version}</span>
+                <span style={styles.reportValue}>{migrationJob.source_java_version}  {migrationJob.target_java_version}</span>
               </div>
               <div style={styles.reportItem}>
                 <span style={styles.reportLabel}>Migration Completed</span>
@@ -4229,24 +3111,24 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* Changes Made */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🔄 Changes Made</h3>
+            <h3 style={styles.reportTitle}> Changes Made</h3>
             <div style={styles.changesGrid}>
               <div style={styles.changeItem}>
-                <span style={styles.changeIcon}>📄</span>
+                <span style={styles.changeIcon}></span>
                 <div>
                   <div style={styles.changeTitle}>Files Modified</div>
                   <div style={styles.changeValue}>{migrationJob.files_modified} files updated</div>
                 </div>
               </div>
               <div style={styles.changeItem}>
-                <span style={styles.changeIcon}>🔧</span>
+                <span style={styles.changeIcon}></span>
                 <div>
                   <div style={styles.changeTitle}>Code Transformations</div>
                   <div style={styles.changeValue}>{migrationJob.issues_fixed} code issues fixed</div>
                 </div>
               </div>
               <div style={styles.changeItem}>
-                <span style={styles.changeIcon}>📦</span>
+                <span style={styles.changeIcon}></span>
                 <div>
                   <div style={styles.changeTitle}>Dependencies Updated</div>
                   <div style={styles.changeValue}>{migrationJob.dependencies?.filter(d => d.status === 'upgraded').length || 0} dependencies upgraded</div>
@@ -4257,14 +3139,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* Dependencies Fixed */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>📦 Dependencies Fixed</h3>
+            <h3 style={styles.reportTitle}> Dependencies Fixed</h3>
             {migrationJob.dependencies && migrationJob.dependencies.length > 0 ? (
               <div style={styles.dependenciesReport}>
                 {migrationJob.dependencies.map((dep, idx) => (
                   <div key={idx} style={styles.dependencyReportItem}>
                     <span style={styles.dependencyName}>{dep.group_id}:{dep.artifact_id}</span>
                     <span style={styles.dependencyChange}>
-                      {dep.current_version} → {dep.new_version || 'latest'}
+                      {dep.current_version}  {dep.new_version || 'latest'}
                     </span>
                     <span style={{ ...styles.dependencyStatus, backgroundColor: dep.status === 'upgraded' ? '#dcfce7' : '#e5e7eb', color: dep.status === 'upgraded' ? '#166534' : '#6b7280' }}>
                       {dep.status.replace('_', ' ').toUpperCase()}
@@ -4279,7 +3161,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* Errors Fixed */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🐛 Errors Fixed</h3>
+            <h3 style={styles.reportTitle}> Errors Fixed</h3>
             <div style={styles.errorsSummary}>
               <div style={styles.errorStat}>
                 <span style={styles.errorCount}>{migrationJob.errors_fixed || 0}</span>
@@ -4298,31 +3180,31 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* Business Logic Fixed */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🧠 Business Logic Improvements</h3>
+            <h3 style={styles.reportTitle}> Business Logic Improvements</h3>
             <div style={styles.businessLogicGrid}>
               <div style={styles.businessItem}>
-                <span style={styles.businessIcon}>🛡️</span>
+                <span style={styles.businessIcon}></span>
                 <div>
                   <div style={styles.businessTitle}>Null Safety</div>
                   <div style={styles.businessDesc}>Added null checks and Objects.equals() usage</div>
                 </div>
               </div>
               <div style={styles.businessItem}>
-                <span style={styles.businessIcon}>⚡</span>
+                <span style={styles.businessIcon}></span>
                 <div>
                   <div style={styles.businessTitle}>Performance</div>
                   <div style={styles.businessDesc}>Optimized String operations and collections</div>
                 </div>
               </div>
               <div style={styles.businessItem}>
-                <span style={styles.businessIcon}>🔧</span>
+                <span style={styles.businessIcon}></span>
                 <div>
                   <div style={styles.businessTitle}>Code Quality</div>
                   <div style={styles.businessDesc}>Improved exception handling and logging</div>
                 </div>
               </div>
               <div style={styles.businessItem}>
-                <span style={styles.businessIcon}>📝</span>
+                <span style={styles.businessIcon}></span>
                 <div>
                   <div style={styles.businessTitle}>Modern APIs</div>
                   <div style={styles.businessDesc}>Updated to use latest Java APIs and patterns</div>
@@ -4335,7 +3217,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>
               <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>📝 Code Changes (GitLab-Style Diff)</span>
+                <span> Code Changes (GitLab-Style Diff)</span>
                 <button
                   onClick={() => setShowCodeChanges(!showCodeChanges)}
                   style={{
@@ -4348,7 +3230,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                     color: "#24292f"
                   }}
                 >
-                  {showCodeChanges ? "🔽 Collapse" : "🔼 Expand"}
+                  {showCodeChanges ? " Collapse" : " Expand"}
                 </button>
               </span>
             </h3>
@@ -4421,7 +3303,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontSize: 14 }}>
-                            {selectedDiffFile === change.filePath ? "▼" : "▶"}
+                            {selectedDiffFile === change.filePath ? "" : ""}
                           </span>
                           <span style={{
                             display: "inline-block",
@@ -4554,7 +3436,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* SonarQube Code Coverage */}
          {runSonar && ( <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🔍 SonarQube Code Quality & Coverage</h3>
+            <h3 style={styles.reportTitle}> SonarQube Code Quality & Coverage</h3>
             <div style={styles.sonarqubeGrid}>
               <div style={styles.sonarqubeItem}>
                 <div style={styles.qualityGate}>
@@ -4599,7 +3481,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     {/* FOSSA License & Dependency Report */}
     {(runFossa || migrationJob?.fossa_policy_status != null || migrationJob?.fossa_total_dependencies != null || fossaResult) && (migrationJob || fossaResult) && (
     <div style={styles.reportSection}>
-      <h3 style={styles.reportTitle}>📜 FOSSA License & Dependency Scan</h3>
+      <h3 style={styles.reportTitle}> FOSSA License & Dependency Scan</h3>
 
       <div style={styles.sonarqubeGrid}>
         
@@ -4676,7 +3558,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* Unit Test Report */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🧪 Unit Test Report</h3>
+            <h3 style={styles.reportTitle}> Unit Test Report</h3>
             <div style={styles.testReportGrid}>
               <div style={styles.testMetric}>
                 <span style={styles.testValue}>10</span>
@@ -4696,14 +3578,14 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
             </div>
             <div style={styles.testStatus}>
-              <span style={styles.testStatusIcon}>✅</span>
+              <span style={styles.testStatusIcon}></span>
               <span>All unit tests passed successfully</span>
             </div>
           </div>
 
           {/* JMeter Test Report */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>🚀 JMeter Performance Test Report</h3>
+            <h3 style={styles.reportTitle}> JMeter Performance Test Report</h3>
             <div style={styles.jmeterGrid}>
               <div style={styles.jmeterItem}>
                 <span style={styles.jmeterLabel}>API Endpoints Tested</span>
@@ -4728,7 +3610,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* Migration Log */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>📋 Migration Log</h3>
+            <h3 style={styles.reportTitle}> Migration Log</h3>
             <div style={styles.logsContainer}>
               {migrationLogs.length > 0 ? (
                 migrationLogs.map((log, index) => (
@@ -4742,7 +3624,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
           {/* Issues & Errors Detailed */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}>⚠️ Detailed Issues & Errors</h3>
+            <h3 style={styles.reportTitle}> Detailed Issues & Errors</h3>
             <div style={styles.issuesContainer}>
               {migrationJob.issues && migrationJob.issues.length > 0 ? (
                 migrationJob.issues.slice(0, 10).map((issue) => (
@@ -4782,7 +3664,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             }
           }}
         >
-          📦 Download Migrated Project (ZIP)
+           Download Migrated Project (ZIP)
         </button>
         <button
           style={{ ...styles.secondaryBtn, marginRight: 10 }}
@@ -4793,7 +3675,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             }
           }}
         >
-          📥 Download Full Report
+           Download Full Report
         </button>
         <button
           style={{ ...styles.secondaryBtn, marginRight: 10 }}
@@ -4802,26 +3684,26 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               // Generate README.md content
               const readmeContent = `# Migration Report
 
-## 📋 Overview
+##  Overview
 
 This project has been automatically migrated from **Java ${migrationJob.source_java_version}** to **Java ${migrationJob.target_java_version}** using the Java Migration Accelerator.
 
 **Migration Date:** ${migrationJob.completed_at ? new Date(migrationJob.completed_at).toLocaleDateString() : 'In Progress'}  
-**Status:** ${migrationJob.status === 'completed' ? '✅ Completed' : '🔄 ' + migrationJob.status}
+**Status:** ${migrationJob.status === 'completed' ? ' Completed' : ' ' + migrationJob.status}
 
 ---
 
-## 🏗️ Repository Information
+##  Repository Information
 
 | Property | Value |
 |----------|-------|
 | Source Repository | ${migrationJob.source_repo} |
 | Target Repository | ${migrationJob.target_repo || 'N/A'} |
-| Java Version | ${migrationJob.source_java_version} → ${migrationJob.target_java_version} |
+| Java Version | ${migrationJob.source_java_version}  ${migrationJob.target_java_version} |
 
 ---
 
-## 📊 Migration Summary
+##  Migration Summary
 
 | Metric | Count |
 |--------|-------|
@@ -4834,15 +3716,15 @@ This project has been automatically migrated from **Java ${migrationJob.source_j
 
 ---
 
-## 📦 Dependencies Updated
+##  Dependencies Updated
 
 ${migrationJob.dependencies && migrationJob.dependencies.length > 0 ? 
-migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** - ${dep.current_version} → ${dep.new_version || 'latest'} (${dep.status})`).join('\n') 
+migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** - ${dep.current_version}  ${dep.new_version || 'latest'} (${dep.status})`).join('\n') 
 : 'No dependencies were updated.'}
 
 ---
 
-## 🔍 SonarQube Code Quality
+##  SonarQube Code Quality
 
 | Metric | Value |
 |--------|-------|
@@ -4854,7 +3736,7 @@ migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** -
 
 ---
 
-## 🧪 Test Results
+##  Test Results
 
 - **Tests Run:** 10
 - **Tests Passed:** 10
@@ -4863,7 +3745,7 @@ migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** -
 
 ---
 
-## 🚀 API Validation
+##  API Validation
 
 | Metric | Value |
 |--------|-------|
@@ -4874,7 +3756,7 @@ migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** -
 
 ---
 
-## 📜 FOSSA License & Dependency Scan
+##  FOSSA License & Dependency Scan
 
 | Metric | Value |
 |--------|-------|
@@ -4885,16 +3767,16 @@ migrationJob.dependencies.map(dep => `- **${dep.group_id}:${dep.artifact_id}** -
 | Outdated Packages | ${migrationJob?.fossa_outdated_dependencies ?? 0} |
 
 
-## 🛡️ Business Logic Improvements
+##  Business Logic Improvements
 
-- ✅ **Null Safety** - Added null checks and Objects.equals() usage
-- ✅ **Performance** - Optimized String operations and collections
-- ✅ **Code Quality** - Improved exception handling and logging
-- ✅ **Modern APIs** - Updated to use latest Java APIs and patterns
+-  **Null Safety** - Added null checks and Objects.equals() usage
+-  **Performance** - Optimized String operations and collections
+-  **Code Quality** - Improved exception handling and logging
+-  **Modern APIs** - Updated to use latest Java APIs and patterns
 
 ---
 
-## 📝 Migration Log
+##  Migration Log
 
 \`\`\`
 ${migrationLogs.length > 0 ? migrationLogs.join('\n') : 'No migration logs available'}
@@ -4902,7 +3784,7 @@ ${migrationLogs.length > 0 ? migrationLogs.join('\n') : 'No migration logs avail
 
 ---
 
-## ⚠️ Known Issues
+##  Known Issues
 
 ${migrationJob.issues && migrationJob.issues.length > 0 ? 
 migrationJob.issues.slice(0, 10).map(issue => `- [${issue.severity.toUpperCase()}] ${issue.message} (${issue.file_path}:${issue.line_number})`).join('\n') 
@@ -4926,315 +3808,90 @@ migrationJob.issues.slice(0, 10).map(issue => `- [${issue.severity.toUpperCase()
             }
           }}
         >
-          📄 Download Migration Report
+           Download Migration Report
         </button>
         <button
           style={{ ...styles.secondaryBtn, marginRight: 10 }}
           onClick={() => {
             if (migrationJob) {
               // Generate comprehensive README.md for modernized application
-              const projectReadme = `# ${selectedRepo?.name || 'Modernized Application'}
-
-[![Java Version](https://img.shields.io/badge/Java-${migrationJob.target_java_version}-orange.svg)](https://openjdk.org/)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
-[![Code Quality](https://img.shields.io/badge/quality-${migrationJob.sonar_quality_gate || 'A'}-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-${migrationJob.sonar_coverage}%25-green.svg)]()
-
-> 🚀 **This application has been modernized to Java ${migrationJob.target_java_version}** using the Java Migration Accelerator.
-
----
-
-## 📋 Table of Contents
-
-- [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Building the Project](#building-the-project)
-- [Running the Application](#running-the-project)
-- [Testing](#testing)
-- [API Documentation](#api-documentation)
-- [Migration Notes](#migration-notes)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
-## 🎯 Overview
-
-This project has been successfully modernized from **Java ${migrationJob.source_java_version}** to **Java ${migrationJob.target_java_version}**, bringing the following improvements:
-
-- ✅ **Modern Java Features** - Utilizing latest Java ${migrationJob.target_java_version} capabilities
-- ✅ **Updated Dependencies** - ${migrationJob.dependencies?.filter(d => d.status === 'upgraded').length || 0} dependencies upgraded
-- ✅ **Code Quality** - ${migrationJob.sonar_bugs} bugs, ${migrationJob.sonar_vulnerabilities} vulnerabilities
-- ✅ **Test Coverage** - ${migrationJob.sonar_coverage}% code coverage maintained
-- ✅ **Performance Optimized** - Modern APIs and patterns implemented
-${isHighRiskProject ? `
-> ⚠️ **Note:** This was a high-risk migration. The project was missing standard configuration files (pom.xml/build.gradle) and/or had unknown Java version. A standard Maven project structure has been created.
-` : ''}
----
-
-## 🛠️ Detected Frameworks & Libraries
-
-${detectedFrameworks.length > 0 ? 
-detectedFrameworks.map(fw => `| **${fw.name}** | ${fw.type} | \`${fw.path}\` |`).join('\n')
-: '| No frameworks detected | - | - |'}
-
----
-
-## 📦 Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- **Java Development Kit (JDK) ${migrationJob.target_java_version}+**
-  \`\`\`bash
-  java --version
-  # Should output: openjdk ${migrationJob.target_java_version}.x.x or higher
-  \`\`\`
-
-- **Maven 3.8+** (if using Maven)
-  \`\`\`bash
-  mvn --version
-  \`\`\`
-
-- **Gradle 8.0+** (if using Gradle)
-  \`\`\`bash
-  gradle --version
-  \`\`\`
-
----
-
-## 🚀 Getting Started
-
-### Clone the Repository
-
-\`\`\`bash
-git clone ${migrationJob.target_repo || migrationJob.source_repo}
-cd ${selectedRepo?.name || 'project-name'}
-\`\`\`
-
-### Install Dependencies
-
-**Using Maven:**
-\`\`\`bash
-mvn clean install
-\`\`\`
-
-**Using Gradle:**
-\`\`\`bash
-./gradlew build
-\`\`\`
-
----
-
-## 📁 Project Structure
-
-\`\`\`
-${selectedRepo?.name || 'project'}/
-├── src/
-│   ├── main/
-│   │   ├── java/          # Application source code
-│   │   └── resources/     # Configuration files
-│   └── test/
-│       └── java/          # Unit and integration tests
-├── pom.xml               # Maven configuration
-├── README.md             # This file
-└── ...
-\`\`\`
-
----
-
-## ⚙️ Configuration
-
-### Application Properties
-
-Configure the application by editing \`src/main/resources/application.properties\`:
-
-\`\`\`properties
-# Server Configuration
-server.port=8080
-
-# Database Configuration (if applicable)
-# spring.datasource.url=jdbc:postgresql://localhost:5432/dbname
-# spring.datasource.username=user
-# spring.datasource.password=password
-
-# Logging
-logging.level.root=INFO
-\`\`\`
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| \`JAVA_HOME\` | JDK installation path | - |
-| \`APP_PORT\` | Application port | 8080 |
-| \`LOG_LEVEL\` | Logging level | INFO |
-
----
-
-## 🔨 Building the Project
-
-### Development Build
-
-\`\`\`bash
-# Maven
-mvn clean compile
-
-# Gradle
-./gradlew compileJava
-\`\`\`
-
-### Production Build
-
-\`\`\`bash
-# Maven - creates executable JAR
-mvn clean package -DskipTests
-
-# Gradle - creates executable JAR
-./gradlew bootJar
-\`\`\`
-
----
-
-## ▶️ Running the Application
-
-### Development Mode
-
-\`\`\`bash
-# Maven
-mvn spring-boot:run
-
-# Gradle
-./gradlew bootRun
-\`\`\`
-
-### Production Mode
-
-\`\`\`bash
-java -jar target/*.jar
-\`\`\`
-
-### Docker (Optional)
-
-\`\`\`bash
-# Build Docker image
-docker build -t ${selectedRepo?.name || 'app'}:latest .
-
-# Run container
-docker run -p 8080:8080 ${selectedRepo?.name || 'app'}:latest
-\`\`\`
-
----
-
-## 🧪 Testing
-
-### Run All Tests
-
-\`\`\`bash
-# Maven
-mvn test
-
-# Gradle
-./gradlew test
-\`\`\`
-
-### Run Specific Tests
-
-\`\`\`bash
-# Maven
-mvn test -Dtest=ClassName
-
-# Gradle
-./gradlew test --tests "ClassName"
-\`\`\`
-
-### Generate Test Coverage Report
-
-\`\`\`bash
-# Maven with JaCoCo
-mvn jacoco:report
-
-# View report at: target/site/jacoco/index.html
-\`\`\`
-
----
-
-## 📚 API Documentation
-
-Once the application is running, access the API documentation at:
-
-- **Swagger UI:** \`http://localhost:8080/swagger-ui.html\`
-- **OpenAPI Spec:** \`http://localhost:8080/v3/api-docs\`
-
----
-
-## 📝 Migration Notes
-
-### Changes from Java ${migrationJob.source_java_version}
-
-| Category | Changes Made |
-|----------|--------------|
-| **Files Modified** | ${migrationJob.files_modified} |
-| **Issues Fixed** | ${migrationJob.issues_fixed} |
-| **Dependencies Updated** | ${migrationJob.dependencies?.filter(d => d.status === 'upgraded').length || 0} |
-
-### Updated Dependencies
-
-${migrationJob.dependencies && migrationJob.dependencies.length > 0 ? 
-migrationJob.dependencies.filter(d => d.status === 'upgraded').slice(0, 10).map(dep => 
-  `| \`${dep.group_id}:${dep.artifact_id}\` | ${dep.current_version} → ${dep.new_version || 'latest'} |`
-).join('\n') 
-: 'No major dependency updates.'}
-
-### Breaking Changes
-
-> ⚠️ Review the following if upgrading from the original codebase:
-
-1. Minimum Java version is now **${migrationJob.target_java_version}**
-2. Some deprecated APIs have been replaced with modern equivalents
-3. Check \`MIGRATION_REPORT.md\` for detailed change log
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (\`git checkout -b feature/amazing-feature\`)
-3. Commit your changes (\`git commit -m 'Add amazing feature'\`)
-4. Push to the branch (\`git push origin feature/amazing-feature\`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 📞 Support
-
-For questions or issues:
-
-- 📧 Create an issue in this repository
-- 📖 Check the [Migration Report](MIGRATION_REPORT.md) for detailed migration info
-
----
-
-<p align="center">
-  <i>Modernized with ❤️ by Java Migration Accelerator</i><br>
-  <i>Migration completed on ${new Date().toLocaleDateString()}</i>
-</p>
-`;
-
-              // Create and download the project README file
+              const projectReadmeLines = [
+                `# ${selectedRepo?.name || 'Modernized Application'}`,
+                '',
+                `[![Java Version](https://img.shields.io/badge/Java-${migrationJob.target_java_version}-orange.svg)](https://openjdk.org/)`,
+                `[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()`,
+                `[![Code Quality](https://img.shields.io/badge/quality-${migrationJob.sonar_quality_gate || 'A'}-brightgreen.svg)]()`,
+                `[![Coverage](https://img.shields.io/badge/coverage-${migrationJob.sonar_coverage}%25-green.svg)]()`,
+                '',
+                `>  **This application has been modernized to Java ${migrationJob.target_java_version}** using the Java Migration Accelerator.`,
+                '',
+                '---',
+                '',
+                '##  Overview',
+                '',
+                `This project has been successfully modernized from **Java ${migrationJob.source_java_version}** to **Java ${migrationJob.target_java_version}**, bringing the following improvements:`,
+                '',
+                `-  **Modern Java Features** - Utilizing latest Java ${migrationJob.target_java_version} capabilities`,
+                `-  **Updated Dependencies** - ${migrationJob.dependencies?.filter((d) => d.status === 'upgraded').length || 0} dependencies upgraded`,
+                `-  **Code Quality** - ${migrationJob.sonar_bugs} bugs, ${migrationJob.sonar_vulnerabilities} vulnerabilities`,
+                `-  **Test Coverage** - ${migrationJob.sonar_coverage}% code coverage maintained`,
+                `-  **Performance Optimized** - Modern APIs and patterns implemented`,
+                '',
+                '---',
+                '',
+                '##  Prerequisites',
+                '',
+                `- Java ${migrationJob.target_java_version}+`,
+                `- Maven 3.8+ or Gradle 8.0+`,
+                '',
+                '##  Getting Started',
+                '',
+                '```bash',
+                `git clone ${migrationJob.target_repo || migrationJob.source_repo}`,
+                `cd ${selectedRepo?.name || 'project-name'}`,
+                '```',
+                '',
+                '##  Build',
+                '',
+                '```bash',
+                'mvn clean package -DskipTests',
+                './gradlew build',
+                '```',
+                '',
+                '##  Run',
+                '',
+                '```bash',
+                'mvn spring-boot:run',
+                './gradlew bootRun',
+                '```',
+                '',
+                '##  Test',
+                '',
+                '```bash',
+                'mvn test',
+                './gradlew test',
+                '```',
+                '',
+                '### Run Specific Tests',
+                '',
+                '```bash',
+                'mvn test -Dtest=ClassName',
+                './gradlew test --tests <TestClass>',
+                '```',
+                '',
+                '##  Migration Notes',
+                '',
+                `- Source Java version: ${migrationJob.source_java_version}`,
+                `- Target Java version: ${migrationJob.target_java_version}`,
+                `- Dependencies upgraded: ${migrationJob.dependencies?.filter((d) => d.status === 'upgraded').length || 0}`,
+                `- Code quality gate: ${migrationJob.sonar_quality_gate || 'N/A'}`,
+              ];
+              const projectReadme = projectReadmeLines.join('\n');
               const blob = new Blob([projectReadme], { type: 'text/markdown' });
               const url = URL.createObjectURL(blob);
               const link = document.createElement('a');
               link.href = url;
-              link.download = 'README.md';
+              link.download = 'PROJECT_README.md';
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
@@ -5242,32 +3899,308 @@ For questions or issues:
             }
           }}
         >
-          📘 Download Project README
+           Download Project README
         </button>
-        <button style={styles.secondaryBtn} onClick={() => setStep(4)}>
-          ← Back to Migration
-        </button>
-        <button style={styles.primaryBtn} onClick={resetWizard}>Start New Migration</button>
       </div>
     </div>
   );
 
+  const renderPrePostMigrationPage = () => (
+    <>
+      <div style={styles.pageHeader}>
+        <div>
+          <h2 style={styles.pageTitle}>Repository Comparison (Pre & Post Migration)</h2>
+          <p style={styles.pageSubtitle}>Compare repository metrics before and after migration.</p>
+        </div>
+        <div style={styles.topToolbar}>
+          <div style={styles.toolbarField}>
+            <label style={styles.toolbarLabel}>Repository Selection</label>
+            <select style={styles.toolbarSelect} defaultValue="Java 21 Java 25">
+              <option>Java 21 Java 25</option>
+              <option>Legacy Repo A</option>
+              <option>Legacy Repo B</option>
+            </select>
+          </div>
+          <div style={styles.toolbarField}>
+            <label style={styles.toolbarLabel}>Compare View</label>
+            <select style={styles.toolbarSelect} defaultValue="Line Chart">
+              <option>Line Chart</option>
+              <option>Bar Chart</option>
+              <option>Table View</option>
+            </select>
+          </div>
+          <button style={styles.primaryBtn}>Export Report</button>
+        </div>
+      </div>
+
+      <div style={styles.summaryGrid}>
+        {REPOSITORY_COMPARISON_METRICS.map((item) => (
+          <div key={item.label} style={styles.summaryCard}>
+            <span style={styles.summaryTitle}>{item.label}</span>
+            <div style={styles.summaryValues}>
+              <span>{item.before}</span>
+              <span style={styles.summaryArrow}>?</span>
+              <span>{item.after}</span>
+            </div>
+            <span style={{ ...styles.summaryDelta, color: item.improved ? "#16a34a" : "#dc2626" }}>{item.delta}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={styles.chartSection}>
+        <div style={styles.card}>
+          <div style={styles.chartHeader}>
+            <h3 style={styles.chartTitle}>Lines of Code Comparison</h3>
+          </div>
+          <div style={{ width: "100%", height: 360 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={COMPARISON_TIMELINE} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fill: "#64748b" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#64748b" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 12, borderColor: "#e5e7eb" }} />
+                <Legend wrapperStyle={{ paddingTop: 10 }} />
+                <Line type="monotone" dataKey="before" name="Before Migration" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="after" name="After Migration" stroke="#16a34a" strokeWidth={3} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      <div style={styles.secondaryGrid}>
+        <div style={styles.card}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.chartTitle}>Issue Distribution</h3>
+          </div>
+          <div style={styles.donutSection}>
+            <div style={styles.donutWrap}>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={ISSUE_DISTRIBUTION} dataKey="value" nameKey="name" innerRadius={62} outerRadius={90} paddingAngle={4} startAngle={90} endAngle={-270}>
+                    {ISSUE_DISTRIBUTION.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={styles.donutCenter}>
+                <strong>12</strong>
+                <span>Total Issues</span>
+              </div>
+            </div>
+            <div style={styles.chartLegend}>
+              {ISSUE_DISTRIBUTION.map((item) => (
+                <div key={item.name} style={styles.legendRow}>
+                  <span style={{ background: item.color }} />
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>{item.value}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.card}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.chartTitle}>Code Quality Score</h3>
+          </div>
+          <div style={styles.qualitySection}>
+            <div style={{ width: "100%", height: 240, position: "relative" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={[{ name: "score", value: 72 }, { name: "rest", value: 28 }]} innerRadius={72} outerRadius={100} startAngle={90} endAngle={-270} dataKey="value">
+                    <Cell key="score" fill="#2563eb" />
+                    <Cell key="rest" fill="#e5e7eb" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={styles.qualityCenter}>
+                <strong>72%</strong>
+                <span>After</span>
+              </div>
+            </div>
+            <div style={styles.qualityDetails}>
+              <div style={styles.qualityStat}><strong>Before</strong><span>58%</span></div>
+              <div style={styles.qualityStat}><strong>After</strong><span>72%</span></div>
+              <div style={styles.qualityStat}><strong>Improvement</strong><span style={{ color: "#16a34a" }}>+14%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={styles.bottomGrid}>
+        <div style={styles.card}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.chartTitle}>Top Dependency Changes</h3>
+          </div>
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th>Dependency</th>
+                  <th>Version Before</th>
+                  <th>Version After</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {DEPENDENCY_CHANGES.map((row) => (
+                  <tr key={row.dependency}>
+                    <td>{row.dependency}</td>
+                    <td>{row.before}</td>
+                    <td>{row.after}</td>
+                    <td>{row.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={styles.card}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.chartTitle}>Migration Summary</h3>
+          </div>
+          <div style={styles.summaryList}>
+            <div style={styles.summaryRow}><span>Migration Date</span><strong>30 May 2024</strong></div>
+            <div style={styles.summaryRow}><span>Duration</span><strong>2h 34m 18s</strong></div>
+            <div style={styles.summaryRow}><span>Status</span><strong style={{ color: "#16a34a" }}>Completed Successfully</strong></div>
+            <div style={styles.summaryRow}><span>Migrated By</span><strong>Admin</strong></div>
+            <div style={styles.summaryRow}><span>Target Platform</span><strong>Java 25</strong></div>
+          </div>
+        </div>
+
+        <div style={styles.card}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.chartTitle}>Recommendations</h3>
+          </div>
+          <div style={styles.recommendationList}>
+            {RECOMMENDATIONS.map((item) => (
+              <div key={item.label} style={styles.recommendationCard}>
+                <span style={getRecommendationBadgeStyle(item.severity)}>{item.severity}</span>
+                <p>{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  const renderAllRepositoriesPage = () => (
+    <div style={styles.card}>
+      <div style={styles.pageHeader}>
+        <div>
+          <h2 style={styles.pageTitle}>All Repositories</h2>
+          <p style={styles.pageSubtitle}>View connected repositories and status at a glance.</p>
+        </div>
+      </div>
+      <div style={styles.repoGrid}>
+        {[
+          { name: "Java Apex Legacy", status: "Connected", updated: "2 hours ago" },
+          { name: "Spring Boot Service", status: "Connected", updated: "1 day ago" },
+          { name: "Migration Sample", status: "Connected", updated: "4 days ago" },
+          { name: "Backend Core", status: "Connected", updated: "1 week ago" },
+        ].map((repo) => (
+          <div key={repo.name} style={styles.repositoryCard}>
+            <strong>{repo.name}</strong>
+            <span>{repo.status}</span>
+            <small>{repo.updated}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderCompareRepositoriesPage = () => (
+    <div style={styles.card}>
+      <div style={styles.pageHeader}>
+        <div>
+          <h2 style={styles.pageTitle}>Compare Repositories</h2>
+          <p style={styles.pageSubtitle}>Select repositories to compare key migration metrics.</p>
+        </div>
+      </div>
+      <div style={styles.infoBox}>
+        This view will support repository comparison and trend analysis once connection data is available.
+      </div>
+    </div>
+  );
+
+  const renderRepositoryHealthPage = () => (
+    <div style={styles.card}>
+      <div style={styles.pageHeader}>
+        <div>
+          <h2 style={styles.pageTitle}>Repository Health</h2>
+          <p style={styles.pageSubtitle}>Review repository health and migration readiness.</p>
+        </div>
+      </div>
+      <div style={styles.healthGrid}>
+        <div style={styles.healthItem}>
+          <strong>Code Coverage</strong>
+          <span>72%</span>
+        </div>
+        <div style={styles.healthItem}>
+          <strong>Open Issues</strong>
+          <span>4</span>
+        </div>
+        <div style={styles.healthItem}>
+          <strong>Security Findings</strong>
+          <span>2</span>
+        </div>
+        <div style={styles.healthItem}>
+          <strong>Build Status</strong>
+          <span>Passing</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCurrentStep = () => {
+    if (step === 1) return renderStep1();
+    if (step === 2) return renderDiscoveryStep();
+    if (step === 3) return renderStrategyStep();
+    if (step === 4) return renderMigrationStep();
+    if (step === 5) return renderMigrationAnimation();
+    if (step === 6) return renderMigrationProgress();
+    if (step === 7) return renderStep11();
+    if (step === 12) return renderPrePostMigrationPage();
+    if (step === 13) return renderAllRepositoriesPage();
+    if (step === 14) return renderCompareRepositoriesPage();
+    if (step === 15) return renderRepositoryHealthPage();
+    return renderStep1();
+  };
+
   return (
-    <div style={styles.container}>
-      <div style={styles.stepIndicatorContainer}>{renderStepIndicator()}</div>
-      <div style={styles.main}>
-        {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>×</button></div>}
-        {step === 1 && renderStep1()}
-        {step === 2 && renderDiscoveryStep()}
-        {step === 3 && renderStrategyStep()}
-        {step === 4 && renderMigrationStep()}
-        {step === 5 && renderMigrationAnimation()}
-        {step === 6 && renderMigrationProgress()}
-        {step === 7 && renderStep11()}
+    <div className="apex-dashboard-shell">
+      {renderSidebar()}
+      <div className="apex-main-shell">
+        {renderTopHeader()}
+        <main className="apex-content-area">
+          {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>x</button></div>}
+          {step !== 1 && step < 12 && <div className="apex-step-strip">{renderStepIndicator()}</div>}
+          {step === 1 ? renderCurrentStep() : <div className="apex-wizard-stage">{renderCurrentStep()}</div>}
+        </main>
+        <footer className="apex-dashboard-footer"><span>(c) 2024 Java APEX Migration Tool. All rights reserved.</span><span>Version 1.0.0</span></footer>
       </div>
     </div>
   );
 };
+
+const getRecommendationBadgeStyle = (severity: string): React.CSSProperties => ({
+  minWidth: 74,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: 999,
+  padding: "8px 12px",
+  fontSize: 11,
+  fontWeight: 800,
+  color: "#fff",
+  background: severity === "High" ? "#ef4444" : severity === "Medium" ? "#f59e0b" : severity === "Low" ? "#2563eb" : "#0ea5e9",
+});
 
 const styles: { [key: string]: React.CSSProperties } = {
   container: { minHeight: "100vh", width: "100%", maxWidth: "100vw", margin: 0, padding: 0, background: "#f8fafc", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden" },
@@ -5396,6 +4329,46 @@ const styles: { [key: string]: React.CSSProperties } = {
   reportItem: { display: "flex", flexDirection: "column", gap: 6 },
   reportLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
   reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600 },
+  pageHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, marginBottom: 24, flexWrap: "wrap" },
+  pageTitle: { fontSize: 28, fontWeight: 900, margin: 0, color: "#10233f" },
+  pageSubtitle: { margin: "8px 0 0", fontSize: 15, color: "#475569", maxWidth: 560, lineHeight: 1.6 },
+  topToolbar: { display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" },
+  toolbarField: { display: "flex", flexDirection: "column", gap: 8, minWidth: 220 },
+  toolbarLabel: { fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em" },
+  toolbarSelect: { width: "100%", minHeight: 44, padding: "11px 14px", borderRadius: 10, border: "1px solid #d1d5db", background: "#fff", color: "#1e293b", fontSize: 14 },
+  summaryGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 18, marginBottom: 24 },
+  summaryCard: { padding: 20, borderRadius: 16, background: "#fff", border: "1px solid #e5e7eb", boxShadow: "0 12px 30px rgba(14, 34, 71, 0.08)", display: "flex", flexDirection: "column", gap: 12 },
+  summaryTitle: { fontSize: 14, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em" },
+  summaryValues: { display: "flex", alignItems: "center", gap: 10, fontSize: 24, fontWeight: 700, color: "#10233f" },
+  summaryArrow: { color: "#64748b", fontSize: 18 },
+  summaryDelta: { fontSize: 13, fontWeight: 700 },
+  chartSection: { marginBottom: 24 },
+  chartHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  chartTitle: { fontSize: 18, fontWeight: 800, margin: 0, color: "#10233f" },
+  secondaryGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(240px, 1fr))", gap: 24, marginBottom: 24 },
+  sectionHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
+  donutSection: { display: "grid", gridTemplateColumns: "280px 1fr", gap: 18, alignItems: "center" },
+  donutWrap: { position: "relative", width: "100%", minHeight: 260 },
+  donutCenter: { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, color: "#10233f" },
+  chartLegend: { display: "flex", flexDirection: "column", gap: 12 },
+  legendRow: { display: "flex", alignItems: "center", gap: 12, color: "#475569" },
+  qualitySection: { display: "flex", flexDirection: "column", gap: 20, alignItems: "center" },
+  qualityCenter: { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, color: "#10233f" },
+  qualityDetails: { display: "grid", gridTemplateColumns: "1fr", gap: 10, width: "100%", textAlign: "center" },
+  qualityStat: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" },
+  bottomGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 },
+  tableWrapper: { overflowX: "auto" },
+  table: { width: "100%", borderCollapse: "collapse", minWidth: 580, color: "#1e293b" },
+  summaryList: { display: "grid", gap: 14, marginTop: 16 },
+  summaryRow: { display: "flex", justifyContent: "space-between", gap: 12, padding: 14, background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" },
+  recommendationList: { display: "grid", gap: 12, marginTop: 16 },
+  recommendationCard: { display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 14, border: "1px solid #e5e7eb", background: "#fff" },
+  repoGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginTop: 16 },
+  repositoryCard: { padding: 20, borderRadius: 16, background: "#fff", border: "1px solid #e5e7eb", boxShadow: "0 10px 24px rgba(14,34,71,0.08)" },
+  healthGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 20, marginTop: 16 },
+  healthItem: { padding: 20, borderRadius: 16, background: "#fff", border: "1px solid #e5e7eb", display: "flex", flexDirection: "column", gap: 8 },
+  healthItemValue: { fontSize: 22, fontWeight: 700, color: "#10233f" },
+  cellBorder: { borderBottom: "1px solid #e5e7eb" },
   testResults: { display: "flex", flexDirection: "column", gap: 10 },
   testItem: { display: "flex", justifyContent: "space-between", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" },
   sonarqubeResults: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
@@ -5478,3 +4451,18 @@ const styles: { [key: string]: React.CSSProperties } = {
   jmeterLabel: { fontSize: 14, color: "#64748b" },
   jmeterValue: { fontSize: 16, fontWeight: 700, color: "#1e293b" },
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
