@@ -155,6 +155,7 @@ class GitHubService:
 
             # Initialize analysis structure
             analysis["all_files"] = []
+            analysis["java_files"] = []
             analysis["business_logic_issues"] = []
             analysis["code_quality_metrics"] = {}
             analysis["duplications"] = []
@@ -238,6 +239,8 @@ class GitHubService:
                         # Detect Java version from source files
                         analysis["java_version"] = await self._detect_java_version_from_repo(repository)
 
+                analysis["java_files"] = java_files_found
+
                 if is_java_project:
                     analysis["api_endpoints"] = await self._detect_api_endpoints_in_repo(repository)
 
@@ -302,8 +305,13 @@ class GitHubService:
                 print(f"[ANALYSIS] Found {len(analysis['security_issues'])} security issues")
                 print(f"[ANALYSIS] Found {len(analysis['performance_issues'])} performance issues")
                 
-            except GithubException:
-                pass
+            except GithubException as e:
+                status_code = getattr(e, 'status', None)
+                error_msg = e.data.get('message', str(e)) if hasattr(e, 'data') else str(e)
+                if status_code in (401, 403, 404) or 'rate limit' in error_msg.lower():
+                    raise
+                analysis["analysis_limited"] = True
+                analysis["error_message"] = f"Repository analysis partially failed: {error_msg}"
             
             # Cache the result
             set_cached(cache_key, analysis)

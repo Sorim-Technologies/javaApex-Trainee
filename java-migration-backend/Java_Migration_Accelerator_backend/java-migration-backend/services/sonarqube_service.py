@@ -1,4 +1,4 @@
-"""
+﻿"""
 SonarQube Service - Code quality analysis
 """
 import asyncio
@@ -1043,3 +1043,4 @@ class SonarQubeService:
                 f"SonarQube analysis failed: unable to read quality gate for '{project_key}'. "
                 f"HTTP {response.status_code}: {response.text}"
             )
+    

@@ -315,7 +315,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const github = sanitizeRepositoryToken(githubToken);
     if (showEnterpriseToken || isGitlabRepo) return pat || github;
     if (isPrivateRepo) return pat || github;
-    return github || pat || "";
+    return "";
   };
 
   const currentToken = useMemo(getCurrentToken, [githubToken, patToken, showEnterpriseToken, isGitlabRepo, isPrivateRepo]);

@@ -130,6 +130,46 @@ def describe_access_error(platform, operation: str, error: Exception) -> HTTPExc
     return HTTPException(status_code=status_code, detail=message)
 
 
+def describe_repo_operation_error(platform, operation: str, error: Exception) -> HTTPException:
+    """Translate expected repository access/connectivity failures into API errors."""
+    message = str(error)
+    normalized = message.lower()
+    provider = "GitHub" if platform == GitPlatform.GITHUB else "GitLab"
+
+    network_markers = [
+        "failed to establish a new connection",
+        "max retries exceeded",
+        "proxyerror",
+        "connection refused",
+        "name resolution",
+        "temporary failure in name resolution",
+        "network is unreachable",
+        "nodename nor servname provided",
+        "connection aborted",
+        "connection reset",
+    ]
+
+    if any(marker in normalized for marker in network_markers):
+        return HTTPException(
+            status_code=502,
+            detail=(
+                f"{provider} {operation} failed because the backend could not connect to the {provider} API. "
+                "Check backend network/proxy settings and try again. "
+                f"Details: {message}"
+            ),
+        )
+    if "rate limit" in normalized:
+        return HTTPException(status_code=429, detail=message)
+    if any(marker in normalized for marker in ["authentication", "bad credentials", "401", "unauthorized"]):
+        return HTTPException(status_code=401, detail=message)
+    if any(marker in normalized for marker in ["access denied", "forbidden", "403", "private"]):
+        return HTTPException(status_code=403, detail=message)
+    if any(marker in normalized for marker in ["not found", "404"]):
+        return HTTPException(status_code=404, detail=message)
+
+    return HTTPException(status_code=400, detail=message)
+
+
 async def run_repo_operation(operation, platform, operation_name: str):
     try:
         return await asyncio.wait_for(operation, timeout=REPO_API_TIMEOUT_SECONDS)
@@ -139,6 +179,27 @@ async def run_repo_operation(operation, platform, operation_name: str):
             status_code=504,
             detail=f"{provider} {operation_name} timed out after {REPO_API_TIMEOUT_SECONDS} seconds. Check repository access and token configuration."
         )
+
+
+def is_auth_error(error: Exception) -> bool:
+    normalized = str(error).lower()
+    return any(marker in normalized for marker in ["authentication", "bad credentials", "401", "unauthorized"])
+
+
+def is_public_retryable_github_error(error: Exception) -> bool:
+    normalized = str(error).lower()
+    return is_auth_error(error) or any(marker in normalized for marker in ["access denied", "forbidden", "403", "not found", "404"])
+
+
+async def run_github_operation_with_public_retry(primary_factory, public_factory, user_token: str, effective_token: str, operation_name: str):
+    try:
+        return await run_repo_operation(primary_factory(), GitPlatform.GITHUB, operation_name)
+    except Exception as error:
+        user_provided_token = bool(sanitize_token(user_token))
+        if effective_token and not user_provided_token and is_public_retryable_github_error(error):
+            print(f"[github retry] default GitHub token failed during {operation_name}; retrying public unauthenticated request.")
+            return await run_repo_operation(public_factory(), GitPlatform.GITHUB, operation_name)
+        raise
 
 # Hugging Face token for LLM-based recommendations
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
@@ -497,9 +558,11 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
         repo_url = normalize_repository_url(repo_url, GitPlatform.GITHUB)
         effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
-        analysis = await run_repo_operation(
-            github_service.analyze_repository(effective_token, owner, repo, repo_url, include_deep_analysis=False),
-            GitPlatform.GITHUB,
+        analysis = await run_github_operation_with_public_retry(
+            lambda: github_service.analyze_repository(effective_token, owner, repo, repo_url, include_deep_analysis=False),
+            lambda: github_service.analyze_repository("", owner, repo, repo_url, include_deep_analysis=False),
+            token,
+            effective_token,
             "repository analysis"
         )
         return {
@@ -530,7 +593,7 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
     except Exception as e:
         import traceback
         print(f"[analyze-url ERROR] repo_url={repo_url} token_provided={bool(token and token.strip())} error={str(e)}\nTRACE:\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)} (see backend logs for details)")
+        raise describe_repo_operation_error(GitPlatform.GITHUB, "repository analysis", e)
 
 
 @app.get("/api/github/repo-visibility", response_model=RepoVisibilityInfo)
@@ -576,9 +639,11 @@ async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
         # Always use default token to avoid rate limits
         effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
-        files = await run_repo_operation(
-            github_service.list_repo_files(effective_token, owner, repo, path, repo_url),
-            GitPlatform.GITHUB,
+        files = await run_github_operation_with_public_retry(
+            lambda: github_service.list_repo_files(effective_token, owner, repo, path, repo_url),
+            lambda: github_service.list_repo_files("", owner, repo, path, repo_url),
+            token,
+            effective_token,
             "file listing"
         )
         return {
@@ -607,7 +672,7 @@ async def list_repo_files(repo_url: str, token: str = "", path: str = ""):
     except Exception as e:
         import traceback
         print(f"[list-files ERROR] repo_url={repo_url} token_len={len(token) if token else 0} path={path} error={str(e)}\nTRACE:\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)} (see backend logs for details)")
+        raise describe_repo_operation_error(GitPlatform.GITHUB, "file listing", e)
 
 
 
@@ -643,9 +708,11 @@ async def get_file_content(repo_url: str, file_path: str, token: str = ""):
         # Always use default token to avoid rate limits
         effective_token = get_effective_token(GitPlatform.GITHUB, token)
         owner, repo = await github_service.parse_repo_url(repo_url)
-        content = await run_repo_operation(
-            github_service.get_file_content(effective_token, owner, repo, file_path),
-            GitPlatform.GITHUB,
+        content = await run_github_operation_with_public_retry(
+            lambda: github_service.get_file_content(effective_token, owner, repo, file_path),
+            lambda: github_service.get_file_content("", owner, repo, file_path),
+            token,
+            effective_token,
             "file content"
         )
         return {

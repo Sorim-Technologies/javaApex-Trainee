@@ -1700,21 +1700,17 @@ class ApplicationTest {{
 
             for old, new, desc in deprecated_apis:
                 if old in content:
-                    # Apply the replacement with migration comments
-                    if old == '.newInstance()':
-                        content = content.replace(old, f'{new} // Migration: {desc} - Source: Java {source_version} → Target: Java {target_version}')
-                    elif 'new Integer(' in old or 'new Long(' in old or 'new Double(' in old or 'new Boolean(' in old:
-                        content = content.replace(old, f'{new} // Migration: {desc} - Source: Java {source_version} → Target: Java {target_version}')
-                    else:
-                        content = content.replace(old, new)
+                    # Keep source edits syntax-safe. Inline comments inside an
+                    # expression such as Integer.valueOf( // ... corrupt Java.
+                    content = content.replace(old, new)
 
                     # Find all occurrences with line numbers for tracking
                     for i, line in enumerate(content.split('\n')):
-                        if old in line or (new in line and '// Migration:' in line):
+                        if old in line or new in line:
                             # Record the change with before/after and line number
                             highlighted_changes.append({
                                 "line_number": i + 1,
-                                "before": line.replace(f'{new} // Migration: {desc} - Source: Java {source_version} → Target: Java {target_version}', new),
+                                "before": line,
                                 "after": line,
                                 "change_type": "deprecated_api",
                                 "description": desc,
@@ -1834,13 +1830,10 @@ class ApplicationTest {{
                 changes.append("Added exception handling suggestion")
                 fixes += 1
             
-            # Replace e.printStackTrace() with logging comment
+            # Report printStackTrace usage without rewriting the statement. A
+            # line comment before the existing semicolon can break compilation.
             if 'e.printStackTrace()' in content:
-                content = content.replace(
-                    'e.printStackTrace()',
-                    'e.printStackTrace() // TODO: Consider using proper logging (e.g., java.util.logging or SLF4J)'
-                )
-                changes.append("Added logging suggestion for printStackTrace")
+                changes.append("Consider replacing printStackTrace with proper logging")
                 fixes += 1
             
             # ===== CODE QUALITY COMMENTS =====
@@ -1864,8 +1857,10 @@ class ApplicationTest {{
             return False, 0, []
     
     async def _fix_business_logic_issues(self, src_path: str) -> int:
-        """Attempt to fix comprehensive business logic issues"""
+        """Avoid unsafe automatic business-logic rewrites before SonarQube validation."""
         print(f"DEBUG: Starting business logic fixes for path: {src_path}")
+        print("DEBUG: Skipping automatic business logic rewrites; unsafe regex rewrites can break Java syntax before SonarQube analysis.")
+        return 0
         fixes = 0
 
         for root, dirs, files in os.walk(src_path):
