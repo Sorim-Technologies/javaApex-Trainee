@@ -1,9 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { API_BASE_URL } from "../services/api";
+import {
+  API_BASE_URL,
+  type ChatResponse,
+  type ChatSource,
+} from "../services/api";
 
 interface ChatMessage {
   from: "user" | "bot";
   text: string;
+  mode?: "GENERAL_LLM" | "REPOSITORY_RAG" | string;
+  sources?: ChatSource[];
 }
 
 interface ChatbotProps {
@@ -18,6 +24,55 @@ interface ChatbotProps {
 }
 
 const defaultPrompts: string[] = [];
+
+function normalizeChatMode(
+  value: unknown,
+): "GENERAL_LLM" | "REPOSITORY_RAG" | undefined {
+  if (value === "GENERAL_LLM" || value === "REPOSITORY_RAG") {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeChatSources(value: unknown): ChatSource[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const raw = entry as Record<string, unknown>;
+      const sourceFile = String(raw.source_file || "").trim();
+      if (!sourceFile) return null;
+      const sourceType = String(raw.source_type || "").trim() || "context";
+      const chunkId = String(raw.chunk_id || "").trim() || "chunk";
+      const numericScore = Number(raw.score);
+      return {
+        source_file: sourceFile,
+        source_type: sourceType,
+        chunk_id: chunkId,
+        score: Number.isFinite(numericScore) ? numericScore : 0,
+        repo: raw.repo ? String(raw.repo) : undefined,
+        page: raw.page ? String(raw.page) : undefined,
+      } satisfies ChatSource;
+    })
+    .filter((entry): entry is ChatSource => entry !== null);
+}
+
+function modeBadgeLabel(mode?: string) {
+  if (mode === "REPOSITORY_RAG") {
+    return "RAG + CHROMADB";
+  }
+  if (mode === "GENERAL_LLM") {
+    return "GENERAL LLM";
+  }
+  return null;
+}
+
+function formatSourceScore(score?: number) {
+  if (typeof score !== "number" || !Number.isFinite(score)) {
+    return "n/a";
+  }
+  return score.toFixed(2);
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -315,6 +370,8 @@ const Chatbot: React.FC<ChatbotProps> = ({
 
       let lastError: any = null;
       let replyText = "";
+      let replyMode: ChatMessage["mode"];
+      let replySources: ChatSource[] = [];
 
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const controller = new AbortController();
@@ -348,8 +405,12 @@ const Chatbot: React.FC<ChatbotProps> = ({
             throw error;
           }
 
-          const data = await res.json();
-          replyText = String(data.reply || JSON.stringify(data));
+          const data = (await res.json()) as ChatResponse;
+          replyText = String(
+            data.reply || data.message || data.answer || JSON.stringify(data),
+          );
+          replyMode = normalizeChatMode(data.mode);
+          replySources = normalizeChatSources(data.sources);
           lastError = null;
           window.clearTimeout(timeoutId);
           break;
@@ -384,7 +445,15 @@ const Chatbot: React.FC<ChatbotProps> = ({
 
       setConnectionState("ready");
       setConnectionDetail("LLM connected.");
-      setMessages((current) => [...current, { from: "bot", text: replyText }]);
+      setMessages((current) => [
+        ...current,
+        {
+          from: "bot",
+          text: replyText,
+          mode: replyMode,
+          sources: replySources,
+        },
+      ]);
     } catch (e: any) {
       const errorMessage =
         e?.name === "AbortError"
@@ -527,9 +596,112 @@ const Chatbot: React.FC<ChatbotProps> = ({
                     : "none",
               }}
             >
+              {message.from === "bot" && modeBadgeLabel(message.mode) && (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginBottom: 8,
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 0.2,
+                    color:
+                      message.mode === "REPOSITORY_RAG" ? "#0f766e" : "#1d4ed8",
+                    background:
+                      message.mode === "REPOSITORY_RAG" ? "#ccfbf1" : "#dbeafe",
+                    border:
+                      message.mode === "REPOSITORY_RAG"
+                        ? "1px solid #99f6e4"
+                        : "1px solid #bfdbfe",
+                  }}
+                >
+                  {modeBadgeLabel(message.mode)}
+                </div>
+              )}
               <div style={{ fontSize: 14, color: "#111827" }}>
                 {renderFormattedText(message.text)}
               </div>
+              {message.from === "bot" &&
+                message.mode === "REPOSITORY_RAG" &&
+                Array.isArray(message.sources) &&
+                message.sources.length > 0 && (
+                  <details
+                    style={{
+                      marginTop: 10,
+                      borderTop: "1px solid #e2e8f0",
+                      paddingTop: 8,
+                    }}
+                  >
+                    <summary
+                      style={{
+                        cursor: "pointer",
+                        color: "#0f172a",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Sources ({message.sources.length})
+                    </summary>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {message.sources.map((source, sourceIndex) => (
+                        <div
+                          key={`${source.chunk_id}-${sourceIndex}`}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 10,
+                            background: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: "#0f172a",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {source.source_file}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontSize: 11,
+                              color: "#64748b",
+                              lineHeight: 1.45,
+                            }}
+                          >
+                            {`score: ${formatSourceScore(source.score)} | type: ${source.source_type || "context"}`}
+                          </div>
+                          {(source.repo || source.page) && (
+                            <div
+                              style={{
+                                marginTop: 2,
+                                fontSize: 11,
+                                color: "#94a3b8",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {[source.repo, source.page].filter(Boolean).join(
+                                " | ",
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
             </div>
           </div>
         ))}

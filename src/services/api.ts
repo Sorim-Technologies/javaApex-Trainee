@@ -67,6 +67,23 @@ async function parseJsonResponse<T>(
   return data as T;
 }
 
+export interface ChatSource {
+  source_file: string;
+  source_type: string;
+  chunk_id: string;
+  score: number;
+  repo?: string | null;
+  page?: string | null;
+}
+
+export interface ChatResponse {
+  reply: string;
+  message?: string;
+  answer?: string;
+  mode?: "GENERAL_LLM" | "REPOSITORY_RAG" | string;
+  sources?: ChatSource[];
+}
+
 export interface RepoInfo {
   name: string;
   full_name: string;
@@ -210,6 +227,78 @@ export interface MigrationRequest {
   fix_business_logic: boolean;
 }
 
+export interface ValidationFailure {
+  class_name: string;
+  method_name: string;
+  reason: string;
+  stack_trace?: string | null;
+}
+
+export interface ValidationJUnitSummary {
+  status: string;
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  failures: ValidationFailure[];
+}
+
+export interface ValidationCoverage {
+  line: number;
+  branch: number;
+  method: number;
+  class: number;
+}
+
+export interface ValidationSonar {
+  configured: boolean;
+  quality_gate: string;
+  bugs: number;
+  vulnerabilities: number;
+  code_smells: number;
+  reliability?: string | null;
+  maintainability?: string | null;
+}
+
+export interface ValidationTestDetection {
+  tests_found: boolean;
+  test_classes: number;
+  test_methods: number;
+  test_files: string[];
+}
+
+export interface ValidationTestCase {
+  path: string;
+  file_name: string;
+  class_name: string;
+  test_method_count: number;
+  test_methods: string[];
+  line_count: number;
+  code_preview: string;
+  truncated: boolean;
+}
+
+export interface ValidationReport {
+  repository_name: string;
+  build_tool: string;
+  existing_tests_found: boolean;
+  llm_generated_tests: boolean;
+  llm_updated_tests: boolean;
+  test_detection: ValidationTestDetection;
+  junit: ValidationJUnitSummary;
+  coverage: ValidationCoverage;
+  sonar: ValidationSonar;
+  migration_risk: string;
+  recommendation: string;
+  notes?: string[];
+  generated_test_files?: string[];
+  updated_test_files?: string[];
+  existing_test_cases?: ValidationTestCase[];
+  generated_test_cases?: ValidationTestCase[];
+  updated_test_cases?: ValidationTestCase[];
+  failure_analysis?: Array<Record<string, unknown>>;
+}
+
 export interface MigrationResult {
   job_id: string;
   status: string;
@@ -245,6 +334,7 @@ export interface MigrationResult {
   total_warnings: number;
   errors_fixed: number;
   warnings_fixed: number;
+  validation_report?: ValidationReport | null;
 }
 
 export interface RepoAnalysis {

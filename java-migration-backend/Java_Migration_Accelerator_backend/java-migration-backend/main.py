@@ -14,6 +14,7 @@ import uuid
 import os
 import re
 import logging
+from html import escape
 from datetime import datetime, timezone
 from time import perf_counter
 from github import GithubException
@@ -53,6 +54,7 @@ from services.auth_service import router as auth_router
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
 from services.chat_service import ChatService
+from services.project_validation_service import ProjectValidationService
 
 
 app = FastAPI(
@@ -117,6 +119,64 @@ sonarqube_service = SonarQubeService()
 fossa_service = FossaService()
 hf_recommendation_service = HFRecommendationService()
 chat_service = ChatService()
+project_validation_service = ProjectValidationService(sonarqube_service=sonarqube_service)
+
+
+async def _preindex_repository_analysis(
+    analysis: Optional[Dict[str, Any]],
+    *,
+    repo_name: str,
+    repo_url: Optional[str] = None,
+    provider: str = "github",
+) -> bool:
+    if not isinstance(analysis, dict) or not analysis:
+        return False
+
+    resolved_repo_name = str(
+        analysis.get("full_name")
+        or analysis.get("name")
+        or repo_name
+        or "default"
+    ).strip() or "default"
+    dependencies = analysis.get("dependencies")
+    dependencies_count = len(dependencies) if isinstance(dependencies, list) else 0
+    java_version = analysis.get("java_version") or analysis.get("java_version_from_build")
+    resolved_repo_url = str(repo_url or analysis.get("url") or "").strip() or None
+    context = {
+        "repo": resolved_repo_name,
+        "repository": resolved_repo_name,
+        "repo_url": resolved_repo_url,
+        "repository_url": resolved_repo_url,
+        "page": "strategy",
+        "step": "strategy",
+        "platform": provider,
+        "build_tool": analysis.get("build_tool"),
+        "java_version": java_version,
+        "source_java_version": java_version,
+        "selectedSourceVersion": java_version,
+        "dependencies_count": dependencies_count,
+        "has_tests": bool(analysis.get("has_tests")),
+        "repoAnalysis": analysis,
+        "analysis": analysis,
+    }
+
+    try:
+        indexed = await chat_service.rag_service.ensure_index(context)
+        logger.info(
+            "Proactive RAG indexing completed provider=%s repo=%s indexed=%s dependencies=%s",
+            provider,
+            resolved_repo_name,
+            indexed,
+            dependencies_count,
+        )
+        return indexed
+    except Exception:
+        logger.exception(
+            "Proactive RAG indexing failed provider=%s repo=%s",
+            provider,
+            resolved_repo_name,
+        )
+        return False
 
 # In-memory storage for migration jobs (use Redis/DB in production)
 migration_jobs = {}
@@ -284,6 +344,7 @@ class MigrationResult(BaseModel):
     total_warnings: int = 0
     errors_fixed: int = 0
     warnings_fixed: int = 0
+    validation_report: Optional[Dict[str, Any]] = None
 
 
 class RepoInfo(BaseModel):
@@ -360,6 +421,11 @@ async def analyze_repository(owner: str, repo: str, token: str = ""):
         # Use default token if none provided to avoid rate limits
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         analysis = await github_service.analyze_repository(effective_token, owner, repo, include_deep_analysis=False)
+        await _preindex_repository_analysis(
+            analysis,
+            repo_name=f"{owner}/{repo}",
+            provider="github",
+        )
         return analysis
     except GithubException as e:
         status_code = getattr(e, 'status', 400)
@@ -388,6 +454,12 @@ async def analyze_repo_url(repo_url: str, token: str = ""):
         effective_token = token.strip() if token and token.strip() else DEFAULT_GITHUB_TOKEN
         owner, repo = await github_service.parse_repo_url(repo_url)
         analysis = await github_service.analyze_repository(effective_token, owner, repo, repo_url, include_deep_analysis=False)
+        await _preindex_repository_analysis(
+            analysis,
+            repo_name=f"{owner}/{repo}",
+            repo_url=repo_url,
+            provider="github",
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -422,6 +494,23 @@ class ChatRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
+class ChatSourceItem(BaseModel):
+    source_file: str
+    source_type: str
+    chunk_id: str
+    score: float
+    repo: Optional[str] = None
+    page: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    message: Optional[str] = None
+    answer: Optional[str] = None
+    mode: str = "GENERAL_LLM"
+    sources: List[ChatSourceItem] = Field(default_factory=list)
+
+
 class ChatWithTokenRequest(BaseModel):
     message: str
     token: str
@@ -447,10 +536,11 @@ def _log_chat_trace(request: Request, req: ChatRequest, trace) -> None:
     page = context.get("page") or context.get("assistantMode") or context.get("assistant_mode") or "unknown"
     request_id = getattr(request.state, "request_id", "unknown")
     logger.info(
-        "[CHAT_TRACE] id=%s route=%s intent=%s provider=%s model=%s fallback=%s failed=%s latency_ms=%s page=%s msg_chars=%s attempts=%s",
+        "[CHAT_TRACE] id=%s route=%s intent=%s mode=%s provider=%s model=%s fallback=%s failed=%s latency_ms=%s page=%s msg_chars=%s source_count=%s attempts=%s",
         request_id,
         request.url.path,
         getattr(trace, "intent", "unknown"),
+        getattr(trace, "mode", "unknown"),
         getattr(trace, "provider", "unknown"),
         getattr(trace, "model", "unknown"),
         getattr(trace, "used_fallback", False),
@@ -458,11 +548,22 @@ def _log_chat_trace(request: Request, req: ChatRequest, trace) -> None:
         getattr(trace, "total_latency_ms", 0),
         page,
         len((req.message or "").strip()),
+        len(getattr(trace, "sources", []) or []),
         _chat_attempts_summary(getattr(trace, "attempts", [])),
     )
 
 
-@app.post("/chat")
+def _chat_response_payload(trace) -> ChatResponse:
+    return ChatResponse(
+        reply=getattr(trace, "reply", ""),
+        message=getattr(trace, "reply", ""),
+        answer=getattr(trace, "reply", ""),
+        mode=getattr(trace, "mode", "GENERAL_LLM") or "GENERAL_LLM",
+        sources=getattr(trace, "sources", []) or [],
+    )
+
+
+@app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest, request: Request):
     """Simple chat proxy endpoint. Reads GROK_TOKEN or HF_TOKEN from environment.
 
@@ -478,7 +579,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
 
         trace = await chat_service.ask_with_trace(req.message, req.context)
         _log_chat_trace(request, req, trace)
-        return {"reply": trace.reply}
+        return _chat_response_payload(trace)
     except httpx.HTTPStatusError as he:
         # Provider returned non-2xx
         detail = str(he)
@@ -491,7 +592,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         raise HTTPException(status_code=500, detail="Internal server error while calling chat provider")
 
 
-@app.post("/api/chat")
+@app.post("/api/chat", response_model=ChatResponse)
 async def api_chat_endpoint(req: ChatRequest, request: Request):
     """Compatibility endpoint at /api/chat so frontend using API_BASE_URL works.
 
@@ -506,7 +607,7 @@ async def api_chat_endpoint(req: ChatRequest, request: Request):
 
         trace = await chat_service.ask_with_trace(req.message, req.context)
         _log_chat_trace(request, req, trace)
-        return {"reply": trace.reply}
+        return _chat_response_payload(trace)
     except httpx.HTTPStatusError as he:
         detail = str(he)
         raise HTTPException(status_code=502, detail=f"Upstream provider error: {detail}")
@@ -742,6 +843,11 @@ async def analyze_gitlab_repository(owner: str, repo: str, token: str = ""):
     """Analyze a GitLab repository to detect Java version, dependencies, and structure"""
     try:
         analysis = await gitlab_service.analyze_repository(token, owner, repo)
+        await _preindex_repository_analysis(
+            analysis,
+            repo_name=f"{owner}/{repo}",
+            provider="gitlab",
+        )
         return analysis
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -753,6 +859,12 @@ async def analyze_gitlab_repo_url(repo_url: str, token: str = ""):
     try:
         owner, repo = await gitlab_service.parse_repo_url(repo_url)
         analysis = await gitlab_service.analyze_repository(token, owner, repo)
+        await _preindex_repository_analysis(
+            analysis,
+            repo_name=f"{owner}/{repo}",
+            repo_url=repo_url,
+            provider="gitlab",
+        )
         return {
             "repo_url": repo_url,
             "owner": owner,
@@ -1377,17 +1489,31 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
         'failed': '#f56565',
         'running': '#ed8936'
     }.get(job.status, '#6b7280')
+    validation_report = (
+        job.validation_report
+        if isinstance(getattr(job, "validation_report", None), dict)
+        else {}
+    )
+    validation_junit = validation_report.get("junit", {}) if isinstance(validation_report, dict) else {}
+    validation_coverage = validation_report.get("coverage", {}) if isinstance(validation_report, dict) else {}
+    validation_sonar = validation_report.get("sonar", {}) if isinstance(validation_report, dict) else {}
+    validation_detection = validation_report.get("test_detection", {}) if isinstance(validation_report, dict) else {}
+    existing_test_cases = validation_report.get("existing_test_cases", []) if isinstance(validation_report, dict) else []
+    generated_test_cases = validation_report.get("generated_test_cases", []) if isinstance(validation_report, dict) else []
+    updated_test_cases = validation_report.get("updated_test_cases", []) if isinstance(validation_report, dict) else []
 
     # Determine if SonarQube quality gate passed (show green if PASSED)
     sonar_passed = job.sonar_quality_gate and job.sonar_quality_gate.upper() == "PASSED"
     sonar_color = "#22c55e" if sonar_passed else "#ef4444"
 
     # Calculate actual test metrics (not hardcoded 10)
-    total_tests = getattr(job, 'api_endpoints_validated', 0) + getattr(job, 'sonar_coverage', 0)
+    total_tests = int(validation_junit.get("total") or 0)
+    if total_tests == 0:
+        total_tests = getattr(job, 'api_endpoints_validated', 0) + getattr(job, 'sonar_coverage', 0)
     if total_tests == 0:
         total_tests = max(job.files_modified * 2, 10)  # Estimate based on files modified
 
-    passed_tests = getattr(job, 'api_endpoints_working', 0)
+    passed_tests = int(validation_junit.get("passed") or 0)
     if passed_tests == 0:
         passed_tests = total_tests - (job.total_errors if hasattr(job, 'total_errors') else 0)
 
@@ -1403,6 +1529,160 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
             target_repo_link = f'<span style="color: #6b7280;">{job.target_repo.replace("local://", "Local: ")}</span>'
         else:
             target_repo_link = job.target_repo
+
+    def _render_test_case_section(title: str, test_cases: Any, empty_message: str) -> str:
+        safe_cases = test_cases if isinstance(test_cases, list) else []
+        if not safe_cases:
+            return f"""
+            <div class="repo-links" style="margin-top: 20px;">
+                <h3>{escape(title)}</h3>
+                <div class="empty-note">{escape(empty_message)}</div>
+            </div>
+            """
+
+        cards: list[str] = []
+        for test_case in safe_cases[:6]:
+            if not isinstance(test_case, dict):
+                continue
+
+            path = escape(str(test_case.get("path") or "unknown"))
+            class_name = escape(str(test_case.get("class_name") or "UnknownTest"))
+            method_names = test_case.get("test_methods") if isinstance(test_case.get("test_methods"), list) else []
+            method_chips = "".join(
+                f"<span class=\"method-chip\">{escape(str(method_name))}</span>"
+                for method_name in method_names[:10]
+            ) or "<span class=\"method-chip\">No annotated methods detected</span>"
+            code_preview = escape(str(test_case.get("code_preview") or ""))
+            truncated_note = (
+                "<div class=\"code-note\">Preview truncated for report readability.</div>"
+                if test_case.get("truncated")
+                else ""
+            )
+            cards.append(
+                f"""
+                <div class="test-case-card">
+                    <div class="test-case-header">
+                        <div class="test-case-title">{path}</div>
+                        <div class="test-case-meta">{class_name} | methods: {test_case.get('test_method_count', 0)} | lines: {test_case.get('line_count', 0)}</div>
+                    </div>
+                    <div class="method-chip-row">{method_chips}</div>
+                    <details class="code-details">
+                        <summary>View test code</summary>
+                        <pre class="code-block">{code_preview}</pre>
+                        {truncated_note}
+                    </details>
+                </div>
+                """
+            )
+
+        return f"""
+        <div class="repo-links" style="margin-top: 20px;">
+            <h3>{escape(title)}</h3>
+            <div class="test-case-grid">
+                {''.join(cards)}
+            </div>
+        </div>
+        """
+
+    validation_section = ""
+    if validation_report:
+        junit_status = validation_junit.get("status", "NOT_RUN")
+        validation_failures = validation_junit.get("failures", []) if isinstance(validation_junit.get("failures"), list) else []
+        failure_items = "".join(
+            f"<li><strong>{failure.get('class_name', 'UnknownTest')}.{failure.get('method_name', 'unknown')}</strong>: {failure.get('reason', 'No reason provided')}</li>"
+            for failure in validation_failures[:5]
+            if isinstance(failure, dict)
+        ) or "<li>No failing tests reported.</li>"
+        validation_section = f"""
+        <div class="section">
+            <h2>Project Validation</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Build Tool</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_report.get('build_tool', 'unknown')}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Existing Tests Found</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{"Yes" if validation_report.get('existing_tests_found') else "No"}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">LLM Generated Tests</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{"Yes" if validation_report.get('llm_generated_tests') else "No"}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">LLM Updated Tests</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{"Yes" if validation_report.get('llm_updated_tests') else "No"}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Detected Test Classes</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_detection.get('test_classes', 0)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Detected Test Methods</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_detection.get('test_methods', 0)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">JUnit Status</div>
+                    <div class="metric-value" style="font-size: 1.2em; color: {"#22c55e" if junit_status == "PASSED" else "#ef4444"};">{junit_status}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Migration Risk</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_report.get('migration_risk', 'UNKNOWN')}</div>
+                </div>
+            </div>
+            <div class="test-summary">
+                <div class="test-card">
+                    <span class="test-number">{validation_junit.get('total', 0)}</span>
+                    <div class="test-label">Total Tests</div>
+                </div>
+                <div class="test-card">
+                    <span class="test-number" style="color: #22c55e;">{validation_junit.get('passed', 0)}</span>
+                    <div class="test-label">Passed</div>
+                </div>
+                <div class="test-card">
+                    <span class="test-number" style="color: #ef4444;">{validation_junit.get('failed', 0)}</span>
+                    <div class="test-label">Failed</div>
+                </div>
+                <div class="test-card">
+                    <span class="test-number">{validation_junit.get('skipped', 0)}</span>
+                    <div class="test-label">Skipped</div>
+                </div>
+            </div>
+            <div class="metrics-grid" style="margin-top: 20px;">
+                <div class="metric-card">
+                    <div class="metric-label">Line Coverage</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_coverage.get('line', 0)}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Branch Coverage</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_coverage.get('branch', 0)}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Method Coverage</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_coverage.get('method', 0)}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Class Coverage</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_coverage.get('class', 0)}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Sonar Quality Gate</div>
+                    <div class="metric-value" style="font-size: 1.2em;">{validation_sonar.get('quality_gate', 'NOT_CONFIGURED')}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Recommendation</div>
+                    <div class="metric-value" style="font-size: 0.95em; line-height: 1.5;">{validation_report.get('recommendation', 'No recommendation available')}</div>
+                </div>
+            </div>
+            <div class="repo-links" style="margin-top: 20px;">
+                <h3>Validation Failures</h3>
+                <ul>{failure_items}</ul>
+            </div>
+            {_render_test_case_section("Existing Test Cases", existing_test_cases, "No existing test cases were available in the repository.")}
+            {_render_test_case_section("Generated Test Cases", generated_test_cases, "No LLM-generated test cases were created during validation.")}
+            {_render_test_case_section("Updated Test Cases", updated_test_cases, "No test files were updated during validation.")}
+        </div>
+"""
 
     html = f"""
 <!DOCTYPE html>
@@ -1559,6 +1839,10 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
             color: #1e293b;
             font-size: 1.2em;
         }}
+        .empty-note {{
+            color: #64748b;
+            font-style: italic;
+        }}
         .repo-link {{
             display: block;
             margin: 10px 0;
@@ -1574,6 +1858,68 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
             background: #eff6ff;
             border-color: #3b82f6;
         }}
+        .test-case-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
+        }}
+        .test-case-card {{
+            background: white;
+            border: 1px solid #dbe3ef;
+            border-radius: 10px;
+            padding: 16px;
+        }}
+        .test-case-header {{
+            margin-bottom: 12px;
+        }}
+        .test-case-title {{
+            font-weight: 700;
+            color: #1e293b;
+            word-break: break-word;
+        }}
+        .test-case-meta {{
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 0.9em;
+        }}
+        .method-chip-row {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }}
+        .method-chip {{
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 0.8em;
+            font-weight: 600;
+        }}
+        .code-details summary {{
+            cursor: pointer;
+            color: #1d4ed8;
+            font-weight: 600;
+        }}
+        .code-block {{
+            margin: 10px 0 0 0;
+            padding: 14px;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+        }}
+        .code-note {{
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 0.85em;
+        }}
         .success-rate {{
             font-size: 1.5em;
             font-weight: 700;
@@ -1585,6 +1931,9 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
             }}
             .test-summary {{
                 grid-template-columns: repeat(2, 1fr);
+            }}
+            .test-case-grid {{
+                grid-template-columns: 1fr;
             }}
         }}
     </style>
@@ -1650,6 +1999,8 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
                 </div>
             </div>
         </div>
+
+        {validation_section}
 
         <div class="section">
             <h2>📋 Migration Logs</h2>
@@ -1924,10 +2275,44 @@ async def run_migration(job_id: str, request: MigrationRequest):
             job.api_endpoints_validated = test_result.get("total_endpoints", 0)
             job.api_endpoints_working = test_result.get("working_endpoints", 0)
             add_log(job_id, f"Tests: {job.api_endpoints_working}/{job.api_endpoints_validated} endpoints working")
-        
+
+            try:
+                _, validation_repo_name = await repo_service.parse_repo_url(request.source_repo_url)
+            except Exception:
+                validation_repo_name = Path(clone_path).name or "repository"
+
+            async def validation_progress(step_text: str, progress_value: int | None = None):
+                update_job(
+                    job_id,
+                    MigrationStatus.TESTING,
+                    progress_value if progress_value is not None else migration_jobs[job_id].progress_percent,
+                    step_text,
+                )
+
+            async def validation_log(message: str):
+                add_log(job_id, f"[VALIDATION] {message}")
+
+            validation_report = await project_validation_service.validate_project(
+                clone_path,
+                validation_repo_name,
+                run_sonar=request.run_sonar,
+                sonar_project_key=job_id,
+                progress_callback=validation_progress,
+                log_callback=validation_log,
+            )
+            job.validation_report = validation_report
+            add_log(
+                job_id,
+                (
+                    f"Validation: junit={validation_report.get('junit', {}).get('status', 'NOT_RUN')} "
+                    f"coverage={validation_report.get('coverage', {}).get('line', 0)}% "
+                    f"risk={validation_report.get('migration_risk', 'UNKNOWN')}"
+                ),
+            )
+
         # Step 5: SonarQube analysis
         if request.run_sonar:
-            update_job(job_id, MigrationStatus.SONAR_ANALYSIS, 75, "Running SonarQube code quality analysis...")
+            update_job(job_id, MigrationStatus.SONAR_ANALYSIS, 90, "Running SonarQube code quality analysis...")
             sonar_result = await sonarqube_service.analyze_project(clone_path, job_id)
             job.sonar_quality_gate = sonar_result.get("quality_gate", "N/A")
             job.sonar_bugs = sonar_result.get("bugs", 0)
@@ -1938,7 +2323,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
 
         # Step 5b: FOSSA analysis (optional)
         if getattr(request, 'run_fossa', False):
-            update_job(job_id, MigrationStatus.FOSSA_ANALYSIS, 80, "Running FOSSA license & dependency scan...")
+            update_job(job_id, MigrationStatus.FOSSA_ANALYSIS, 93, "Running FOSSA license & dependency scan...")
             try:
                 try:
                     fossa_result = await fossa_service.analyze_project(clone_path)
@@ -1990,7 +2375,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 now,
             )
             add_log(job_id, f"Target branch name: {target_branch_name}")
-            update_job(job_id, MigrationStatus.PUSHING, 90, "Pushing migrated code to a new branch...")
+            update_job(job_id, MigrationStatus.PUSHING, 96, "Pushing migrated code to a new branch...")
             try:
                 branch_url = await repo_service.push_to_branch(
                     github_token,
@@ -2011,7 +2396,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 now,
             )
             add_log(job_id, f"Target repository name: {target_repo_name}")
-            update_job(job_id, MigrationStatus.PUSHING, 90, "Creating new repository and pushing migrated code...")
+            update_job(job_id, MigrationStatus.PUSHING, 96, "Creating new repository and pushing migrated code...")
             try:
                 new_repo_url = await repo_service.create_and_push_repo(
                     github_token,

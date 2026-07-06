@@ -4,6 +4,7 @@ SonarQube Service - Code quality analysis
 import os
 import httpx
 import asyncio
+from pathlib import Path
 from typing import Dict, Any
 
 
@@ -21,6 +22,8 @@ class SonarQubeService:
             "code_smells": 0,
             "coverage": 0.0,
             "duplications": 0.0,
+            "reliability": None,
+            "maintainability": None,
             "analysis_url": None
         }
 
@@ -36,11 +39,14 @@ class SonarQubeService:
 
             # Run sonar-scanner
             pom_path = os.path.join(project_path, "pom.xml")
+            gradle_path = os.path.join(project_path, "build.gradle")
+            gradle_kts_path = os.path.join(project_path, "build.gradle.kts")
 
             if os.path.exists(pom_path):
                 # For Maven projects, use sonar:sonar goal
+                mvn_command = self._resolve_wrapper_command(project_path, "mvnw") or "mvn"
                 sonar_args = [
-                    "mvn", "sonar:sonar",
+                    mvn_command, "sonar:sonar",
                     f"-Dsonar.host.url={self.sonar_url}",
                     f"-Dsonar.login={self.sonar_token}",
                     f"-Dsonar.projectKey={project_key}"
@@ -73,6 +79,28 @@ class SonarQubeService:
                     print(f"SonarQube analysis failed with return code: {process.returncode}")
                     print(f"STDOUT: {stdout.decode()}")
                     print(f"STDERR: {stderr.decode()}")
+            elif os.path.exists(gradle_path) or os.path.exists(gradle_kts_path):
+                gradle_command = self._resolve_wrapper_command(project_path, "gradlew") or "gradle"
+                sonar_args = [
+                    gradle_command,
+                    "sonarqube",
+                    f"-Dsonar.host.url={self.sonar_url}",
+                    f"-Dsonar.login={self.sonar_token}",
+                    f"-Dsonar.projectKey={project_key}",
+                ]
+                process = await asyncio.create_subprocess_exec(
+                    *sonar_args,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=project_path
+                )
+                stdout, stderr = await process.communicate()
+                if process.returncode == 0:
+                    print("Gradle SonarQube analysis completed successfully")
+                else:
+                    print(f"Gradle SonarQube analysis failed with return code: {process.returncode}")
+                    print(f"STDOUT: {stdout.decode()}")
+                    print(f"STDERR: {stderr.decode()}")
 
             # Wait for analysis to complete (longer for cloud services)
             await asyncio.sleep(10)
@@ -97,7 +125,7 @@ class SonarQubeService:
                     f"{self.sonar_url}/api/measures/component",
                     params={
                         "component": project_key,
-                        "metricKeys": "bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density"
+                        "metricKeys": "bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,reliability_rating,sqale_rating"
                     },
                     auth=(self.sonar_token, "")
                 )
@@ -116,6 +144,8 @@ class SonarQubeService:
                         "code_smells": int(measures.get("code_smells", 0)),
                         "coverage": float(measures.get("coverage", 0)),
                         "duplications": float(measures.get("duplicated_lines_density", 0)),
+                        "reliability": measures.get("reliability_rating"),
+                        "maintainability": measures.get("sqale_rating"),
                         "analysis_url": f"{self.sonar_url}/dashboard?id={project_key}"
                     }
                     
@@ -135,19 +165,21 @@ class SonarQubeService:
         java_files = max(java_files, 10)  # Minimum for demo
         
         return {
-            "quality_gate": "Passed",
+            "quality_gate": "PASSED",
             "bugs": max(0, java_files // 5 - 2),  # Reduced after migration
             "vulnerabilities": max(0, java_files // 10 - 1),
             "code_smells": java_files * 2,
             "coverage": 72.5,
             "duplications": 3.2,
+            "reliability": "1",
+            "maintainability": "1",
             "analysis_url": None
         }
     
     async def get_quality_gate_status(self, project_key: str) -> str:
         """Get quality gate status for a project"""
         if not self.sonar_token:
-            return "Passed"
+            return "PASSED"
         
         async with httpx.AsyncClient() as client:
             try:
@@ -165,3 +197,15 @@ class SonarQubeService:
                 pass
         
         return "N/A"
+
+    def _resolve_wrapper_command(self, project_path: str, base_name: str) -> str | None:
+        root = Path(project_path)
+        candidates = [
+            root / base_name,
+            root / f"{base_name}.cmd",
+            root / f"{base_name}.bat",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+        return None

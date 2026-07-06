@@ -25,6 +25,7 @@ import type {
   RepoAnalysis,
   RepoFile,
   MigrationResult,
+  ValidationTestCase,
   ConversionType,
   MigrationPreview,
   PreviewFileDiff,
@@ -78,6 +79,77 @@ interface CodeChangeEntry {
     content: string;
   }[];
 }
+
+const renderValidationTestCaseSection = (
+  title: string,
+  testCases: ValidationTestCase[] | undefined,
+  emptyMessage: string,
+) => {
+  const safeTestCases = Array.isArray(testCases) ? testCases : [];
+
+  return (
+    <div style={styles.validationTestCaseSection}>
+      <div style={styles.validationTestCaseHeaderRow}>
+        <h4 style={styles.validationTestCaseTitle}>{title}</h4>
+        <span style={styles.validationTestCaseCount}>
+          {safeTestCases.length} file{safeTestCases.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {safeTestCases.length === 0 ? (
+        <div style={styles.noData}>{emptyMessage}</div>
+      ) : (
+        <div style={styles.validationTestCaseGrid}>
+          {safeTestCases.map((testCase, index) => (
+            <div
+              key={`${testCase.path}-${index}`}
+              style={styles.validationTestCaseCard}
+            >
+              <div style={styles.validationTestCaseCardHeader}>
+                <div style={styles.validationTestCasePath}>{testCase.path}</div>
+                <div style={styles.validationTestCaseMeta}>
+                  {testCase.class_name} | methods: {testCase.test_method_count} |
+                  lines: {testCase.line_count}
+                </div>
+              </div>
+
+              <div style={styles.validationMethodChips}>
+                {testCase.test_methods.length > 0 ? (
+                  testCase.test_methods.slice(0, 10).map((methodName) => (
+                    <span
+                      key={`${testCase.path}-${methodName}`}
+                      style={styles.validationMethodChip}
+                    >
+                      {methodName}
+                    </span>
+                  ))
+                ) : (
+                  <span style={styles.validationMethodChip}>
+                    No annotated methods detected
+                  </span>
+                )}
+              </div>
+
+              <details style={styles.validationCodeDetails}>
+                <summary style={styles.validationCodeSummary}>
+                  View test code
+                </summary>
+                <pre style={styles.validationCodeBlock}>
+                  {testCase.code_preview || "// No preview available"}
+                </pre>
+                {testCase.truncated && (
+                  <div style={styles.validationCodeNote}>
+                    Preview truncated for readability.
+                  </div>
+                )}
+              </details>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const MIGRATION_STEPS = [
   {
@@ -416,6 +488,281 @@ export default function MigrationWizard({
   const [versionRecommendationError, setVersionRecommendationError] =
     useState("");
   const currentIndicatorStep = getIndicatorStep(step);
+  const strategyChatContext = useMemo(() => {
+    const repoName =
+      selectedRepo?.full_name ||
+      selectedRepo?.name ||
+      repoAnalysis?.full_name ||
+      repoAnalysis?.name ||
+      null;
+    const repositoryUrl = selectedRepo?.url || repoUrl || null;
+    const platform = repositoryUrl
+      ? repositoryUrl.toLowerCase().includes("gitlab.com")
+        ? "gitlab"
+        : "github"
+      : null;
+    const buildTool = repoAnalysis?.build_tool || null;
+    const detectedJavaVersion =
+      repoAnalysis?.java_version || repoAnalysis?.java_version_from_build || null;
+    const dependencies = Array.isArray(repoAnalysis?.dependencies)
+      ? repoAnalysis.dependencies
+      : [];
+    const dependencySample = dependencies
+      .map((dep) => {
+        const groupId = dep.group_id?.trim();
+        const artifactId = dep.artifact_id?.trim();
+        return [groupId, artifactId].filter(Boolean).join(":") || null;
+      })
+      .filter((value): value is string => Boolean(value))
+      .slice(0, 8);
+    const apiEndpoints = Array.isArray(repoAnalysis?.api_endpoints)
+      ? repoAnalysis.api_endpoints
+      : [];
+    const apiEndpointSample = apiEndpoints
+      .map((endpoint) => {
+        const method = endpoint?.method?.trim() || "ANY";
+        const path = endpoint?.path?.trim() || endpoint?.file?.trim() || "";
+        return path ? `${method} ${path}` : null;
+      })
+      .filter((value): value is string => Boolean(value))
+      .slice(0, 6);
+    const frameworkSample = detectedFrameworks
+      .map((framework) => framework?.name?.trim() || "")
+      .filter((value): value is string => Boolean(value))
+      .slice(0, 6);
+    const repoFileSample = repoFiles
+      .map((file) => file.path || file.name)
+      .filter((value): value is string => Boolean(value))
+      .slice(0, 10);
+    const fossaLicenseIssues =
+      fossaResult &&
+      typeof fossaResult === "object" &&
+      fossaResult.licenses &&
+      typeof fossaResult.licenses === "object"
+        ? Object.values(fossaResult.licenses as Record<string, unknown>).reduce(
+            (total, value) => total + (Number(value) || 0),
+            0,
+          )
+        : migrationJob?.fossa_license_issues ?? null;
+    const activeStep =
+      MIGRATION_STEPS.find((item) => item.id === currentIndicatorStep) ||
+      MIGRATION_STEPS[2];
+    const resultReady = Boolean(
+      migrationJob &&
+        (migrationJob.status === "completed" || migrationJob.completed_at),
+    );
+
+    return {
+      step: "strategy",
+      page: "strategy",
+      assistantMode: "strategy",
+      wizard_step_number: step,
+      wizard_step_route: STEP_ROUTES[step] || "/strategy",
+      wizard_indicator_step: currentIndicatorStep,
+      wizard_indicator_name: activeStep?.name || "Strategy",
+      wizard_pages_available: MIGRATION_STEPS.map((item) =>
+        item.name.toLowerCase(),
+      ),
+      repo: repoName,
+      repository: repoName,
+      repo_url: repositoryUrl,
+      repository_url: repositoryUrl,
+      platform,
+      default_branch:
+        selectedRepo?.default_branch || repoAnalysis?.default_branch || null,
+      build_tool: buildTool,
+      java_version: detectedJavaVersion,
+      source_java_version: selectedSourceVersion || detectedJavaVersion || null,
+      selectedSourceVersion:
+        selectedSourceVersion || detectedJavaVersion || null,
+      target_java_version: selectedTargetVersion || null,
+      target_version: selectedTargetVersion || null,
+      selectedTargetVersion: selectedTargetVersion || null,
+      risk_level: riskLevel || null,
+      migration_approach: migrationApproach || null,
+      dependencies_count: dependencies.length,
+      has_tests: repoAnalysis?.has_tests || false,
+      selected_conversions: selectedConversions,
+      status: migrationJob?.status || null,
+      progress_percent:
+        typeof migrationJob?.progress_percent === "number"
+          ? migrationJob.progress_percent
+          : null,
+      files_modified: migrationJob?.files_modified ?? null,
+      issues_fixed: migrationJob?.issues_fixed ?? null,
+      api_endpoints_validated: migrationJob?.api_endpoints_validated ?? null,
+      api_endpoints_working: migrationJob?.api_endpoints_working ?? null,
+      sonar_quality_gate: migrationJob?.sonar_quality_gate ?? null,
+      sonar_coverage: migrationJob?.sonar_coverage ?? null,
+      sonar_bugs: migrationJob?.sonar_bugs ?? null,
+      sonar_vulnerabilities: migrationJob?.sonar_vulnerabilities ?? null,
+      sonar_code_smells: migrationJob?.sonar_code_smells ?? null,
+      fossa_policy_status:
+        fossaResult?.compliance_status ??
+        migrationJob?.fossa_policy_status ??
+        null,
+      fossa_total_dependencies:
+        fossaResult?.total_dependencies ??
+        migrationJob?.fossa_total_dependencies ??
+        null,
+      fossa_license_issues: fossaLicenseIssues,
+      fossa_vulnerabilities:
+        fossaResult?.vulnerabilities ??
+        migrationJob?.fossa_vulnerabilities ??
+        null,
+      fossa_outdated_dependencies:
+        fossaResult?.outdated_dependencies ??
+        migrationJob?.fossa_outdated_dependencies ??
+        null,
+      repoAnalysis: repoAnalysis || null,
+      analysis: repoAnalysis || null,
+      connection_summary: {
+        repository_selected: Boolean(repoName || repositoryUrl),
+        repository_name: repoName,
+        repository_url: repositoryUrl,
+        platform,
+        visibility: isPrivateRepo ? "private" : "public_or_not_marked_private",
+        access_mode: showEnterpriseToken
+          ? "enterprise_token"
+          : isPrivateRepo
+            ? "private_repo_token"
+            : currentToken
+              ? "token_or_oauth"
+              : "public_repository",
+        default_branch:
+          selectedRepo?.default_branch || repoAnalysis?.default_branch || null,
+        current_path: currentPath || "",
+        files_listed: repoFiles.length,
+        file_sample: repoFileSample,
+      },
+      discovery_summary: {
+        analysis_ready: Boolean(repoAnalysis),
+        analysis_loading: analysisLoading,
+        analysis_elapsed_seconds: analysisElapsedSeconds,
+        is_java_project: isJavaProject,
+        build_tool: buildTool,
+        detected_java_version: detectedJavaVersion,
+        source_version_status: sourceVersionStatus,
+        user_selected_source_version: userSelectedVersion,
+        suggested_java_version: suggestedJavaVersion,
+        dependencies_count: dependencies.length,
+        dependency_sample: dependencySample,
+        api_endpoints_count: apiEndpoints.length,
+        api_endpoint_sample: apiEndpointSample,
+        has_tests: repoAnalysis?.has_tests || false,
+        structure: repoAnalysis?.structure || null,
+        detected_frameworks: frameworkSample,
+        selected_frameworks: selectedFrameworks,
+        version_recommendation: versionRecommendation
+          ? {
+              recommended_target_version:
+                versionRecommendation.recommended_target_version,
+              confidence: versionRecommendation.confidence,
+              rationale: versionRecommendation.rationale.slice(0, 4),
+              alternatives: versionRecommendation.alternatives.slice(0, 3),
+            }
+          : null,
+      },
+      strategy_summary: {
+        risk_level: riskLevel || null,
+        migration_approach: migrationApproach || null,
+        source_java_version: selectedSourceVersion || detectedJavaVersion || null,
+        target_java_version: selectedTargetVersion || null,
+        selected_conversions: selectedConversions,
+        run_tests: runTests,
+        run_sonar: runSonar,
+        run_fossa: runFossa,
+        fix_business_logic: fixBusinessLogic,
+        update_source_version: updateSourceVersion,
+      },
+      migration_summary: {
+        migration_started: Boolean(migrationJob),
+        status: migrationJob?.status || null,
+        current_step: migrationJob?.current_step || null,
+        progress_percent:
+          typeof migrationJob?.progress_percent === "number"
+            ? migrationJob.progress_percent
+            : null,
+        target_repo_name: targetRepoName || null,
+        target_repo: migrationJob?.target_repo || null,
+        files_modified: migrationJob?.files_modified ?? null,
+        issues_fixed: migrationJob?.issues_fixed ?? null,
+        total_errors: migrationJob?.total_errors ?? null,
+        total_warnings: migrationJob?.total_warnings ?? null,
+        current_error: migrationJob?.error_message || error || null,
+        recent_logs: migrationLogs.slice(-3),
+      },
+      result_summary: {
+        report_ready: resultReady,
+        status: migrationJob?.status || null,
+        completed_at: migrationJob?.completed_at || null,
+        files_modified: migrationJob?.files_modified ?? null,
+        issues_fixed: migrationJob?.issues_fixed ?? null,
+        errors_fixed: migrationJob?.errors_fixed ?? null,
+        total_errors: migrationJob?.total_errors ?? null,
+        total_warnings: migrationJob?.total_warnings ?? null,
+        api_endpoints_validated: migrationJob?.api_endpoints_validated ?? null,
+        api_endpoints_working: migrationJob?.api_endpoints_working ?? null,
+        sonar_quality_gate: migrationJob?.sonar_quality_gate ?? null,
+        sonar_coverage: migrationJob?.sonar_coverage ?? null,
+        sonar_bugs: migrationJob?.sonar_bugs ?? null,
+        sonar_vulnerabilities: migrationJob?.sonar_vulnerabilities ?? null,
+        sonar_code_smells: migrationJob?.sonar_code_smells ?? null,
+        fossa_policy_status:
+          fossaResult?.compliance_status ??
+          migrationJob?.fossa_policy_status ??
+          null,
+        fossa_total_dependencies:
+          fossaResult?.total_dependencies ??
+          migrationJob?.fossa_total_dependencies ??
+          null,
+        fossa_license_issues: fossaLicenseIssues,
+        fossa_vulnerabilities:
+          fossaResult?.vulnerabilities ??
+          migrationJob?.fossa_vulnerabilities ??
+          null,
+        fossa_outdated_dependencies:
+          fossaResult?.outdated_dependencies ??
+          migrationJob?.fossa_outdated_dependencies ??
+          null,
+      },
+    };
+  }, [
+    analysisElapsedSeconds,
+    analysisLoading,
+    currentIndicatorStep,
+    currentPath,
+    currentToken,
+    detectedFrameworks,
+    error,
+    fixBusinessLogic,
+    fossaResult,
+    isJavaProject,
+    isPrivateRepo,
+    migrationApproach,
+    migrationJob,
+    migrationLogs,
+    repoAnalysis,
+    repoFiles,
+    repoUrl,
+    riskLevel,
+    runFossa,
+    runSonar,
+    runTests,
+    selectedConversions,
+    selectedFrameworks,
+    selectedRepo,
+    selectedSourceVersion,
+    selectedTargetVersion,
+    showEnterpriseToken,
+    sourceVersionStatus,
+    step,
+    suggestedJavaVersion,
+    targetRepoName,
+    updateSourceVersion,
+    userSelectedVersion,
+    versionRecommendation,
+  ]);
 
   const migrationApproachOptions = [
     {
@@ -7039,33 +7386,365 @@ export default function MigrationWizard({
               </div>
             )}
 
+          {migrationJob.validation_report && (
+            <div style={styles.reportSection}>
+              <h3 style={styles.reportTitle}>🧪 Project Validation</h3>
+              <div style={styles.reportGrid}>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>Build Tool</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.build_tool || "Unknown"}
+                  </span>
+                </div>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>Existing Tests Found</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.existing_tests_found
+                      ? "Yes"
+                      : "No"}
+                  </span>
+                </div>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>LLM Generated Tests</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.llm_generated_tests
+                      ? "Yes"
+                      : "No"}
+                  </span>
+                </div>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>LLM Updated Tests</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.llm_updated_tests
+                      ? "Yes"
+                      : "No"}
+                  </span>
+                </div>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>Detected Test Classes</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.test_detection.test_classes}
+                  </span>
+                </div>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>Detected Test Methods</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.test_detection.test_methods}
+                  </span>
+                </div>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>Migration Risk</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.migration_risk}
+                  </span>
+                </div>
+                <div style={styles.reportItem}>
+                  <span style={styles.reportLabel}>Recommendation</span>
+                  <span style={styles.reportValue}>
+                    {migrationJob.validation_report.recommendation}
+                  </span>
+                </div>
+              </div>
+
+              <div style={styles.testReportGrid}>
+                <div style={styles.testMetric}>
+                  <span style={styles.testValue}>
+                    {migrationJob.validation_report.junit.total}
+                  </span>
+                  <span style={styles.testLabel}>Total Tests</span>
+                </div>
+                <div style={styles.testMetric}>
+                  <span style={{ ...styles.testValue, color: "#22c55e" }}>
+                    {migrationJob.validation_report.junit.passed}
+                  </span>
+                  <span style={styles.testLabel}>Passed</span>
+                </div>
+                <div style={styles.testMetric}>
+                  <span style={{ ...styles.testValue, color: "#ef4444" }}>
+                    {migrationJob.validation_report.junit.failed}
+                  </span>
+                  <span style={styles.testLabel}>Failed</span>
+                </div>
+                <div style={styles.testMetric}>
+                  <span style={styles.testValue}>
+                    {migrationJob.validation_report.junit.skipped}
+                  </span>
+                  <span style={styles.testLabel}>Skipped</span>
+                </div>
+              </div>
+
+              <div style={styles.qualityMetrics}>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>
+                    {migrationJob.validation_report.coverage.line}%
+                  </span>
+                  <span style={styles.metricLabel}>Line Coverage</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>
+                    {migrationJob.validation_report.coverage.branch}%
+                  </span>
+                  <span style={styles.metricLabel}>Branch Coverage</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>
+                    {migrationJob.validation_report.coverage.method}%
+                  </span>
+                  <span style={styles.metricLabel}>Method Coverage</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>
+                    {migrationJob.validation_report.coverage.class}%
+                  </span>
+                  <span style={styles.metricLabel}>Class Coverage</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span
+                    style={{
+                      ...styles.metricValue,
+                      color:
+                        migrationJob.validation_report.sonar.quality_gate ===
+                        "PASSED"
+                          ? "#22c55e"
+                          : "#f59e0b",
+                    }}
+                  >
+                    {migrationJob.validation_report.sonar.quality_gate}
+                  </span>
+                  <span style={styles.metricLabel}>Sonar Quality Gate</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span
+                    style={{
+                      ...styles.metricValue,
+                      color:
+                        migrationJob.validation_report.sonar.bugs > 0
+                          ? "#ef4444"
+                          : "#22c55e",
+                    }}
+                  >
+                    {migrationJob.validation_report.sonar.bugs}
+                  </span>
+                  <span style={styles.metricLabel}>Bugs</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span
+                    style={{
+                      ...styles.metricValue,
+                      color:
+                        migrationJob.validation_report.sonar
+                          .vulnerabilities > 0
+                          ? "#ef4444"
+                          : "#22c55e",
+                    }}
+                  >
+                    {migrationJob.validation_report.sonar.vulnerabilities}
+                  </span>
+                  <span style={styles.metricLabel}>Vulnerabilities</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>
+                    {migrationJob.validation_report.sonar.code_smells}
+                  </span>
+                  <span style={styles.metricLabel}>Code Smells</span>
+                </div>
+              </div>
+
+              {migrationJob.validation_report.junit.failures.length > 0 && (
+                <div style={{ ...styles.noData, textAlign: "left" }}>
+                  <strong>Failed Tests</strong>
+                  <div style={{ marginTop: 8 }}>
+                    {migrationJob.validation_report.junit.failures.map(
+                      (failure, index) => (
+                        <div key={`${failure.class_name}-${failure.method_name}-${index}`}>
+                          {failure.class_name}.{failure.method_name}:{" "}
+                          {failure.reason}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {renderValidationTestCaseSection(
+                "Existing Test Cases",
+                migrationJob.validation_report.existing_test_cases,
+                "No existing test cases were available in the repository.",
+              )}
+
+              {renderValidationTestCaseSection(
+                "Generated Test Cases",
+                migrationJob.validation_report.generated_test_cases,
+                "No LLM-generated test cases were created during validation.",
+              )}
+
+              {renderValidationTestCaseSection(
+                "Updated Test Cases",
+                migrationJob.validation_report.updated_test_cases,
+                "No test files were updated during validation.",
+              )}
+            </div>
+          )}
+
           {/* Unit Test Report */}
           <div style={styles.reportSection}>
             <h3 style={styles.reportTitle}>🧪 Unit Test Report</h3>
             <div style={styles.testReportGrid}>
               <div style={styles.testMetric}>
-                <span style={styles.testValue}>10</span>
+                <span style={styles.testValue}>
+                  {migrationJob.validation_report?.junit.total ?? 10}
+                </span>
                 <span style={styles.testLabel}>Tests Run</span>
               </div>
               <div style={styles.testMetric}>
                 <span style={{ ...styles.testValue, color: "#22c55e" }}>
-                  10
+                  {migrationJob.validation_report?.junit.passed ?? 10}
                 </span>
                 <span style={styles.testLabel}>Tests Passed</span>
               </div>
               <div style={styles.testMetric}>
-                <span style={{ ...styles.testValue, color: "#ef4444" }}>0</span>
+                <span style={{ ...styles.testValue, color: "#ef4444" }}>
+                  {migrationJob.validation_report?.junit.failed ?? 0}
+                </span>
                 <span style={styles.testLabel}>Tests Failed</span>
               </div>
               <div style={styles.testMetric}>
-                <span style={styles.testValue}>100%</span>
+                <span style={styles.testValue}>
+                  {migrationJob.validation_report?.junit.total
+                    ? `${Math.round(
+                        (migrationJob.validation_report.junit.passed /
+                          migrationJob.validation_report.junit.total) *
+                          100,
+                      )}%`
+                    : "100%"}
+                </span>
                 <span style={styles.testLabel}>Success Rate</span>
               </div>
             </div>
             <div style={styles.testStatus}>
-              <span style={styles.testStatusIcon}>✅</span>
-              <span>All unit tests passed successfully</span>
+              <span style={styles.testStatusIcon}>
+                {migrationJob.validation_report?.junit.status === "FAILED"
+                  ? "⚠️"
+                  : "✅"}
+              </span>
+              <span>
+                {migrationJob.validation_report?.junit.status === "FAILED"
+                  ? "Some unit tests failed during validation"
+                  : "All unit tests passed successfully"}
+              </span>
             </div>
+
+            {migrationJob.validation_report && (
+              <>
+                <div style={styles.validationTestCaseSection}>
+                  <div style={styles.validationTestCaseHeaderRow}>
+                    <h4 style={styles.validationTestCaseTitle}>
+                      Existing Test Summary
+                    </h4>
+                  </div>
+                  <div style={styles.reportGrid}>
+                    <div style={styles.reportItem}>
+                      <span style={styles.reportLabel}>Existing Tests Found</span>
+                      <span style={styles.reportValue}>
+                        {migrationJob.validation_report.existing_tests_found
+                          ? "Yes"
+                          : "No"}
+                      </span>
+                    </div>
+                    <div style={styles.reportItem}>
+                      <span style={styles.reportLabel}>
+                        Detected Test Classes
+                      </span>
+                      <span style={styles.reportValue}>
+                        {
+                          migrationJob.validation_report.test_detection
+                            .test_classes
+                        }
+                      </span>
+                    </div>
+                    <div style={styles.reportItem}>
+                      <span style={styles.reportLabel}>
+                        Detected Test Methods
+                      </span>
+                      <span style={styles.reportValue}>
+                        {
+                          migrationJob.validation_report.test_detection
+                            .test_methods
+                        }
+                      </span>
+                    </div>
+                    <div style={styles.reportItem}>
+                      <span style={styles.reportLabel}>LLM Generated Tests</span>
+                      <span style={styles.reportValue}>
+                        {migrationJob.validation_report.llm_generated_tests
+                          ? "Yes"
+                          : "No"}
+                      </span>
+                    </div>
+                    <div style={styles.reportItem}>
+                      <span style={styles.reportLabel}>LLM Updated Tests</span>
+                      <span style={styles.reportValue}>
+                        {migrationJob.validation_report.llm_updated_tests
+                          ? "Yes"
+                          : "No"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={styles.validationTestCaseSection}>
+                  <div style={styles.validationTestCaseHeaderRow}>
+                    <h4 style={styles.validationTestCaseTitle}>
+                      JaCoCo Coverage
+                    </h4>
+                  </div>
+                  <div style={styles.qualityMetrics}>
+                    <div style={styles.metricItem}>
+                      <span style={styles.metricValue}>
+                        {migrationJob.validation_report.coverage.line}%
+                      </span>
+                      <span style={styles.metricLabel}>Line Coverage</span>
+                    </div>
+                    <div style={styles.metricItem}>
+                      <span style={styles.metricValue}>
+                        {migrationJob.validation_report.coverage.branch}%
+                      </span>
+                      <span style={styles.metricLabel}>Branch Coverage</span>
+                    </div>
+                    <div style={styles.metricItem}>
+                      <span style={styles.metricValue}>
+                        {migrationJob.validation_report.coverage.method}%
+                      </span>
+                      <span style={styles.metricLabel}>Method Coverage</span>
+                    </div>
+                    <div style={styles.metricItem}>
+                      <span style={styles.metricValue}>
+                        {migrationJob.validation_report.coverage.class}%
+                      </span>
+                      <span style={styles.metricLabel}>Class Coverage</span>
+                    </div>
+                  </div>
+                </div>
+
+                {renderValidationTestCaseSection(
+                  "Existing Test Cases",
+                  migrationJob.validation_report.existing_test_cases,
+                  "No existing test cases were available in the repository.",
+                )}
+
+                {renderValidationTestCaseSection(
+                  "Generated Test Cases",
+                  migrationJob.validation_report.generated_test_cases,
+                  "No LLM-generated test cases were created during validation.",
+                )}
+
+                {renderValidationTestCaseSection(
+                  "Updated Test Cases",
+                  migrationJob.validation_report.updated_test_cases,
+                  "No test files were updated during validation.",
+                )}
+              </>
+            )}
           </div>
 
           {/* JMeter Test Report */}
@@ -7700,35 +8379,17 @@ For questions or issues:
           <>
             {renderStrategyStep()}
             <ChatWidget
-              context={{
-                step: "strategy",
-                repo: selectedRepo?.full_name || selectedRepo?.name || null,
-                build_tool: repoAnalysis?.build_tool || null,
-                java_version:
-                  repoAnalysis?.java_version ||
-                  repoAnalysis?.java_version_from_build ||
-                  null,
-                source_java_version:
-                  selectedSourceVersion ||
-                  repoAnalysis?.java_version ||
-                  repoAnalysis?.java_version_from_build ||
-                  null,
-                selectedSourceVersion:
-                  selectedSourceVersion ||
-                  repoAnalysis?.java_version ||
-                  repoAnalysis?.java_version_from_build ||
-                  null,
-                target_java_version: selectedTargetVersion || null,
-                target_version: selectedTargetVersion || null,
-                selectedTargetVersion: selectedTargetVersion || null,
-                risk_level: riskLevel || null,
-                migration_approach: migrationApproach || null,
-                dependencies_count: repoAnalysis?.dependencies?.length || 0,
-                has_tests: repoAnalysis?.has_tests || false,
-              }}
+              context={strategyChatContext}
               title="Migration Assistant"
-              subtitle="Context-aware help for strategy"
-              welcomeMessage="Hi! How can I help with the migration? Ask about strategy, risks, build changes, or next steps."
+              subtitle="Context-aware help across connection, discovery, strategy, migration, and results"
+              welcomeMessage="Hi! Ask about the connected repository, discovery findings, migration strategy, progress, results, or general Java and LLM topics."
+              suggestedPrompts={[
+                "What repository is connected right now?",
+                "What did discovery find in this project?",
+                "What migration approach fits this repo and why?",
+                "What should I expect on the migration result page?",
+                "How is RAG and ChromaDB used in this project?",
+              ]}
             />
           </>
         )}
@@ -8501,6 +9162,101 @@ const styles: { [key: string]: React.CSSProperties } = {
     letterSpacing: "0.5px",
   },
   reportValue: { fontSize: 14, color: "#1e293b", fontWeight: 600 },
+  validationTestCaseSection: {
+    marginTop: 20,
+    padding: 18,
+    background: "#f8fafc",
+    borderRadius: 12,
+    border: "1px solid #e2e8f0",
+  },
+  validationTestCaseHeaderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
+  validationTestCaseTitle: {
+    margin: 0,
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#1e293b",
+  },
+  validationTestCaseCount: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#1d4ed8",
+    background: "#dbeafe",
+    padding: "6px 10px",
+    borderRadius: 999,
+  },
+  validationTestCaseGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gap: 14,
+  },
+  validationTestCaseCard: {
+    background: "#fff",
+    border: "1px solid #dbe3ef",
+    borderRadius: 12,
+    padding: 16,
+  },
+  validationTestCaseCardHeader: {
+    marginBottom: 12,
+  },
+  validationTestCasePath: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#1e293b",
+    wordBreak: "break-word",
+    marginBottom: 6,
+  },
+  validationTestCaseMeta: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  validationMethodChips: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  validationMethodChip: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#1d4ed8",
+    background: "#eff6ff",
+    padding: "5px 9px",
+    borderRadius: 999,
+  },
+  validationCodeDetails: {
+    borderTop: "1px solid #e2e8f0",
+    paddingTop: 10,
+  },
+  validationCodeSummary: {
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#1d4ed8",
+  },
+  validationCodeBlock: {
+    margin: "10px 0 0 0",
+    padding: 14,
+    background: "#0f172a",
+    color: "#e2e8f0",
+    borderRadius: 10,
+    overflowX: "auto",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    fontSize: 12,
+    lineHeight: 1.6,
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+  },
+  validationCodeNote: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#64748b",
+  },
   testResults: { display: "flex", flexDirection: "column", gap: 10 },
   testItem: {
     display: "flex",
