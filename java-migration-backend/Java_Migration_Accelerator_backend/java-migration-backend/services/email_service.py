@@ -2,10 +2,11 @@
 Email Service - Send migration summary emails
 """
 import os
-from typing import Any
+from typing import Any, Optional
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from jinja2 import Template
 
 
@@ -13,9 +14,31 @@ class EmailService:
     def __init__(self):
         self.smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_user = os.getenv("SMTP_USER", "")
+        self.smtp_user = os.getenv("SMTP_USERNAME") or os.getenv("SMTP_USER", "")
         self.smtp_password = os.getenv("SMTP_PASSWORD", "")
-        self.email_from = os.getenv("EMAIL_FROM", "migration-bot@example.com")
+        self.email_from = os.getenv("SMTP_FROM_EMAIL") or os.getenv("EMAIL_FROM", "migration-bot@example.com")
+        self.email_from_name = os.getenv("SMTP_FROM_NAME", "javaAPEX Migration Bot")
+        self.smtp_use_tls = os.getenv("SMTP_USE_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+    def _configured(self) -> bool:
+        return bool(
+            self.smtp_host
+            and self.smtp_port
+            and self.smtp_user
+            and self.smtp_password
+            and self.email_from
+            and self.smtp_password not in {"your_app_password", "your_app_password_here"}
+        )
+
+    async def _send_message(self, message: MIMEMultipart) -> None:
+        await aiosmtplib.send(
+            message,
+            hostname=self.smtp_host,
+            port=self.smtp_port,
+            username=self.smtp_user,
+            password=self.smtp_password,
+            start_tls=self.smtp_use_tls,
+        )
     
     async def send_migration_summary(self, to_email: str, job: Any) -> bool:
         """Send migration summary email"""
@@ -32,7 +55,7 @@ class EmailService:
 
             # Create message
             message = MIMEMultipart("alternative")
-            message["From"] = self.email_from
+            message["From"] = formataddr((self.email_from_name, self.email_from))
             message["To"] = to_email
             message["Subject"] = subject
 
@@ -40,16 +63,9 @@ class EmailService:
             message.attach(MIMEText(html_content, "html"))
 
             # Send email
-            if self.smtp_user and self.smtp_password and self.smtp_password != "your_app_password_here":
+            if self._configured():
                 print(f"[EMAIL] Sending email via SMTP...")
-                await aiosmtplib.send(
-                    message,
-                    hostname=self.smtp_host,
-                    port=self.smtp_port,
-                    username=self.smtp_user,
-                    password=self.smtp_password,
-                    start_tls=True
-                )
+                await self._send_message(message)
                 print(f"[EMAIL] Email sent successfully to {to_email}")
                 return True
             else:
@@ -65,6 +81,106 @@ class EmailService:
             import traceback
             print(f"[EMAIL] Traceback: {traceback.format_exc()}")
             return False
+
+    async def send_migration_report(self, to_email: str, migration: Any, user_name: Optional[str] = None) -> bool:
+        """Send a completed migration report email from a migration_history row."""
+        try:
+            repository_name = migration.repository_name or migration.repository_url or "repository"
+            subject = f"javaAPEX migration completed: {repository_name}"
+            html_content = self._generate_migration_report_html(migration, user_name)
+            text_content = self._generate_migration_report_text(migration, user_name)
+
+            message = MIMEMultipart("alternative")
+            message["From"] = formataddr((self.email_from_name, self.email_from))
+            message["To"] = to_email
+            message["Subject"] = subject
+            message.attach(MIMEText(text_content, "plain"))
+            message.attach(MIMEText(html_content, "html"))
+
+            if not self._configured():
+                print("[EMAIL] SMTP credentials not configured; migration report email was not sent")
+                return False
+
+            await self._send_message(message)
+            print(f"[EMAIL] Migration report sent to {to_email} for migration id={migration.id}")
+            return True
+        except Exception as e:
+            print(f"[EMAIL] Error sending migration report: {e}")
+            import traceback
+            print(f"[EMAIL] Traceback: {traceback.format_exc()}")
+            return False
+
+    def _duration_text(self, migration: Any) -> str:
+        started_at = getattr(migration, "started_at", None)
+        completed_at = getattr(migration, "completed_at", None)
+        if not started_at or not completed_at:
+            return "Not available"
+        total_seconds = max(0, int(round((completed_at - started_at).total_seconds())))
+        minutes, seconds = divmod(total_seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        parts = []
+        if hours:
+            parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+        if minutes:
+            parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+        if seconds or not parts:
+            parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
+        return " ".join(parts)
+
+    def _generate_migration_report_html(self, migration: Any, user_name: Optional[str] = None) -> str:
+        template = Template("""
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
+  <h2 style="color: #1d4ed8;">javaAPEX Migration Completed</h2>
+  <p>Hello {{ user_name or 'there' }},</p>
+  <p>Your migration for <strong>{{ repository_name }}</strong> completed successfully.</p>
+  <table style="border-collapse: collapse; width: 100%; max-width: 720px;">
+    <tr><th style="text-align:left;border:1px solid #e2e8f0;padding:8px;background:#eff6ff;">Field</th><th style="text-align:left;border:1px solid #e2e8f0;padding:8px;background:#eff6ff;">Value</th></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Repository</td><td style="border:1px solid #e2e8f0;padding:8px;">{{ repository_name }}</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Source Java</td><td style="border:1px solid #e2e8f0;padding:8px;">{{ source_java }}</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Target Java</td><td style="border:1px solid #e2e8f0;padding:8px;">{{ target_java }}</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Status</td><td style="border:1px solid #e2e8f0;padding:8px;">{{ status }}</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Duration</td><td style="border:1px solid #e2e8f0;padding:8px;">{{ duration }}</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Completed At</td><td style="border:1px solid #e2e8f0;padding:8px;">{{ completed_at }}</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Migrated Repository</td><td style="border:1px solid #e2e8f0;padding:8px;">{{ migrated_repo_url }}</td></tr>
+  </table>
+  <p style="color:#64748b;font-size:12px;">Generated by javaAPEX Migration Bot.</p>
+</body>
+</html>
+        """)
+        return template.render(**self._migration_report_context(migration, user_name))
+
+    def _generate_migration_report_text(self, migration: Any, user_name: Optional[str] = None) -> str:
+        context = self._migration_report_context(migration, user_name)
+        return f"""javaAPEX Migration Completed
+
+Hello {context['user_name'] or 'there'},
+
+Your migration for {context['repository_name']} completed successfully.
+
+Repository: {context['repository_name']}
+Source Java: {context['source_java']}
+Target Java: {context['target_java']}
+Status: {context['status']}
+Duration: {context['duration']}
+Completed At: {context['completed_at']}
+Migrated Repository: {context['migrated_repo_url']}
+
+Generated by javaAPEX Migration Bot.
+"""
+
+    def _migration_report_context(self, migration: Any, user_name: Optional[str]) -> dict:
+        return {
+            "user_name": user_name,
+            "repository_name": migration.repository_name or migration.repository_url or "Unknown repository",
+            "source_java": migration.source_java_version or "-",
+            "target_java": migration.target_java_version or "-",
+            "status": migration.status,
+            "duration": self._duration_text(migration),
+            "completed_at": migration.completed_at.isoformat() if migration.completed_at else "-",
+            "migrated_repo_url": migration.migrated_repo_url or "-",
+        }
     
     def _generate_email_html(self, job: Any) -> str:
         """Generate HTML email content"""

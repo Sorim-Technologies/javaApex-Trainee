@@ -94,6 +94,7 @@ def create_database_tables():
     ensure_database_exists()
     Base.metadata.create_all(bind=engine)
     ensure_migration_history_vector_columns()
+    ensure_api_endpoint_columns()
 
 
 def ensure_migration_history_vector_columns():
@@ -103,6 +104,25 @@ def ensure_migration_history_vector_columns():
         "vector_indexed_at": "ALTER TABLE migration_history ADD COLUMN vector_indexed_at DATETIME NULL",
         "vector_index_error": "ALTER TABLE migration_history ADD COLUMN vector_index_error TEXT NULL",
         "local_migrated_repo_path": "ALTER TABLE migration_history ADD COLUMN local_migrated_repo_path TEXT NULL",
+        "migration_report_email_status": "ALTER TABLE migration_history ADD COLUMN migration_report_email_status VARCHAR(50) NULL",
+        "migration_report_email_to": "ALTER TABLE migration_history ADD COLUMN migration_report_email_to VARCHAR(255) NULL",
+        "migration_report_email_sent_at": "ALTER TABLE migration_history ADD COLUMN migration_report_email_sent_at DATETIME NULL",
+        "migration_report_email_error": "ALTER TABLE migration_history ADD COLUMN migration_report_email_error TEXT NULL",
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in statements.items():
+            if column_name not in columns:
+                connection.execute(text(statement))
+
+
+def ensure_api_endpoint_columns():
+    columns = {column["name"] for column in inspect(engine).get_columns("api_endpoints")}
+    statements = {
+        "file_path": "ALTER TABLE api_endpoints ADD COLUMN file_path TEXT NULL",
+        "class_name": "ALTER TABLE api_endpoints ADD COLUMN class_name VARCHAR(255) NULL",
+        "created_at": "ALTER TABLE api_endpoints ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "ALTER TABLE api_endpoints ADD COLUMN updated_at DATETIME NULL",
     }
 
     with engine.begin() as connection:
@@ -615,77 +635,86 @@ def store_repository_analysis_record(
     analysis: Any,
     current_user: Optional[Dict[str, Any]] = None,
 ) -> None:
-    endpoints = read_value(analysis, "api_endpoints", []) or []
-    dependencies = read_value(analysis, "dependencies", []) or []
-    total_files = count_total_files_from_analysis(analysis)
-    java_files_count = count_java_files_from_analysis(analysis)
-    project_path = get_str_value(analysis, ["project_path", "clone_path", "repository_path", "local_path"])
-    if (total_files == 0 or java_files_count == 0) and project_path:
-        file_counts = count_repository_files(project_path)
-        total_files = total_files or file_counts["total_files"]
-        java_files_count = java_files_count or file_counts["java_files"]
-    api_endpoint_count = get_int_value(analysis, ["api_endpoint_count", "endpoint_count", "api_endpoints_count"], 0)
-    dependency_count = get_int_value(analysis, ["dependency_count", "dependencies_count"], 0)
+    try:
+        endpoints = read_value(analysis, "api_endpoints", []) or []
+        dependencies = read_value(analysis, "dependencies", []) or []
+        total_files = count_total_files_from_analysis(analysis)
+        java_files_count = count_java_files_from_analysis(analysis)
+        project_path = get_str_value(analysis, ["project_path", "clone_path", "repository_path", "local_path"])
+        if (total_files == 0 or java_files_count == 0) and project_path:
+            file_counts = count_repository_files(project_path)
+            total_files = total_files or file_counts["total_files"]
+            java_files_count = java_files_count or file_counts["java_files"]
+        api_endpoint_count = get_int_value(analysis, ["api_endpoint_count", "endpoint_count", "api_endpoints_count"], 0)
+        dependency_count = get_int_value(analysis, ["dependency_count", "dependencies_count"], 0)
 
-    if not api_endpoint_count and isinstance(endpoints, list):
-        api_endpoint_count = len(endpoints)
-    if not dependency_count and isinstance(dependencies, list):
-        dependency_count = len(dependencies)
+        if not api_endpoint_count and isinstance(endpoints, list):
+            api_endpoint_count = len(endpoints)
+        if not dependency_count and isinstance(dependencies, list):
+            dependency_count = len(dependencies)
 
-    record = db_models.RepositoryAnalysis(
-        user_id=current_user["user_id"] if current_user else None,
-        session_id=current_user["session_db_id"] if current_user else None,
-        repository_url=repo_url,
-        repository_name=read_value(analysis, "name") or get_repo_name_from_url(repo_url),
-        branch_name=read_value(analysis, "default_branch"),
-        total_files=total_files,
-        java_files=java_files_count,
-        build_tool=get_str_value(analysis, ["build_tool", "buildTool", "build_system"]),
-        detected_java_version=get_str_value(
-            analysis,
-            ["detected_java_version", "java_version", "current_java_version", "source_java_version", "java_version_from_build"],
-        ),
-        detected_spring_boot_version=get_str_value(
-            analysis,
-            [
-                "detected_spring_boot_version",
-                "spring_boot_version",
-                "current_spring_boot_version",
-                "source_spring_boot_version",
-            ],
-        ),
-        api_endpoint_count=api_endpoint_count,
-        dependency_count=dependency_count,
-        analysis_status="completed",
-    )
-    db.add(record)
-    db.commit()
-    db.refresh(record)
+        print("Saving API endpoints count:", len(endpoints) if isinstance(endpoints, list) else 0)
+        print("First endpoint:", endpoints[0] if isinstance(endpoints, list) and endpoints else None)
 
-    if isinstance(endpoints, list) and endpoints:
-        seen_endpoint_keys = set()
-        for endpoint in endpoints:
-            method = (get_str_value(endpoint, ["method", "http_method", "request_method"]) or "UNKNOWN").upper()
-            path = get_str_value(endpoint, ["path", "endpoint", "route", "url", "mapping"]) or "/"
-            name = get_str_value(endpoint, ["name", "handler", "method_name", "api_name"])
-            file_path = get_str_value(endpoint, ["file", "file_path", "file_name", "source_file"])
-            class_name = get_str_value(endpoint, ["class_name", "controller", "controller_name"])
-            dedupe_key = (method, path, file_path or "", name or "")
-            if dedupe_key in seen_endpoint_keys:
-                continue
-            seen_endpoint_keys.add(dedupe_key)
-            db.add(
-                db_models.ApiEndpoint(
-                    analysis_id=record.id,
-                    method=method,
-                    path=path,
-                    name=name,
-                    file_path=file_path,
-                    class_name=class_name,
+        record = db_models.RepositoryAnalysis(
+            user_id=current_user["user_id"] if current_user else None,
+            session_id=current_user["session_db_id"] if current_user else None,
+            repository_url=repo_url,
+            repository_name=read_value(analysis, "name") or get_repo_name_from_url(repo_url),
+            branch_name=read_value(analysis, "default_branch"),
+            total_files=total_files,
+            java_files=java_files_count,
+            build_tool=get_str_value(analysis, ["build_tool", "buildTool", "build_system"]),
+            detected_java_version=get_str_value(
+                analysis,
+                ["detected_java_version", "java_version", "current_java_version", "source_java_version", "java_version_from_build"],
+            ),
+            detected_spring_boot_version=get_str_value(
+                analysis,
+                [
+                    "detected_spring_boot_version",
+                    "spring_boot_version",
+                    "current_spring_boot_version",
+                    "source_spring_boot_version",
+                ],
+            ),
+            api_endpoint_count=api_endpoint_count,
+            dependency_count=dependency_count,
+            analysis_status="completed",
+        )
+        db.add(record)
+        db.flush()
+
+        if isinstance(endpoints, list) and endpoints:
+            seen_endpoint_keys = set()
+            for endpoint in endpoints:
+                method = (get_str_value(endpoint, ["method", "http_method", "request_method"]) or "UNKNOWN").upper()
+                path = get_str_value(endpoint, ["path", "endpoint", "route", "url", "mapping"]) or "/"
+                name = get_str_value(endpoint, ["name", "handler", "method_name", "api_name"])
+                file_path = get_str_value(endpoint, ["file", "file_path", "file_name", "source_file"])
+                class_name = get_str_value(endpoint, ["class_name", "controller", "controller_name"])
+                dedupe_key = (method, path, file_path or "", name or "")
+                if dedupe_key in seen_endpoint_keys:
+                    continue
+                seen_endpoint_keys.add(dedupe_key)
+                db.add(
+                    db_models.ApiEndpoint(
+                        analysis_id=record.id,
+                        method=method,
+                        path=path,
+                        name=name,
+                        file_path=file_path,
+                        class_name=class_name,
+                    )
                 )
-            )
-        record.api_endpoint_count = len(seen_endpoint_keys)
+            record.api_endpoint_count = len(seen_endpoint_keys)
+
         db.commit()
+        db.refresh(record)
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to store repository analysis record")
+        raise
 
 def create_migration_history_record(
     db: Session,
@@ -813,6 +842,11 @@ def mark_migration_log_failed(
     if not migration_log_id:
         return
 
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
     migration_log = db.get(db_models.MigrationHistory, migration_log_id)
     if not migration_log:
         return
@@ -822,7 +856,11 @@ def mark_migration_log_failed(
     migration_log.error_message = error_message
     migration_log.completed_at = now
     migration_log.updated_at = now
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     logger.info("Migration failed, updating status to failed: id=%s", migration_log_id)
 
 
@@ -917,6 +955,69 @@ def update_migration_history_record(
         db.commit()
         if status_value == "failed":
             logger.info("Failed migration saved with error_message: id=%s", migration_history_id)
+    finally:
+        db.close()
+
+
+async def send_completed_migration_report_email(
+    migration_history_id: Optional[int],
+    current_user: Optional[Dict[str, Any]],
+) -> None:
+    if not migration_history_id or not current_user:
+        return
+
+    db = next(get_db())
+    try:
+        record = db.get(db_models.MigrationHistory, migration_history_id)
+        if not record or record.status != "completed":
+            return
+        if record.migration_report_email_status == "sent":
+            logger.info("Migration report email already sent: id=%s", migration_history_id)
+            return
+
+        user_email = (current_user.get("email") or "").strip()
+        user_role = current_user.get("role")
+        if user_role == "guest" or not user_email or user_email.endswith("@javaapex.local"):
+            record.migration_report_email_status = "skipped"
+            record.migration_report_email_to = user_email or None
+            record.migration_report_email_error = "No email report sent for guest or missing user email"
+            record.updated_at = app_now()
+            db.commit()
+            logger.info("Skipped migration report email: id=%s", migration_history_id)
+            return
+
+        record.migration_report_email_status = "pending"
+        record.migration_report_email_to = user_email
+        record.migration_report_email_error = None
+        record.updated_at = app_now()
+        db.commit()
+        db.refresh(record)
+
+        sent = await email_service.send_migration_report(
+            to_email=user_email,
+            migration=record,
+            user_name=current_user.get("name"),
+        )
+        if sent:
+            record.migration_report_email_status = "sent"
+            record.migration_report_email_sent_at = app_now()
+            record.migration_report_email_error = None
+        else:
+            record.migration_report_email_status = "failed"
+            record.migration_report_email_error = "SMTP send failed or SMTP credentials are not configured"
+        record.updated_at = app_now()
+        db.commit()
+    except Exception as exc:
+        logger.exception("Failed to send migration report email: id=%s", migration_history_id)
+        try:
+            record = db.get(db_models.MigrationHistory, migration_history_id)
+            if record and record.migration_report_email_status != "sent":
+                record.migration_report_email_status = "failed"
+                record.migration_report_email_error = str(exc)
+                record.updated_at = app_now()
+                db.commit()
+        except Exception:
+            logger.exception("Failed to persist migration report email error: id=%s", migration_history_id)
     finally:
         db.close()
 
@@ -1121,12 +1222,20 @@ async def analyze_repo_url(
         else:
             error_msg = f"GitHub API error ({status_code}): {error_msg}"
         
+        try:
+            db.rollback()
+        except Exception:
+            pass
         mark_migration_log_failed(db, migration_log_id, error_msg)
         raise HTTPException(status_code=status_code, detail=error_msg)
     except Exception as e:
         import traceback
         error_message = str(e)
         print(f"[analyze-url ERROR] repo_url={repo_url} token_provided={bool(token and token.strip())} error={str(e)}\nTRACE:\n{traceback.format_exc()}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         mark_migration_log_failed(db, migration_log_id, error_message)
         raise HTTPException(status_code=500, detail=f"Internal server error: {error_message} (see backend logs for details)")
 
@@ -1351,6 +1460,10 @@ async def analyze_gitlab_repo_url(
             "migration_log_id": migration_log_id,
         }
     except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         mark_migration_log_failed(db, migration_log_id, str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -2731,14 +2844,6 @@ async def run_migration(
                 add_log(job_id, f"?? Migrated code saved locally at: {clone_path}")
                 raise Exception(f"Git push to target repository failed: {str(push_error)}")
 
-        # Step 7: Send email notification
-        if request.email and request.email.strip():
-            success = await email_service.send_migration_summary(request.email.strip(), job)
-            if success:
-                add_log(job_id, f"Migration summary sent to {request.email}")
-            else:
-                add_log(job_id, f"Failed to send migration summary to {request.email}")
-        
         # Complete
         update_job(job_id, MigrationStatus.COMPLETED, 100, "Migration completed successfully!")
         job.completed_at = datetime.now(timezone.utc)
@@ -2748,6 +2853,8 @@ async def run_migration(
             migrated_repo_url=job.target_repo,
             local_migrated_repo_path=clone_path,
         )
+        await send_completed_migration_report_email(migration_history_id, current_user)
+        add_log(job_id, "Migration report email status updated")
         try:
             indexing_summary = index_migrated_repository(
                 user_id=current_user["user_id"] if current_user else 0,
