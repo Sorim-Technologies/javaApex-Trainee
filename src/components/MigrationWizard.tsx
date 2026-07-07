@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Box, Tab, Tabs } from "@mui/material";
 import {
@@ -44,12 +44,10 @@ import {
   getConversionTypes,
   previewMigration,
   startMigration,
-  getMigrationStatus,
-  getMigrationLogs,
   getMigrationFossa,
   // Import API_BASE_URL for dynamic URL construction
 } from "../services/api";
-import { API_BASE_URL } from "../services/api";
+import { API_BASE_URL, APP_BASE_URL } from "../services/api";
 import DiscoveryDashboard from "./discovery/DiscoveryDashboard";
 import StrategyDashboard from "./strategy/StrategyDashboard";
 import MigrationDetails from "./MigrationDetails.jsx";
@@ -237,6 +235,11 @@ const writeSessionJson = (key: string, value: unknown) => {
 
 const getIndicatorStep = (step: number) => Math.min(step, MIGRATION_STEPS.length);
 
+const buildMigrationSocketUrl = (jobId: string) => {
+  const wsBaseUrl = APP_BASE_URL.replace(/^http/, "ws");
+  return `${wsBaseUrl}/ws/migration/${encodeURIComponent(jobId)}`;
+};
+
 export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -383,6 +386,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [repoAccessCheckLoading, setRepoAccessCheckLoading] = useState(false);
   const [migrationJob, setMigrationJob] = useState<MigrationResult | null>(null);
   const [migrationLogs, setMigrationLogs] = useState<string[]>([]);
+  const [socketStatus, setSocketStatus] = useState<"idle" | "connecting" | "connected" | "reconnecting" | "disconnected" | "completed">("idle");
+  const migrationSocketRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const isSocketClosingRef = useRef(false);
   const [error, setError] = useState<string>("");
   const [migrationApproach, setMigrationApproach] = useState(
     persistedFormState?.migrationApproach ?? "fork"
@@ -398,6 +406,20 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [fileContent, setFileContent] = useState<string>("");
   const [editedContent, setEditedContent] = useState<string>("");
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      isSocketClosingRef.current = true;
+      if (reconnectTimerRef.current !== null) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (migrationSocketRef.current) {
+        migrationSocketRef.current.close();
+        migrationSocketRef.current = null;
+      }
+    };
+  }, []);
   const [fileLoading, setFileLoading] = useState(false);
   const [pathHistory, setPathHistory] = useState<string[]>(
     persistedFormState?.pathHistory?.length ? persistedFormState.pathHistory : [""]
@@ -1024,45 +1046,21 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
 
     setAnalysisElapsedSeconds(0);
-    const interval = window.setInterval(() => {
-      setAnalysisElapsedSeconds((current) => current + 1);
-    }, 1000);
-
-    return () => window.clearInterval(interval);
   }, [analysisLoading]);
 
-  // Animation effect - starts immediately and progresses smoothly
   useEffect(() => {
-    if (step === 5 && migrationJob) {
-      // Start animation immediately at 10%
-      setAnimationProgress(10);
-      
-      const animationInterval = setInterval(() => {
-        setAnimationProgress(prev => {
-          const actualProgress = migrationJob?.progress_percent || 0;
-          const status = migrationJob?.status;
-          
-          // If migration is completed, go to 100%
-          if (status === "completed") {
-            return 100;
-          }
-          
-          // Smoothly catch up to actual progress, or animate forward if backend is slow
-          if (actualProgress > prev) {
-            return actualProgress;
-          }
-          // Animate forward slowly if backend hasn't updated yet (go to 100% when completed)
-          if (status !== "completed" && status !== "failed") {
-            return Math.min(prev + 2, 100);
-          }
-          return prev;
-        });
-      }, 500);
-      
-      return () => clearInterval(animationInterval);
-    } else if (step !== 5) {
+    if (step !== 5 || !migrationJob) {
       setAnimationProgress(0);
+      return;
     }
+
+    if (migrationJob.status === "completed") {
+      setAnimationProgress(100);
+      return;
+    }
+
+    const targetProgress = migrationJob.progress_percent || 0;
+    setAnimationProgress((previous) => Math.max(previous, Math.min(targetProgress, 100)));
   }, [step, migrationJob?.progress_percent, migrationJob?.status]);
 
   useEffect(() => {
@@ -1141,39 +1139,36 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     const normalizedUrl = urlValidation.normalizedUrl;
     let cancelled = false;
 
-    const timer = setTimeout(() => {
-      setRepoAccessCheckLoading(true);
+    setRepoAccessCheckLoading(true);
 
-      getRepoVisibility(normalizedUrl)
-        .then((visibility) => {
-          if (cancelled) return;
-          if (visibility.requires_token) {
-            setIsPrivateRepo(true);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
-            return;
-          }
+    getRepoVisibility(normalizedUrl)
+      .then((visibility) => {
+        if (cancelled) return;
+        if (visibility.requires_token) {
+          setIsPrivateRepo(true);
+          setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+          return;
+        }
 
-          setIsPrivateRepo(false);
-          setError("");
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          const message = err?.message || "Failed to analyze repository.";
-          if (isPrivateRepoAccessError(message)) {
-            setIsPrivateRepo(true);
-            setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setRepoAccessCheckLoading(false);
-          }
-        });
-    }, 700);
+        setIsPrivateRepo(false);
+        setError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const message = err?.message || "Failed to analyze repository.";
+        if (isPrivateRepoAccessError(message)) {
+          setIsPrivateRepo(true);
+          setError("This repository appears to be private. Enter a GitHub Personal Access Token to continue.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRepoAccessCheckLoading(false);
+        }
+      });
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
   }, [step, urlValidation.valid, urlValidation.normalizedUrl, showEnterpriseToken, patToken]);
 
@@ -1212,45 +1207,169 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     }
   }, [availableTargetVersions, selectedTargetVersion, targetVersions.length]);
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    let lastUpdateTime = Date.now();
-    let stuckCheckInterval: ReturnType<typeof setInterval>;
-    
-    if (step >= 5 && migrationJob?.status && migrationJob.status !== "completed" && migrationJob.status !== "failed") {
-      interval = setInterval(() => {
-        getMigrationStatus(migrationJob!.job_id)
-          .then((job) => {
-            setMigrationJob(job);
-            lastUpdateTime = Date.now();
-            // Auto-advance to report when completed
-            if (job.status === "completed") {
-              setStep(7);
-              // Fetch detailed logs
-              getMigrationLogs(job.job_id).then((logs) => setMigrationLogs(logs.logs));
-            }
-            // Fetch logs when failed so user can see error details
-            if (job.status === "failed") {
-              getMigrationLogs(job.job_id).then((logs) => setMigrationLogs(logs.logs));
-            }
-          })
-          .catch(() => setError("Failed to fetch migration status."));
-      }, 2000);
-      
-      // Check if migration appears to be stuck (same status for > 30 seconds)
-      stuckCheckInterval = setInterval(() => {
-        const timeSinceLastUpdate = Date.now() - lastUpdateTime;
-        if (timeSinceLastUpdate > 30000 && migrationJob?.status === "cloning") {
-          setError(" Migration appears to be stuck on cloning. This may be due to a large repository or network issues. Please wait a bit longer or restart the migration.");
-        }
-      }, 15000);
+  const clearReconnectTimer = () => {
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
-    
-    return () => { 
-      if (interval) clearInterval(interval);
-      if (stuckCheckInterval) clearInterval(stuckCheckInterval);
+  };
+
+  const closeMigrationSocket = () => {
+    isSocketClosingRef.current = true;
+    clearReconnectTimer();
+
+    const socket = migrationSocketRef.current;
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close();
+      }
+      migrationSocketRef.current = null;
+    }
+
+    window.setTimeout(() => {
+      isSocketClosingRef.current = false;
+    }, 0);
+  };
+
+  const scheduleMigrationReconnect = (jobId: string) => {
+    if (reconnectTimerRef.current !== null || !jobId || step !== 5) {
+      return;
+    }
+
+    const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 10000);
+    reconnectAttemptRef.current += 1;
+    setSocketStatus("reconnecting");
+
+    reconnectTimerRef.current = window.setTimeout(() => {
+      reconnectTimerRef.current = null;
+      if (!jobId || step !== 5 || migrationJob?.status === "completed" || migrationJob?.status === "failed") {
+        return;
+      }
+      connectMigrationSocket(jobId);
+    }, delay);
+  };
+
+  const connectMigrationSocket = (jobId: string, initialJob?: MigrationResult | null) => {
+    if (!jobId || step !== 5) {
+      return;
+    }
+
+    const existingSocket = migrationSocketRef.current;
+    if (existingSocket && (existingSocket.readyState === WebSocket.OPEN || existingSocket.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    clearReconnectTimer();
+    isSocketClosingRef.current = false;
+    reconnectAttemptRef.current = 0;
+    const socket = new WebSocket(buildMigrationSocketUrl(jobId));
+    migrationSocketRef.current = socket;
+    setSocketStatus("connecting");
+
+    socket.onopen = () => {
+      reconnectAttemptRef.current = 0;
+      setSocketStatus("connected");
+      setError("");
     };
-  }, [step, migrationJob?.job_id, migrationJob?.status]);
+
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+
+        if (payload?.type === "error") {
+          setError(payload.message || "Migration update error.");
+          return;
+        }
+
+        const fallbackJob = initialJob ?? migrationJob ?? null;
+        const derivedJob = payload?.job || {};
+        const nextJob = {
+          ...derivedJob,
+          job_id: payload?.job_id || derivedJob.job_id || jobId,
+          status: payload?.status || derivedJob.status || fallbackJob?.status,
+          current_step: payload?.current_step ?? derivedJob.current_step ?? fallbackJob?.current_step,
+          progress_percent: payload?.progress_percent ?? derivedJob.progress_percent ?? fallbackJob?.progress_percent,
+          files_modified: payload?.files_modified ?? derivedJob.files_modified ?? fallbackJob?.files_modified,
+          issues_fixed: payload?.issues_fixed ?? derivedJob.issues_fixed ?? fallbackJob?.issues_fixed,
+          target_repo: payload?.target_repository_url ?? derivedJob.target_repo ?? derivedJob.target_repository_url ?? fallbackJob?.target_repo,
+          completed_at: payload?.completed_at ?? derivedJob.completed_at ?? fallbackJob?.completed_at,
+          error_message: payload?.error_message ?? derivedJob.error_message ?? fallbackJob?.error_message,
+          migration_log: derivedJob.migration_log ?? fallbackJob?.migration_log ?? [],
+          sonar_quality_gate: payload?.sonarqube_metrics?.quality_gate ?? derivedJob.sonar_quality_gate ?? fallbackJob?.sonar_quality_gate,
+          sonar_bugs: payload?.sonarqube_metrics?.bugs ?? derivedJob.sonar_bugs ?? fallbackJob?.sonar_bugs,
+          sonar_vulnerabilities: payload?.sonarqube_metrics?.vulnerabilities ?? derivedJob.sonar_vulnerabilities ?? fallbackJob?.sonar_vulnerabilities,
+          sonar_code_smells: payload?.sonarqube_metrics?.code_smells ?? derivedJob.sonar_code_smells ?? fallbackJob?.sonar_code_smells,
+          sonar_coverage: payload?.sonarqube_metrics?.coverage ?? derivedJob.sonar_coverage ?? fallbackJob?.sonar_coverage,
+          fossa_policy_status: payload?.fossa_metrics?.policy_status ?? derivedJob.fossa_policy_status ?? fallbackJob?.fossa_policy_status,
+          fossa_total_dependencies: payload?.fossa_metrics?.total_dependencies ?? derivedJob.fossa_total_dependencies ?? fallbackJob?.fossa_total_dependencies,
+          fossa_license_issues: payload?.fossa_metrics?.license_issues ?? derivedJob.fossa_license_issues ?? fallbackJob?.fossa_license_issues,
+          fossa_vulnerabilities: payload?.fossa_metrics?.vulnerabilities ?? derivedJob.fossa_vulnerabilities ?? fallbackJob?.fossa_vulnerabilities,
+          fossa_outdated_dependencies: payload?.fossa_metrics?.outdated_dependencies ?? derivedJob.fossa_outdated_dependencies ?? fallbackJob?.fossa_outdated_dependencies,
+        } as MigrationResult;
+
+        setMigrationJob(nextJob);
+        setMigrationLogs(nextJob.migration_log || []);
+
+        if (nextJob.status === "completed") {
+          closeMigrationSocket();
+          setSocketStatus("completed");
+          setStep(7);
+        } else if (nextJob.status === "failed") {
+          closeMigrationSocket();
+          setSocketStatus("disconnected");
+          setError(nextJob.error_message || "Migration failed.");
+        }
+      } catch (err) {
+        console.error("Failed to process migration update", err);
+      }
+    };
+
+    socket.onerror = () => {
+      if (migrationSocketRef.current === socket) {
+        setSocketStatus("reconnecting");
+      }
+    };
+
+    socket.onclose = (event) => {
+      if (migrationSocketRef.current === socket) {
+        migrationSocketRef.current = null;
+      }
+
+      if (isSocketClosingRef.current) {
+        return;
+      }
+
+      const isTerminalState = migrationJob?.status === "completed" || migrationJob?.status === "failed";
+      if (step === 5 && !isTerminalState && jobId) {
+        const shouldReconnect = event.code !== 1000 && event.code !== 1001;
+        if (shouldReconnect) {
+          scheduleMigrationReconnect(jobId);
+        } else {
+          setSocketStatus("disconnected");
+        }
+      } else {
+        setSocketStatus("disconnected");
+      }
+    };
+  };
+
+  useEffect(() => {
+    if (!migrationJob?.job_id || step !== 5) {
+      closeMigrationSocket();
+      return;
+    }
+
+    if (migrationSocketRef.current && (migrationSocketRef.current.readyState === WebSocket.OPEN || migrationSocketRef.current.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    connectMigrationSocket(migrationJob.job_id);
+  }, [migrationJob?.job_id, step]);
 
   const handleConversionToggle = (id: string) => {
     setSelectedConversions((prev) =>
@@ -1370,7 +1489,16 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     startMigration(migrationRequest)
       .then((job) => {
         setMigrationJob(job);
+        setMigrationLogs(job.migration_log || []);
+        setError("");
+        setSocketStatus("connecting");
         setStep(5); // Go to Migration Progress step
+
+        if (migrationSocketRef.current) {
+          closeMigrationSocket();
+        }
+
+        connectMigrationSocket(job.job_id, job);
       })
       .catch((err) => {
         console.error("Migration error:", err);
@@ -1426,6 +1554,11 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setCodeChanges([]);
     setSelectedDiffFile(null);
     setShowCodeChanges(true);
+
+    if (migrationSocketRef.current) {
+      migrationSocketRef.current.close();
+      migrationSocketRef.current = null;
+    }
 
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(WIZARD_REPO_URL_KEY);
@@ -2427,7 +2560,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           <div className="migration-process-grid">
             <MigrationProcessChart data={processChartData} />
             {renderProcessAnalysis()}
-            <LiveLogs backendLogs={migrationLogs} />
+            <LiveLogs backendLogs={migrationLogs} connectionStatus={socketStatus} />
             <QuickActions actions={quickActions} />
           </div>
         )}
@@ -2441,7 +2574,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
         {activeMigrationTab === 3 && (
           <div className="migration-live-log-grid">
-            <LiveLogs backendLogs={migrationLogs} />
+            <LiveLogs backendLogs={migrationLogs} connectionStatus={socketStatus} />
             <QuickActions actions={quickActions} />
           </div>
         )}

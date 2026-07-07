@@ -2,13 +2,17 @@
 Java Migration Backend - Main FastAPI Application
 Handles Java 7 → Java 18 migration automation using OpenRewrite
 """
+import asyncio
 import sys
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from enum import Enum
 import uuid
 import os
@@ -16,6 +20,14 @@ import re
 import logging
 from datetime import datetime, timezone
 from github import GithubException
+from services.migration_service import save_migration, update_migration
+from database import engine, SessionLocal
+from models import Base
+from schemas import MigrationCreate
+from websocket_manager import manager
+
+Base.metadata.create_all(bind=engine)
+
 
 # Force unbuffered output for immediate logging
 sys.stdout.reconfigure(line_buffering=True)
@@ -31,7 +43,32 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
-load_dotenv()
+
+
+def load_environment() -> None:
+    """Load environment variables from the first relevant .env file in the project tree."""
+    base_dir = Path(__file__).resolve().parent
+    env_candidates = []
+
+    for parent in [base_dir, *base_dir.parents]:
+        env_path = parent / ".env"
+        if env_path.exists():
+            env_candidates.append(env_path)
+
+    for env_path in env_candidates:
+        load_dotenv(env_path, override=False)
+        if os.getenv("GITHUB_TOKEN") or os.getenv("HF_TOKEN") or os.getenv("FOSSA_API_KEY"):
+            return
+
+    load_dotenv(override=False)
+
+
+load_environment()
+
+
+def to_serializable(value: Any) -> Any:
+    """Convert common Python objects into JSON-safe values for websocket payloads."""
+    return jsonable_encoder(value)
 
 
 from services.github_service import GitHubService
@@ -44,12 +81,69 @@ from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
 
 
+from services.migration_service import save_migration
+
+
 app = FastAPI(
     title="Java Migration Accelerator API",
     description="End-to-end Java 7 → Java 18 migration automation using OpenRewrite",
     version="1.0.0"
 )
 
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.post("/migration")
+def migration(data: dict):
+    print("Received:", data)
+    return save_migration(data)
+
+
+@app.post("/api/migration", status_code=201, summary="Store migration details")
+async def create_migration(payload: MigrationCreate, db=Depends(get_db)):
+    logger.info("Incoming migration insert request for %s", payload.migration_id)
+    try:
+        migration = save_migration(
+            {
+                "repository_name": payload.repository_name,
+                "target_repository": payload.target_repository,
+                "migration_id": payload.migration_id,
+                "migration_date": payload.migration_date,
+                "version_before": payload.version_before,
+                "version_after": payload.version_after,
+                "status": payload.status,
+            },
+            db=db,
+        )
+        logger.info("Successfully inserted migration record %s", migration.migration_id)
+        return {
+            "message": "Migration details stored successfully.",
+            "data": {
+                "id": migration.id,
+                "repository_name": migration.repository_name,
+                "target_repository": migration.target_repository,
+                "migration_id": migration.migration_id,
+                "migration_date": migration.migration_date.isoformat() if migration.migration_date else None,
+                "version_before": migration.version_before,
+                "version_after": migration.version_after,
+                "status": migration.status,
+            },
+        }
+    except IntegrityError as exc:
+        logger.exception("Duplicate migration_id encountered: %s", payload.migration_id)
+        raise HTTPException(status_code=409, detail="Migration with this migration_id already exists.") from exc
+    except SQLAlchemyError as exc:
+        logger.exception("Database error while storing migration details")
+        raise HTTPException(status_code=500, detail="Failed to store migration details due to a database error.") from exc
+    except Exception as exc:
+        logger.exception("Unexpected error while storing migration details")
+        raise HTTPException(status_code=500, detail="Failed to store migration details.") from exc
 # Custom middleware to log all HTTP requests
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -71,17 +165,34 @@ async def log_requests(request: Request, call_next):
 app.include_router(auth_router, prefix="/api")
 
 # Default GitHub token from environment variable (set in Render dashboard)
-DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+DEFAULT_GITHUB_TOKEN = (
+    os.environ.get("GITHUB_TOKEN", "").strip()
+    or os.environ.get("GH_TOKEN", "").strip()
+)
 # Hugging Face token for LLM-based recommendations
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
+
+if DEFAULT_GITHUB_TOKEN:
+    logger.info("GitHub token loaded from environment configuration")
+else:
+    logger.warning("No GitHub token found; GitHub requests may hit anonymous rate limits")
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+        "*",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Mount static files (frontend)
@@ -672,6 +783,80 @@ async def analyze_fossa_for_repo(repo_url: str, token: str = ""):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def broadcast_job_update(job_id: str) -> None:
+    """Push the latest job snapshot to the active WebSocket connection for the given job."""
+    if job_id not in migration_jobs:
+        return
+
+    job = migration_jobs[job_id]
+    payload = to_serializable(job.model_dump() if hasattr(job, "model_dump") else job.dict())
+    completed_at = job.completed_at.isoformat() if getattr(job, "completed_at", None) else None
+    status_value = job.status.value if hasattr(job.status, "value") else job.status
+
+    await manager.send_update(job_id, {
+        "type": "update",
+        "job_id": job_id,
+        "status": status_value,
+        "current_step": job.current_step,
+        "progress_percent": job.progress_percent,
+        "files_modified": job.files_modified,
+        "issues_fixed": job.issues_fixed,
+        "sonarqube_metrics": {
+            "quality_gate": job.sonar_quality_gate,
+            "bugs": job.sonar_bugs,
+            "vulnerabilities": job.sonar_vulnerabilities,
+            "code_smells": job.sonar_code_smells,
+            "coverage": job.sonar_coverage,
+        },
+        "fossa_metrics": {
+            "policy_status": job.fossa_policy_status,
+            "total_dependencies": job.fossa_total_dependencies,
+            "license_issues": job.fossa_license_issues,
+            "vulnerabilities": job.fossa_vulnerabilities,
+            "outdated_dependencies": job.fossa_outdated_dependencies,
+        },
+        "target_repository_url": job.target_repo,
+        "completed_at": completed_at,
+        "error_message": job.error_message,
+        "job": payload,
+    })
+
+
+@app.websocket("/ws/migration/{job_id}")
+async def migration_status_ws(websocket: WebSocket, job_id: str):
+    """Stream migration updates to a single WebSocket per job."""
+    await websocket.accept()
+    print("=" * 60)
+    print(f"✅ WebSocket Connected")
+    print(f"Job ID: {job_id}")
+    print("=" * 60)
+    await manager.connect(job_id, websocket)
+
+    if job_id not in migration_jobs:
+        await websocket.send_json({
+            "type": "error",
+            "job_id": job_id,
+            "message": "Migration job not found",
+        })
+        await websocket.close(code=1008)
+        manager.disconnect(job_id)
+        return
+
+    job = migration_jobs[job_id]
+    payload = to_serializable(job.model_dump() if hasattr(job, "model_dump") else job.dict())
+    await websocket.send_json({
+        "type": "snapshot",
+        "job_id": job_id,
+        "job": payload,
+    })
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(job_id)
+
+
 # Migration Endpoints
 @app.post("/api/migration/start", response_model=MigrationResult)
 async def start_migration(request: MigrationRequest, background_tasks: BackgroundTasks):
@@ -680,16 +865,25 @@ async def start_migration(request: MigrationRequest, background_tasks: Backgroun
     
     # Create initial job record
     job = MigrationResult(
-        job_id=job_id,
-        status=MigrationStatus.PENDING,
-        source_repo=request.source_repo_url,
-        source_java_version=request.source_java_version,
-        target_java_version=request.target_java_version.value,
-        conversion_types=request.conversion_types,
-        started_at=datetime.now(timezone.utc),
-        current_step="Initializing migration..."
-    )
-    
+    job_id=job_id,
+    status=MigrationStatus.PENDING,
+    source_repo=request.source_repo_url,
+    target_repo=request.target_repo_name,
+    source_java_version=request.source_java_version,
+    target_java_version=request.target_java_version.value,
+    conversion_types=request.conversion_types,
+    started_at=datetime.now(timezone.utc),
+    current_step="Initializing migration..."
+)
+    migration_data = {
+        "repository_name": request.source_repo_url,
+        "target_repository": request.target_repo_name,
+        "migration_id": job_id,
+        "version_before": request.source_java_version,
+        "version_after": request.target_java_version.value,
+        "status": MigrationStatus.PENDING.value,
+    }
+    save_migration(migration_data)
     migration_jobs[job_id] = job
     
     # Start migration in background
@@ -698,16 +892,7 @@ async def start_migration(request: MigrationRequest, background_tasks: Backgroun
         job_id,
         request
     )
-    
     return job
-
-
-@app.get("/api/migration/{job_id}", response_model=MigrationResult)
-async def get_migration_status(job_id: str):
-    """Get the status of a migration job"""
-    if job_id not in migration_jobs:
-        raise HTTPException(status_code=404, detail="Migration job not found")
-    return migration_jobs[job_id]
 
 
 @app.get("/api/migration/{job_id}/fossa")
@@ -2106,6 +2291,11 @@ def update_job(job_id: str, status: MigrationStatus, progress: int, step: str):
         migration_jobs[job_id].progress_percent = progress
         migration_jobs[job_id].current_step = step
         add_log(job_id, step)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(broadcast_job_update(job_id))
+        except RuntimeError:
+            pass
 
 
 def add_log(job_id: str, message: str):
@@ -2113,6 +2303,11 @@ def add_log(job_id: str, message: str):
     if job_id in migration_jobs:
         timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
         migration_jobs[job_id].migration_log.append(f"[{timestamp}] {message}")
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(broadcast_job_update(job_id))
+        except RuntimeError:
+            pass
 
 
 if __name__ == "__main__":

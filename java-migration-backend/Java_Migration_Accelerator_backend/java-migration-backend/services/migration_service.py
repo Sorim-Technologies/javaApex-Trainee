@@ -1,13 +1,98 @@
 """
-Migration Service - Handles OpenRewrite migration execution
+Migration Service - Handles OpenRewrite migration execution and persistence.
 """
+import logging
 import os
 import subprocess
 import json
 import re
 import shutil
+import uuid
 from typing import Dict, Any, List
 import asyncio
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from database import SessionLocal
+from models import Migration
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+def save_migration(data: Dict[str, Any], db=None) -> Migration:
+    """Persist a migration record to the migration_history table."""
+    session = db or SessionLocal()
+    try:
+        payload = data or {}
+        repository_name = (
+            payload.get("repository_name")
+            or payload.get("source_repo")
+            or payload.get("source_repo_url")
+            or "unknown-source"
+        )
+        target_repository = (
+            payload.get("target_repository")
+            or payload.get("target_repo")
+            or payload.get("target_repo_name")
+            or "unknown-target"
+        )
+        migration_id = payload.get("migration_id") or payload.get("job_id") or str(uuid.uuid4())
+        migration_date = payload.get("migration_date") or payload.get("started_at") or datetime.utcnow()
+        version_before = payload.get("version_before") or payload.get("source_java_version") or "unknown"
+        version_after = payload.get("version_after") or payload.get("target_java_version") or "unknown"
+        status = str(payload.get("status") or payload.get("job_status") or "pending")
+
+        existing = session.query(Migration).filter(Migration.migration_id == migration_id).first() if migration_id else None
+        if existing:
+            existing.repository_name = repository_name
+            existing.target_repository = target_repository
+            existing.migration_date = migration_date
+            existing.version_before = str(version_before)
+            existing.version_after = str(version_after)
+            existing.status = status
+            migration = existing
+        else:
+            migration = Migration(
+                repository_name=repository_name,
+                target_repository=target_repository,
+                migration_id=migration_id,
+                migration_date=migration_date,
+                version_before=str(version_before),
+                version_after=str(version_after),
+                status=status,
+            )
+            session.add(migration)
+
+        session.commit()
+        session.refresh(migration)
+        logger.info("Stored or updated migration record for %s", migration.migration_id)
+        return migration
+    except IntegrityError as exc:
+        session.rollback()
+        logger.exception("SQLAlchemy integrity error while storing migration record")
+        raise exc
+    except SQLAlchemyError as exc:
+        session.rollback()
+        logger.exception("SQLAlchemy error while storing migration record")
+        raise exc
+    finally:
+        if db is None:
+            session.close()
+
+
+def update_migration(job_id, status):
+
+    db = SessionLocal()
+
+    migration = db.query(Migration).filter(
+        Migration.migration_id == job_id
+    ).first()
+
+    if migration:
+        migration.status = status
+        migration.completed_at = datetime.utcnow()
+        db.commit()
+
+    db.close()
 
 
 class MigrationService:
@@ -774,7 +859,18 @@ class MigrationService:
         if fix_business_logic:
             business_fixes = await self._fix_business_logic_issues(project_path)
             result["issues_fixed"] += business_fixes
-        
+        migration_data = {
+    "repository_name": "YOUR_SOURCE_REPO_NAME",
+    "target_repository": "YOUR_TARGET_REPO_NAME",
+    "migration_id": "YOUR_JOB_ID",
+    "version_before": source_version,
+    "version_after": target_version,
+    "status": "Completed" if result["success"] else "Failed"
+}
+
+        save_migration(migration_data)
+
+
         return result
 
     async def _auto_detect_java_version(self, project_path: str) -> str:

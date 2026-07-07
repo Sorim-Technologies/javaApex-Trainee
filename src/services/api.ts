@@ -389,16 +389,6 @@ export async function previewMigration(request: MigrationRequest): Promise<Migra
   return parseJsonResponse<MigrationPreview>(response, 'Failed to preview migration changes');
 }
 
-// Get migration status
-export async function getMigrationStatus(jobId: string): Promise<MigrationResult> {
-  const response = await fetch(`${API_BASE_URL}/migration/${jobId}`);
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to get migration status');
-  }
-  return response.json();
-}
-
 // Get migration logs
 export async function getMigrationLogs(jobId: string): Promise<{ job_id: string; logs: string[] }> {
   const response = await fetch(`${API_BASE_URL}/migration/${jobId}/logs`);

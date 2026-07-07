@@ -341,10 +341,10 @@ class GitHubService:
     async def get_repo_info(self, token: str, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository information (works with or without token for public repos)"""
         try:
-            if token:
-                g = Github(token)
+            if token and len(token.strip()) > 0:
+                g = get_github_client(token.strip(), None)
             else:
-                g = Github()
+                g = get_github_client(None, None)
             
             repository = g.get_repo(f"{owner}/{repo}")
             
@@ -437,10 +437,10 @@ class GitHubService:
     async def get_file_content(self, token: str, owner: str, repo: str, path: str) -> str:
         """Get the content of a file from the repository"""
         try:
-            if token:
-                g = Github(token)
+            if token and len(token.strip()) > 0:
+                g = get_github_client(token.strip(), None)
             else:
-                g = Github()
+                g = get_github_client(None, None)
             
             repository = g.get_repo(f"{owner}/{repo}")
             file_content = repository.get_contents(path)
