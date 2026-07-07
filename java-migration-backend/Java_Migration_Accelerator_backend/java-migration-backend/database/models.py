@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from .db import Base, app_now
@@ -77,6 +77,40 @@ class RepositoryAnalysis(Base):
     created_at = Column(DateTime, default=app_now, nullable=False)
     updated_at = Column(DateTime, default=app_now, onupdate=app_now, nullable=False)
 
+    api_endpoints = relationship("ApiEndpoint", back_populates="analysis", cascade="all, delete-orphan")
+
+
+class ApiEndpoint(Base):
+    __tablename__ = "api_endpoints"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    analysis_id = Column(BigInteger, ForeignKey("repository_analysis.id"), nullable=False)
+    method = Column(String(20), nullable=True)
+    path = Column(Text, nullable=True)
+    name = Column(String(255), nullable=True)
+    file_path = Column(Text, nullable=True)
+    class_name = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=app_now, nullable=False)
+    updated_at = Column(DateTime, default=app_now, onupdate=app_now, nullable=False)
+
+    analysis = relationship("RepositoryAnalysis", back_populates="api_endpoints")
+
+
+class DependencyChange(Base):
+    __tablename__ = "dependency_changes"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    migration_id = Column(BigInteger, ForeignKey("migration_history.id"), nullable=False)
+    repository_name = Column(String(255), nullable=True)
+    dependency_name = Column(String(500), nullable=True)
+    old_version = Column(String(100), nullable=True)
+    new_version = Column(String(100), nullable=True)
+    change_type = Column(String(50), nullable=False)
+    file_path = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=app_now, nullable=False)
+
+
 class MigrationHistory(Base):
     __tablename__ = "migration_history"
 
@@ -93,6 +127,10 @@ class MigrationHistory(Base):
     status = Column(String(50), nullable=False)
     migrated_repo_url = Column(Text, nullable=True)
     migrated_branch_name = Column(String(255), nullable=True)
+    vector_indexed = Column(Boolean, default=False, nullable=False)
+    vector_indexed_at = Column(DateTime, nullable=True)
+    vector_index_error = Column(Text, nullable=True)
+    local_migrated_repo_path = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)

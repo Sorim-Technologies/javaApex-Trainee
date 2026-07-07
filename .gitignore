@@ -14,6 +14,7 @@ data/oauth_users.json
 data/guest_usage.json
 java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend/data/oauth_users.json
 java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend/data/guest_usage.json
+java-migration-backend/Java_Migration_Accelerator_backend/java-migration-backend/vector_db/chroma_store/
 
 # Production
 dist/

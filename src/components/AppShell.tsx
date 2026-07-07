@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import apexLogo from "../assets/logo.jpg";
+import FloatingRepoChatbot from "./FloatingRepoChatbot";
 import {
   clearStoredAppToken,
   getSocialCurrentUser,
@@ -576,6 +577,8 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <main style={shellStyles.main}>
         <div style={shellStyles.content}>{children}</div>
       </main>
+
+      <FloatingRepoChatbot />
 
       <footer style={shellStyles.footer}>
         <div style={shellStyles.footerContent}>

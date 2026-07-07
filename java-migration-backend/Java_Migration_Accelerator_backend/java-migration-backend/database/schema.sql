@@ -61,6 +61,19 @@ CREATE TABLE IF NOT EXISTS repository_analysis (
   CONSTRAINT fk_repository_analysis_session FOREIGN KEY (session_id) REFERENCES user_sessions(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS api_endpoints (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  analysis_id BIGINT NOT NULL,
+  method VARCHAR(20) NULL,
+  path TEXT NULL,
+  name VARCHAR(255) NULL,
+  file_path TEXT NULL,
+  class_name VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  CONSTRAINT fk_api_endpoints_analysis FOREIGN KEY (analysis_id) REFERENCES repository_analysis(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS migration_history (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NULL,
@@ -75,6 +88,10 @@ CREATE TABLE IF NOT EXISTS migration_history (
   status VARCHAR(50) NOT NULL,
   migrated_repo_url TEXT NULL,
   migrated_branch_name VARCHAR(255) NULL,
+  vector_indexed BOOLEAN NOT NULL DEFAULT FALSE,
+  vector_indexed_at DATETIME NULL,
+  vector_index_error TEXT NULL,
+  local_migrated_repo_path TEXT NULL,
   error_message TEXT NULL,
   started_at DATETIME NULL,
   completed_at DATETIME NULL,
@@ -82,4 +99,21 @@ CREATE TABLE IF NOT EXISTS migration_history (
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_migration_history_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_migration_history_session FOREIGN KEY (session_id) REFERENCES user_sessions(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS dependency_changes (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NULL,
+  migration_id BIGINT NOT NULL,
+  repository_name VARCHAR(255) NULL,
+  dependency_name VARCHAR(500) NULL,
+  old_version VARCHAR(100) NULL,
+  new_version VARCHAR(100) NULL,
+  change_type VARCHAR(50) NOT NULL,
+  file_path TEXT NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_dependency_migration_id (migration_id),
+  INDEX idx_dependency_user_id (user_id),
+  CONSTRAINT fk_dependency_changes_user FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_dependency_changes_migration FOREIGN KEY (migration_id) REFERENCES migration_history(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

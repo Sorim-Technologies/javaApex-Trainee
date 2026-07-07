@@ -14,3 +14,11 @@ gunicorn==21.2.0
 python-jose[cryptography]==3.3.0
 sqlalchemy==2.0.31
 pymysql==1.1.1
+langchain
+langchain-community
+langchain-chroma
+chromadb
+sentence-transformers
+groq
+langchain-groq
+langchain-ollama

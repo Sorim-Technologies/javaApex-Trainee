@@ -17,6 +17,7 @@ import re
 import logging
 from datetime import datetime, timezone
 from github import GithubException
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 # Force unbuffered output for immediate logging
@@ -42,6 +43,7 @@ from services.migration_service import MigrationService
 from services.email_service import EmailService
 from services.sonarqube_service import SonarQubeService
 from services.auth_service import router as auth_router
+from services.chatbot_service import router as chatbot_router
 from services.social_auth_service import (
     get_current_app_user,
     get_optional_app_user,
@@ -50,6 +52,7 @@ from services.social_auth_service import (
     validate_guest_migration_limit,
 )
 from services.logs_service import router as logs_router
+from services.vector_index_service import index_migrated_repository
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
 from database.db import Base, app_now, engine, ensure_database_exists, get_db
@@ -83,12 +86,29 @@ async def log_requests(request: Request, call_next):
 app.include_router(auth_router, prefix="/api")
 app.include_router(social_auth_router)
 app.include_router(logs_router)
+app.include_router(chatbot_router)
 
 
 @app.on_event("startup")
 def create_database_tables():
     ensure_database_exists()
     Base.metadata.create_all(bind=engine)
+    ensure_migration_history_vector_columns()
+
+
+def ensure_migration_history_vector_columns():
+    columns = {column["name"] for column in inspect(engine).get_columns("migration_history")}
+    statements = {
+        "vector_indexed": "ALTER TABLE migration_history ADD COLUMN vector_indexed BOOLEAN DEFAULT FALSE",
+        "vector_indexed_at": "ALTER TABLE migration_history ADD COLUMN vector_indexed_at DATETIME NULL",
+        "vector_index_error": "ALTER TABLE migration_history ADD COLUMN vector_index_error TEXT NULL",
+        "local_migrated_repo_path": "ALTER TABLE migration_history ADD COLUMN local_migrated_repo_path TEXT NULL",
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in statements.items():
+            if column_name not in columns:
+                connection.execute(text(statement))
 
 # Default GitHub token from environment variable (set in Render dashboard)
 DEFAULT_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -98,7 +118,12 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -637,6 +662,31 @@ def store_repository_analysis_record(
     db.commit()
     db.refresh(record)
 
+    if isinstance(endpoints, list) and endpoints:
+        seen_endpoint_keys = set()
+        for endpoint in endpoints:
+            method = (get_str_value(endpoint, ["method", "http_method", "request_method"]) or "UNKNOWN").upper()
+            path = get_str_value(endpoint, ["path", "endpoint", "route", "url", "mapping"]) or "/"
+            name = get_str_value(endpoint, ["name", "handler", "method_name", "api_name"])
+            file_path = get_str_value(endpoint, ["file", "file_path", "file_name", "source_file"])
+            class_name = get_str_value(endpoint, ["class_name", "controller", "controller_name"])
+            dedupe_key = (method, path, file_path or "", name or "")
+            if dedupe_key in seen_endpoint_keys:
+                continue
+            seen_endpoint_keys.add(dedupe_key)
+            db.add(
+                db_models.ApiEndpoint(
+                    analysis_id=record.id,
+                    method=method,
+                    path=path,
+                    name=name,
+                    file_path=file_path,
+                    class_name=class_name,
+                )
+            )
+        record.api_endpoint_count = len(seen_endpoint_keys)
+        db.commit()
+
 def create_migration_history_record(
     db: Session,
     request: MigrationRequest,
@@ -836,6 +886,7 @@ def update_migration_history_record(
     migrated_repo_url: Optional[str] = None,
     migrated_branch_name: Optional[str] = None,
     error_message: Optional[str] = None,
+    local_migrated_repo_path: Optional[str] = None,
 ) -> None:
     if not migration_history_id:
         return
@@ -861,9 +912,115 @@ def update_migration_history_record(
             record.migrated_branch_name = migrated_branch_name
         if error_message:
             record.error_message = error_message
+        if local_migrated_repo_path:
+            record.local_migrated_repo_path = local_migrated_repo_path
         db.commit()
         if status_value == "failed":
             logger.info("Failed migration saved with error_message: id=%s", migration_history_id)
+    finally:
+        db.close()
+
+
+def update_migration_vector_index_status(
+    migration_history_id: Optional[int],
+    indexed: bool,
+    error_message: Optional[str] = None,
+) -> None:
+    if not migration_history_id:
+        return
+
+    db = next(get_db())
+    try:
+        record = db.get(db_models.MigrationHistory, migration_history_id)
+        if not record:
+            return
+        record.vector_indexed = indexed
+        record.vector_indexed_at = app_now() if indexed else None
+        record.vector_index_error = None if indexed else error_message
+        record.updated_at = app_now()
+        db.commit()
+    finally:
+        db.close()
+
+
+def dependency_key(dependency: Dict[str, Any]) -> Optional[str]:
+    group_id = dependency.get("group_id") or dependency.get("groupId") or dependency.get("group")
+    artifact_id = dependency.get("artifact_id") or dependency.get("artifactId") or dependency.get("artifact")
+    name = dependency.get("dependency_name") or dependency.get("name")
+    if group_id or artifact_id:
+        return f"{group_id or ''}:{artifact_id or ''}".strip(":")
+    return str(name).strip() if name else None
+
+
+def dependency_version(dependency: Dict[str, Any]) -> Optional[str]:
+    value = (
+        dependency.get("current_version")
+        or dependency.get("version")
+        or dependency.get("new_version")
+        or dependency.get("newVersion")
+    )
+    return str(value).strip() if value not in (None, "") else None
+
+
+def save_dependency_changes(
+    user_id: Optional[int],
+    migration_id: Optional[int],
+    repository_name: Optional[str],
+    before_dependencies: List[Dict[str, Any]],
+    after_dependencies: List[Dict[str, Any]],
+) -> None:
+    if not migration_id:
+        return
+
+    before = {
+        key: dep
+        for dep in before_dependencies
+        if isinstance(dep, dict)
+        for key in [dependency_key(dep)]
+        if key
+    }
+    after = {
+        key: dep
+        for dep in after_dependencies
+        if isinstance(dep, dict)
+        for key in [dependency_key(dep)]
+        if key
+    }
+
+    changes = []
+    for key, dep in after.items():
+        if key not in before:
+            changes.append((key, None, dependency_version(dep), "added"))
+            continue
+        old_version = dependency_version(before[key])
+        new_version = dependency_version(dep)
+        if old_version != new_version:
+            changes.append((key, old_version, new_version, "updated"))
+
+    for key, dep in before.items():
+        if key not in after:
+            changes.append((key, dependency_version(dep), None, "removed"))
+
+    db = next(get_db())
+    try:
+        db.query(db_models.DependencyChange).filter(
+            db_models.DependencyChange.migration_id == migration_id
+        ).delete()
+        for dependency_name, old_version, new_version, change_type in changes:
+            db.add(
+                db_models.DependencyChange(
+                    user_id=user_id,
+                    migration_id=migration_id,
+                    repository_name=repository_name,
+                    dependency_name=dependency_name,
+                    old_version=old_version,
+                    new_version=new_version,
+                    change_type=change_type,
+                    file_path="pom.xml",
+                )
+            )
+        db.commit()
+        logger.info("Saved %s dependency change rows for migration id=%s", len(changes), migration_id)
     finally:
         db.close()
 
@@ -2453,6 +2610,17 @@ async def run_migration(
         add_log(job_id, f"Modified {job.files_modified} files, fixed {job.issues_fixed} issues")
         job.errors_fixed = len([i for i in job.issues if i.severity == IssueSeverity.ERROR and i.status == IssueStatus.FIXED])
         job.warnings_fixed = len([i for i in job.issues if i.severity == IssueSeverity.WARNING and i.status == IssueStatus.FIXED])
+        try:
+            final_analysis = await migration_service.analyze_project(clone_path)
+            save_dependency_changes(
+                current_user["user_id"] if current_user else None,
+                migration_history_id,
+                get_repo_name_from_url(request.source_repo_url),
+                deps,
+                final_analysis.get("dependencies", []) or [],
+            )
+        except Exception as dep_diff_error:
+            logger.warning("Dependency diff persistence failed: %s", dep_diff_error)
         
         # Step 4: Run tests
         if request.run_tests:
@@ -2578,7 +2746,28 @@ async def run_migration(
             migration_history_id,
             "completed",
             migrated_repo_url=job.target_repo,
+            local_migrated_repo_path=clone_path,
         )
+        try:
+            indexing_summary = index_migrated_repository(
+                user_id=current_user["user_id"] if current_user else 0,
+                migration_id=migration_history_id,
+                repository_name=get_repo_name_from_url(job.target_repo or request.target_repo_name or request.source_repo_url),
+                repository_url=job.target_repo or "",
+                migrated_repo_path=clone_path,
+                source_java_version=request.source_java_version,
+                target_java_version=request.target_java_version.value,
+            )
+            update_migration_vector_index_status(
+                migration_history_id,
+                bool(indexing_summary.get("indexed")),
+                indexing_summary.get("message"),
+            )
+            add_log(job_id, f"Vector indexing completed: {indexing_summary.get('chunks_indexed', 0)} chunks")
+        except Exception as index_error:
+            logger.exception("Vector indexing failed for migration id=%s", migration_history_id)
+            update_migration_vector_index_status(migration_history_id, False, str(index_error))
+            add_log(job_id, f"Vector indexing failed: {str(index_error)}")
         
     except Exception as e:
         job.status = MigrationStatus.FAILED
