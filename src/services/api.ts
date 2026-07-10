@@ -216,6 +216,22 @@ export interface MigrationResult {
   sonar_vulnerabilities: number;
   sonar_code_smells: number;
   sonar_coverage: number;
+  tests_total: number;
+  tests_passed: number;
+  tests_failed: number;
+  tests_skipped: number;
+  test_success_rate: number;
+  test_execution_time_seconds: number;
+  tests_generated: number;
+  existing_tests_found: boolean;
+  existing_test_classes: number;
+  test_framework_detected: string | null;
+  coverage_line: number;
+  coverage_branch: number;
+  coverage_method: number;
+  coverage_class: number;
+  coverage_instruction: number;
+  coverage_complexity: number;
   // FOSSA scan results (optional)
   fossa_policy_status?: string | null;
   fossa_total_dependencies?: number;
@@ -457,6 +473,12 @@ export async function getMigrationFossa(jobId: string): Promise<{
   };
 }
 
+// Get a single migration job's current state (authoritative fetch)
+export async function getMigrationStatus(jobId: string): Promise<MigrationResult> {
+  const response = await fetch(`${API_BASE_URL}/migration/${jobId}`);
+  return parseJsonResponse<MigrationResult>(response, `Failed to fetch migration status for ${jobId}`);
+}
+
 // Download migrated project as ZIP
 export async function downloadMigratedProject(jobId: string): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}/migration/${jobId}/download-zip`);
@@ -542,4 +564,54 @@ export async function updateJavaVersion(
     throw new Error(error.detail || 'Failed to update Java version');
   }
   return response.json();
+}
+
+// Analyze repository tests
+export interface TestAnalysisResponse {
+  existingTests: boolean;
+  generateRequired: boolean;
+  hasTests: boolean;
+  testFramework: string;
+  mockingFramework: string;
+  coverageAvailable: boolean;
+}
+
+export async function getTestAnalysis(id: string): Promise<TestAnalysisResponse> {
+  const response = await fetch(`${API_BASE_URL}/repository/${id}/test-analysis`);
+  return parseJsonResponse<TestAnalysisResponse>(response, 'Failed to fetch test analysis');
+}
+
+// Generate tests
+export interface GenerateTestsResponse {
+  status: string;
+  tests_generated: number;
+  message: string;
+}
+
+export async function generateTests(id: string): Promise<GenerateTestsResponse> {
+  const response = await fetch(`${API_BASE_URL}/repository/${id}/generate-tests`, {
+    method: 'POST'
+  });
+  return parseJsonResponse<GenerateTestsResponse>(response, 'Failed to generate unit tests');
+}
+
+// Run coverage
+export interface RunCoverageResponse {
+  status: string;
+  coverage: string;
+  report: string;
+  metrics: {
+    lineCoverage: string;
+    branchCoverage: string;
+    methodCoverage: string;
+    classCoverage?: string;
+    instructionCoverage?: string;
+  };
+}
+
+export async function runCoverage(id: string): Promise<RunCoverageResponse> {
+  const response = await fetch(`${API_BASE_URL}/repository/${id}/coverage`, {
+    method: 'POST'
+  });
+  return parseJsonResponse<RunCoverageResponse>(response, 'Failed to execute tests and collect coverage');
 }

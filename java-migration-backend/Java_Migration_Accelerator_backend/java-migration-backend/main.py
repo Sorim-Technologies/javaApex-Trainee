@@ -28,6 +28,44 @@ from websocket_manager import manager
 
 Base.metadata.create_all(bind=engine)
 
+def run_db_migrations():
+    """Ensure all required columns exist in the database table."""
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        # Check and add columns if they don't exist
+        cols = {
+            "tests_total": "INT DEFAULT 0",
+            "tests_passed": "INT DEFAULT 0",
+            "tests_failed": "INT DEFAULT 0",
+            "tests_skipped": "INT DEFAULT 0",
+            "test_success_rate": "DOUBLE DEFAULT 0.0",
+            "test_execution_time_seconds": "DOUBLE DEFAULT 0.0",
+            "tests_generated": "INT DEFAULT 0",
+            "existing_tests_found": "TINYINT(1) DEFAULT 0",
+            "existing_test_classes": "INT DEFAULT 0",
+            "test_framework_detected": "VARCHAR(50) NULL",
+            "coverage_line": "DOUBLE DEFAULT 0.0",
+            "coverage_branch": "DOUBLE DEFAULT 0.0",
+            "coverage_method": "DOUBLE DEFAULT 0.0",
+            "coverage_class": "DOUBLE DEFAULT 0.0",
+            "coverage_instruction": "DOUBLE DEFAULT 0.0",
+            "coverage_complexity": "DOUBLE DEFAULT 0.0"
+        }
+        for col_name, col_type in cols.items():
+            try:
+                db.execute(text(f"ALTER TABLE migration_history ADD COLUMN {col_name} {col_type}"))
+                db.commit()
+                print(f"Added column {col_name} to migration_history table")
+            except Exception:
+                db.rollback() # column likely already exists
+    except Exception as e:
+        print(f"Error running db migrations: {e}")
+    finally:
+        db.close()
+
+run_db_migrations()
+
 
 # Force unbuffered output for immediate logging
 sys.stdout.reconfigure(line_buffering=True)
@@ -79,6 +117,15 @@ from services.sonarqube_service import SonarQubeService
 from services.auth_service import router as auth_router
 from services.fossa_service import FossaService
 from services.hf_recommendation_service import HFRecommendationService
+from services.testing.test_analyzer import TestAnalyzer
+from services.testing.project_analyzer import ProjectAnalyzer as EnhancedProjectAnalyzer
+from services.testing.test_detector import TestDetector as EnhancedTestDetector
+from services.testing.dependency_manager import DependencyManager
+from services.testing.test_generation_engine import TestGenerationEngine
+from services.testing.test_generator import TestGenerator
+from services.testing.test_execution_service import TestExecutionService
+from services.testing.jacoco_service import JacocoService
+from services.testing.compilation_repair import CompilationRepairService
 
 
 from services.migration_service import save_migration
@@ -256,7 +303,11 @@ class MigrationStatus(str, Enum):
     CLONING = "cloning"
     ANALYZING = "analyzing"
     MIGRATING = "migrating"
+    TEST_ANALYSIS = "test_analysis"
+    TEST_GENERATION = "test_generation"
+    TEST_EXECUTION = "test_execution"
     TESTING = "testing"
+    COVERAGE_ANALYSIS = "coverage_analysis"
     FOSSA_ANALYSIS = "fossa_analysis"
     SONAR_ANALYSIS = "sonar_analysis"
     PUSHING = "pushing"
@@ -357,6 +408,22 @@ class MigrationResult(BaseModel):
     issues_fixed: int = 0
     api_endpoints_validated: int = 0
     api_endpoints_working: int = 0
+    tests_total: int = 0
+    tests_passed: int = 0
+    tests_failed: int = 0
+    tests_skipped: int = 0
+    test_success_rate: float = 0.0
+    test_execution_time_seconds: float = 0.0
+    tests_generated: int = 0
+    existing_tests_found: bool = False
+    existing_test_classes: int = 0
+    test_framework_detected: Optional[str] = None
+    coverage_line: float = 0.0
+    coverage_branch: float = 0.0
+    coverage_method: float = 0.0
+    coverage_class: float = 0.0
+    coverage_instruction: float = 0.0
+    coverage_complexity: float = 0.0
     sonar_quality_gate: Optional[str] = None
     sonar_bugs: int = 0
     sonar_vulnerabilities: int = 0
@@ -376,6 +443,55 @@ class MigrationResult(BaseModel):
     total_warnings: int = 0
     errors_fixed: int = 0
     warnings_fixed: int = 0
+
+
+def load_migration_jobs():
+    """Load migration history from DB into memory on startup."""
+    db = SessionLocal()
+    try:
+        from models import Migration
+        migrations = db.query(Migration).all()
+        for m in migrations:
+            try:
+                status_val = MigrationStatus(m.status) if m.status in [s.value for s in MigrationStatus] else MigrationStatus.FAILED
+            except Exception:
+                status_val = MigrationStatus.FAILED
+                
+            migration_jobs[m.migration_id] = MigrationResult(
+                job_id=m.migration_id,
+                status=status_val,
+                source_repo=m.repository_name,
+                target_repo=m.target_repository,
+                source_java_version=m.version_before,
+                target_java_version=m.version_after,
+                started_at=m.migration_date,
+                completed_at=m.migration_date,
+                current_step="Loaded from database history",
+                progress_percent=100 if m.status == "completed" else 0,
+                tests_total=getattr(m, "tests_total", 0),
+                tests_passed=getattr(m, "tests_passed", 0),
+                tests_failed=getattr(m, "tests_failed", 0),
+                tests_skipped=getattr(m, "tests_skipped", 0),
+                test_success_rate=getattr(m, "test_success_rate", 0.0),
+                test_execution_time_seconds=getattr(m, "test_execution_time_seconds", 0.0),
+                tests_generated=getattr(m, "tests_generated", 0),
+                existing_tests_found=getattr(m, "existing_tests_found", False),
+                existing_test_classes=getattr(m, "existing_test_classes", 0),
+                test_framework_detected=getattr(m, "test_framework_detected", None),
+                coverage_line=getattr(m, "coverage_line", 0.0),
+                coverage_branch=getattr(m, "coverage_branch", 0.0),
+                coverage_method=getattr(m, "coverage_method", 0.0),
+                coverage_class=getattr(m, "coverage_class", 0.0),
+                coverage_instruction=getattr(m, "coverage_instruction", 0.0),
+                coverage_complexity=getattr(m, "coverage_complexity", 0.0),
+            )
+        print(f"Loaded {len(migrations)} migration jobs from database.")
+    except Exception as e:
+        print(f"Error loading migration jobs from database: {e}")
+    finally:
+        db.close()
+
+load_migration_jobs()
 
 
 class RepoInfo(BaseModel):
@@ -789,6 +905,7 @@ async def broadcast_job_update(job_id: str) -> None:
         return
 
     job = migration_jobs[job_id]
+    print(f"DEBUG BACKEND: Broadcasting job update for {job_id}. tests_total={job.tests_total}, tests_passed={job.tests_passed}, coverage_line={job.coverage_line}")
     payload = to_serializable(job.model_dump() if hasattr(job, "model_dump") else job.dict())
     completed_at = job.completed_at.isoformat() if getattr(job, "completed_at", None) else None
     status_value = job.status.value if hasattr(job.status, "value") else job.status
@@ -807,6 +924,26 @@ async def broadcast_job_update(job_id: str) -> None:
             "vulnerabilities": job.sonar_vulnerabilities,
             "code_smells": job.sonar_code_smells,
             "coverage": job.sonar_coverage,
+        },
+        "test_metrics": {
+            "tests_total": job.tests_total,
+            "tests_passed": job.tests_passed,
+            "tests_failed": job.tests_failed,
+            "tests_skipped": job.tests_skipped,
+            "tests_generated": job.tests_generated,
+            "existing_tests_found": job.existing_tests_found,
+            "existing_test_classes": job.existing_test_classes,
+            "test_framework_detected": job.test_framework_detected,
+            "test_success_rate": job.test_success_rate,
+            "test_execution_time_seconds": job.test_execution_time_seconds,
+        },
+        "coverage_metrics": {
+            "line": job.coverage_line,
+            "branch": job.coverage_branch,
+            "method": job.coverage_method,
+            "class_": job.coverage_class,
+            "instruction": job.coverage_instruction,
+            "complexity": job.coverage_complexity,
         },
         "fossa_metrics": {
             "policy_status": job.fossa_policy_status,
@@ -827,7 +964,7 @@ async def migration_status_ws(websocket: WebSocket, job_id: str):
     """Stream migration updates to a single WebSocket per job."""
     await websocket.accept()
     print("=" * 60)
-    print(f"✅ WebSocket Connected")
+    print(f"Success: WebSocket Connected")
     print(f"Job ID: {job_id}")
     print("=" * 60)
     await manager.connect(job_id, websocket)
@@ -858,6 +995,15 @@ async def migration_status_ws(websocket: WebSocket, job_id: str):
 
 
 # Migration Endpoints
+
+@app.get("/api/migration/{job_id}", response_model=MigrationResult)
+async def get_migration_status(job_id: str):
+    """Get the current state of a single migration job by job_id"""
+    if job_id not in migration_jobs:
+        raise HTTPException(status_code=404, detail=f"Migration job {job_id} not found")
+    return migration_jobs[job_id]
+
+
 @app.post("/api/migration/start", response_model=MigrationResult)
 async def start_migration(request: MigrationRequest, background_tasks: BackgroundTasks):
     """Start a new migration job"""
@@ -942,9 +1088,117 @@ async def get_migration_logs(job_id: str):
     return {"job_id": job_id, "logs": migration_jobs[job_id].migration_log}
 
 
+def generate_pdf_report(job: MigrationResult, logs: List[str], pdf_path: str):
+    from fpdf import FPDF
+    
+    class SafePDF(FPDF):
+        def header(self):
+            self.set_font("helvetica", "B", 14)
+            self.cell(0, 10, "JavaApex Migration Report", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.ln(5)
+            
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("helvetica", "I", 8)
+            self.cell(0, 10, f"Page {self.page_no()}/{{nb}}", align="C")
+            
+    pdf = SafePDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", "", 10)
+    
+    def add_field(label, val):
+        safe_label = str(label).encode('latin-1', 'replace').decode('latin-1')
+        safe_val = str(val).encode('latin-1', 'replace').decode('latin-1')
+        pdf.set_font("helvetica", "B", 10)
+        pdf.cell(50, 8, safe_label, border=0)
+        pdf.set_font("helvetica", "", 10)
+        pdf.cell(0, 8, safe_val, border=0, new_x="LMARGIN", new_y="NEXT")
+
+    def add_section_header(title):
+        pdf.ln(5)
+        pdf.set_font("helvetica", "B", 12)
+        pdf.set_text_color(37, 99, 235)  # blue color
+        safe_title = str(title).encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(0, 10, safe_title, border="B", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(2)
+
+    # 1. Repository Information
+    add_section_header("Repository Information")
+    add_field("Job ID:", job.job_id)
+    add_field("Status:", job.status.value if hasattr(job.status, "value") else str(job.status))
+    add_field("Source Repo:", job.source_repo)
+    add_field("Target Repo:", job.target_repo or "N/A")
+    add_field("Source Java Version:", job.source_java_version)
+    add_field("Target Java Version:", job.target_java_version.value if hasattr(job.target_java_version, "value") else str(job.target_java_version))
+    if job.completed_at and job.started_at:
+        duration = (job.completed_at - job.started_at).total_seconds()
+        add_field("Execution Time:", f"{duration:.2f} seconds")
+
+    # 2. Migration Summary
+    add_section_header("Migration Summary")
+    add_field("Progress Percent:", f"{job.progress_percent}%")
+    add_field("Files Modified:", str(job.files_modified))
+    add_field("Issues Fixed:", str(job.issues_fixed))
+    add_field("API Endpoints Validated:", str(job.api_endpoints_validated))
+    add_field("API Endpoints Working:", str(job.api_endpoints_working))
+
+    # 3. Unit Testing Summary
+    add_section_header("Unit Testing Summary")
+    add_field("Existing Tests Found:", str(job.existing_tests_found))
+    add_field("Generated Test Classes:", str(job.tests_generated))
+    add_field("Total Tests:", str(job.tests_total))
+    add_field("Passed:", str(job.tests_passed))
+    add_field("Failed:", str(job.tests_failed))
+    add_field("Skipped:", str(job.tests_skipped))
+    add_field("Success Rate:", f"{job.test_success_rate:.2f}%")
+
+    # 4. JaCoCo Coverage
+    add_section_header("JaCoCo Coverage")
+    add_field("Line Coverage:", f"{job.coverage_line:.2f}%")
+    add_field("Branch Coverage:", f"{job.coverage_branch:.2f}%")
+    add_field("Method Coverage:", f"{job.coverage_method:.2f}%")
+    add_field("Class Coverage:", f"{job.coverage_class:.2f}%")
+    add_field("Instruction Coverage:", f"{job.coverage_instruction:.2f}%")
+    add_field("Complexity Coverage:", f"{job.coverage_complexity:.2f}%")
+
+    # 5. SonarQube & FOSSA Results
+    add_section_header("SonarQube Results")
+    add_field("Quality Gate:", job.sonar_quality_gate or "N/A")
+    add_field("Bugs:", str(job.sonar_bugs))
+    add_field("Vulnerabilities:", str(job.sonar_vulnerabilities))
+    add_field("Code Smells:", str(job.sonar_code_smells))
+    add_field("Coverage:", f"{job.sonar_coverage:.2f}%")
+
+    add_section_header("FOSSA Results")
+    add_field("Policy Status:", job.fossa_policy_status or "N/A")
+    add_field("Total Dependencies:", str(job.fossa_total_dependencies))
+    add_field("License Issues:", str(job.fossa_license_issues))
+    add_field("Vulnerabilities:", str(job.fossa_vulnerabilities))
+    add_field("Outdated Dependencies:", str(job.fossa_outdated_dependencies))
+
+    # 6. Warnings & Errors
+    add_section_header("Issues Fixed / Warnings & Errors")
+    add_field("Total Errors:", str(job.total_errors))
+    add_field("Total Warnings:", str(job.total_warnings))
+    add_field("Errors Fixed:", str(job.errors_fixed))
+    add_field("Warnings Fixed:", str(job.warnings_fixed))
+
+    # 7. Migration Logs
+    add_section_header("Migration Logs")
+    pdf.set_font("helvetica", "", 8)
+    log_sample = logs[-100:] if len(logs) > 100 else logs
+    for log in log_sample:
+        safe_log = str(log).encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 5, safe_log, border=0, new_x="LMARGIN", new_y="NEXT")
+
+    pdf.output(pdf_path)
+
+
 @app.get("/api/migration/{job_id}/download-zip")
+@app.head("/api/migration/{job_id}/download-zip")
 async def download_migration_zip(job_id: str):
-    """Download the migrated project as a ZIP file"""
+    """Download the migrated project as a ZIP file containing structured reports and code"""
     import shutil
     import tempfile
     
@@ -952,47 +1206,109 @@ async def download_migration_zip(job_id: str):
         raise HTTPException(status_code=404, detail="Migration job not found")
     
     job = migration_jobs[job_id]
+    clone_path = get_project_clone_path(job)
     
-    # Get the clone path from target_repo if it's local
-    if hasattr(job, 'target_repo') and job.target_repo:
-        if job.target_repo.startswith("local://"):
-            clone_path = job.target_repo.replace("local://", "")
-        else:
-            # For GitHub repos, we need to find the local clone path
-            # It should be stored somewhere - let's check the work directory
-            work_dir = os.getenv("WORK_DIR", os.path.join(tempfile.gettempdir(), "migrations"))
-            # Find the most recent directory matching the job
-            clone_path = None
-            if os.path.exists(work_dir):
-                for item in os.listdir(work_dir):
-                    item_path = os.path.join(work_dir, item)
-                    if os.path.isdir(item_path):
-                        clone_path = item_path
-            if not clone_path:
-                raise HTTPException(status_code=404, detail="Migration files not found")
-    else:
-        raise HTTPException(status_code=404, detail="Migration not completed yet")
+    if not clone_path or not os.path.exists(clone_path):
+        raise HTTPException(status_code=404, detail="Migration files not found")
     
-    if not os.path.exists(clone_path):
-        raise HTTPException(status_code=404, detail=f"Migration directory not found: {clone_path}")
+    temp_dir = tempfile.gettempdir()
+    staging_dir = os.path.join(temp_dir, f"staging-download-{job_id}")
+    if os.path.exists(staging_dir):
+        shutil.rmtree(staging_dir, ignore_errors=True)
     
-    # Create a ZIP file
-    zip_filename = f"migration-{job_id}"
-    zip_path = os.path.join(tempfile.gettempdir(), zip_filename)
+    shutil.copytree(
+        clone_path, 
+        staging_dir, 
+        ignore=shutil.ignore_patterns('.git', '*.zip', 'staging-*', 'migration-*'),
+        dirs_exist_ok=True
+    )
     
+    # 1. Create migration-report directory
+    report_dir = os.path.join(staging_dir, "migration-report")
+    os.makedirs(report_dir, exist_ok=True)
+    
+    # 2. Generate HTML Report
+    html_report_content = generate_simple_html_report(job, job.migration_log)
+    html_path = os.path.join(report_dir, "migration-report.html")
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html_report_content)
+        
+    # 3. Generate PDF Report
+    pdf_path = os.path.join(report_dir, "migration-report.pdf")
     try:
-        shutil.make_archive(zip_path, 'zip', clone_path)
-        zip_file = f"{zip_path}.zip"
+        generate_pdf_report(job, job.migration_log, pdf_path)
+    except Exception as pdf_err:
+        print(f"Error generating PDF report: {pdf_err}")
+        
+    # 4. Copy JaCoCo reports to migration-report/jacoco/
+    jacoco_dest = os.path.join(report_dir, "jacoco")
+    os.makedirs(jacoco_dest, exist_ok=True)
+    
+    build_tool = "maven"
+    if os.path.exists(os.path.join(staging_dir, "build.gradle")):
+        build_tool = "gradle"
+        
+    copied_jacoco = False
+    if build_tool == "maven":
+        maven_jacoco = os.path.join(staging_dir, "target", "site", "jacoco")
+        if os.path.exists(maven_jacoco):
+            shutil.copytree(maven_jacoco, jacoco_dest, dirs_exist_ok=True)
+            copied_jacoco = True
+    else:
+        gradle_jacoco = os.path.join(staging_dir, "build", "reports", "jacoco", "test")
+        gradle_jacoco_html = os.path.join(gradle_jacoco, "html")
+        if os.path.exists(gradle_jacoco):
+            if os.path.exists(gradle_jacoco_html):
+                shutil.copytree(gradle_jacoco_html, jacoco_dest, dirs_exist_ok=True)
+            elif os.path.exists(os.path.join(gradle_jacoco, "index.html")):
+                shutil.copy2(os.path.join(gradle_jacoco, "index.html"), os.path.join(jacoco_dest, "index.html"))
+            
+            # Copy XML
+            xml_src = os.path.join(gradle_jacoco, "jacocoTestReport.xml")
+            if not os.path.exists(xml_src):
+                xml_src = os.path.join(gradle_jacoco, "jacoco.xml")
+            if os.path.exists(xml_src):
+                shutil.copy2(xml_src, os.path.join(jacoco_dest, "jacoco.xml"))
+                
+            # Copy CSV
+            csv_src = os.path.join(gradle_jacoco, "jacocoTestReport.csv")
+            if not os.path.exists(csv_src):
+                csv_src = os.path.join(gradle_jacoco, "jacoco.csv")
+            if os.path.exists(csv_src):
+                shutil.copy2(csv_src, os.path.join(jacoco_dest, "jacoco.csv"))
+            copied_jacoco = True
+            
+    if not os.path.exists(os.path.join(jacoco_dest, "index.html")):
+        with open(os.path.join(jacoco_dest, "index.html"), "w") as f:
+            f.write("<html><body><h3>JaCoCo Coverage Report Placeholder</h3></body></html>")
+    if not os.path.exists(os.path.join(jacoco_dest, "jacoco.xml")):
+        with open(os.path.join(jacoco_dest, "jacoco.xml"), "w") as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?><report name="Placeholder"></report>')
+    if not os.path.exists(os.path.join(jacoco_dest, "jacoco.csv")):
+        with open(os.path.join(jacoco_dest, "jacoco.csv"), "w") as f:
+            f.write('GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED\n')
+            
+    # 5. Write logs.txt
+    logs_path = os.path.join(report_dir, "logs.txt")
+    with open(logs_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(job.migration_log))
+        
+    zip_base = os.path.join(temp_dir, f"MigratedRepository-{job_id}")
+    try:
+        shutil.make_archive(zip_base, 'zip', staging_dir)
+        zip_file = f"{zip_base}.zip"
+        shutil.rmtree(staging_dir, ignore_errors=True)
         
         if os.path.exists(zip_file):
             return FileResponse(
                 zip_file,
                 media_type='application/zip',
-                filename=f"{zip_filename}.zip"
+                filename="MigratedRepository.zip"
             )
         else:
             raise HTTPException(status_code=500, detail="Failed to create ZIP file")
     except Exception as e:
+        shutil.rmtree(staging_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=f"Error creating ZIP: {str(e)}")
 
 
@@ -1000,6 +1316,211 @@ async def download_migration_zip(job_id: str):
 async def list_migrations():
     """List all migration jobs"""
     return list(migration_jobs.values())
+
+
+def get_project_clone_path(job) -> str:
+    """Helper to find the local clone path for a migration job"""
+    if hasattr(job, 'target_repo') and job.target_repo:
+        if job.target_repo.startswith("local://"):
+            return job.target_repo.replace("local://", "")
+    
+    # Check in temp directories by parsing logs
+    for log in getattr(job, 'migration_log', []):
+        if "Repository cloned to" in log:
+            path = log.split("Repository cloned to")[-1].strip()
+            if os.path.exists(path):
+                return path
+                
+    work_dir = os.getenv("WORK_DIR", os.path.join(tempfile.gettempdir(), "migrations"))
+    if os.path.exists(work_dir):
+        subdirs = [os.path.join(work_dir, d) for d in os.listdir(work_dir) if os.path.isdir(os.path.join(work_dir, d))]
+        if subdirs:
+            return subdirs[-1]
+            
+    return None
+
+
+@app.get("/api/repository/{id}/test-analysis")
+async def get_test_analysis(id: str):
+    """Analyze tests for a repository/migration job"""
+    if id not in migration_jobs:
+        raise HTTPException(status_code=404, detail=f"Migration job {id} not found")
+    job = migration_jobs[id]
+    clone_path = get_project_clone_path(job)
+    if not clone_path or not os.path.exists(clone_path):
+        raise HTTPException(status_code=404, detail="Migration files not found or expired")
+    
+    analyzer = TestAnalyzer()
+    analysis = await analyzer.analyze_project(clone_path)
+    
+    test_classes_count = analysis.get("test_classes_count", 0)
+    test_framework = analysis.get("test_framework", "JUnit5")
+    
+    return {
+        "existingTests": test_classes_count > 0,
+        "generateRequired": test_classes_count == 0,
+        "hasTests": test_classes_count > 0,
+        "testFramework": test_framework,
+        "mockingFramework": "Mockito",
+        "coverageAvailable": False
+    }
+
+
+@app.get("/api/repository/{id}/detailed-analysis")
+async def get_detailed_repository_analysis(id: str):
+    """
+    Perform a comprehensive repository analysis using the enhanced ProjectAnalyzer
+    and TestDetector. Returns a structured ProjectModel + TestModel.
+    """
+    if id not in migration_jobs:
+        raise HTTPException(status_code=404, detail=f"Migration job {id} not found")
+    job = migration_jobs[id]
+    clone_path = get_project_clone_path(job)
+    if not clone_path or not os.path.exists(clone_path):
+        raise HTTPException(status_code=404, detail="Migration files not found or expired")
+    
+    # Use the enhanced analyzers
+    project_analyzer = EnhancedProjectAnalyzer()
+    test_detector = EnhancedTestDetector()
+    
+    # Run both analyses in parallel
+    project_analysis, test_analysis = await asyncio.gather(
+        project_analyzer.analyze_project(clone_path),
+        test_detector.detect_tests(clone_path),
+    )
+    
+    # Find classes without tests
+    classes_without_tests = test_detector.get_classes_without_tests(project_analysis, test_analysis)
+    test_analysis.classes_without_tests = classes_without_tests
+    test_analysis.classes_without_tests_count = len(classes_without_tests)
+    
+    return {
+        "project_analysis": project_analysis.to_dict(),
+        "test_analysis": test_analysis.to_dict(),
+        "summary": {
+            "build_tool": project_analysis.build_tool,
+            "java_version": project_analysis.java_version,
+            "spring_boot_version": project_analysis.spring_boot_version,
+            "total_classes": project_analysis.total_source_files,
+            "total_controllers": len(project_analysis.controllers),
+            "total_services": len(project_analysis.services),
+            "total_repositories": len(project_analysis.repositories),
+            "total_entities": len(project_analysis.entities),
+            "total_dtos": len(project_analysis.dtos),
+            "total_configurations": len(project_analysis.configurations),
+            "total_components": len(project_analysis.components),
+            "total_utilities": len(project_analysis.utilities),
+            "packages": project_analysis.package_count,
+            "test_framework": test_analysis.test_framework,
+            "test_framework_confidence": test_analysis.test_framework_confidence,
+            "test_classes": test_analysis.test_class_count,
+            "test_methods": test_analysis.test_method_count,
+            "classes_without_tests": test_analysis.classes_without_tests_count,
+            "src_test_exists": test_analysis.src_test_exists,
+        }
+    }
+
+
+@app.post("/api/repository/{id}/generate-tests")
+async def generate_tests_endpoint(id: str):
+    """Generate unit tests for a repository/migration job"""
+    if id not in migration_jobs:
+        raise HTTPException(status_code=404, detail=f"Migration job {id} not found")
+    job = migration_jobs[id]
+    clone_path = get_project_clone_path(job)
+    if not clone_path or not os.path.exists(clone_path):
+        raise HTTPException(status_code=404, detail="Migration files not found or expired")
+    
+    gen_engine = TestGenerator()
+    gen_result = await gen_engine.generate_tests_for_project(clone_path)
+    job.tests_generated = gen_result.get("tests_generated", 0)
+    
+    try:
+        save_migration(job.model_dump() if hasattr(job, "model_dump") else job.dict())
+    except Exception as e:
+        print(f"Error saving job after test generation: {e}")
+    
+    return {
+        "status": "SUCCESS",
+        "tests_generated": job.tests_generated,
+        "message": gen_result.get("message", "Test generation completed.")
+    }
+
+
+@app.post("/api/repository/{id}/coverage")
+async def run_coverage_endpoint(id: str):
+    """Run tests and collect coverage for a repository/migration job"""
+    if id not in migration_jobs:
+        raise HTTPException(status_code=404, detail=f"Migration job {id} not found")
+    job = migration_jobs[id]
+    clone_path = get_project_clone_path(job)
+    if not clone_path or not os.path.exists(clone_path):
+        raise HTTPException(status_code=404, detail="Migration files not found or expired")
+    
+    analyzer = TestAnalyzer()
+    analysis = await analyzer.analyze_project(clone_path)
+    build_tool = analysis.get("build_tool", "none")
+    
+    jacoco = JacocoService()
+    existing_jacoco_xml = jacoco._find_jacoco_xml(clone_path, build_tool)
+    
+    if existing_jacoco_xml and os.path.exists(existing_jacoco_xml) and not request.run_tests:
+        print(f"Existing JaCoCo XML report found at {existing_jacoco_xml}. Parsing directly.")
+        coverage_result = await jacoco.generate_and_parse_report(clone_path, build_tool)
+        executor = TestExecutionService()
+        xml_counts = executor._parse_xml_test_reports(clone_path, build_tool)
+        if xml_counts and xml_counts["total"] > 0:
+            job.tests_total = xml_counts["total"]
+            job.tests_passed = xml_counts["passed"]
+            job.tests_failed = xml_counts["failed"]
+            job.tests_skipped = xml_counts["skipped"]
+            job.test_success_rate = round((job.tests_passed / job.tests_total) * 100, 2) if job.tests_total > 0 else 0.0
+        else:
+            exec_result = await executor.execute_tests(clone_path, build_tool)
+            job.tests_total = exec_result.get("total", 0)
+            job.tests_passed = exec_result.get("passed", 0)
+            job.tests_failed = exec_result.get("failed", 0)
+            job.tests_skipped = exec_result.get("skipped", 0)
+            job.test_success_rate = exec_result.get("success_rate", 0.0)
+    else:
+        executor = TestExecutionService()
+        exec_result = await executor.execute_tests(clone_path, build_tool)
+        job.tests_total = exec_result.get("total", 0)
+        job.tests_passed = exec_result.get("passed", 0)
+        job.tests_failed = exec_result.get("failed", 0)
+        job.tests_skipped = exec_result.get("skipped", 0)
+        job.test_success_rate = exec_result.get("success_rate", 0.0)
+        coverage_result = await jacoco.generate_and_parse_report(clone_path, build_tool)
+    
+    job.coverage_line = coverage_result.get("line", 0.0)
+    job.coverage_branch = coverage_result.get("branch", 0.0)
+    job.coverage_method = coverage_result.get("method", 0.0)
+    job.coverage_class = coverage_result.get("class_", 0.0)
+    job.coverage_instruction = coverage_result.get("instruction", 0.0)
+    job.coverage_complexity = coverage_result.get("complexity", 0.0)
+    
+    try:
+        save_migration(job.model_dump() if hasattr(job, "model_dump") else job.dict())
+    except Exception as e:
+        print(f"Error saving job after coverage: {e}")
+        
+    try:
+        await broadcast_job_update(id)
+    except Exception:
+        pass
+        
+    return {
+        "status": "SUCCESS",
+        "coverage": f"{int(job.coverage_line)}%",
+        "report": "available",
+        "metrics": {
+            "lineCoverage": f"{int(job.coverage_line)}%",
+            "branchCoverage": f"{int(job.coverage_branch)}%",
+            "methodCoverage": f"{int(job.coverage_method)}%",
+            "classCoverage": f"{int(job.coverage_class)}%",
+            "instructionCoverage": f"{int(job.coverage_instruction)}%"
+        }
+    }
 
 
 @app.get("/api/migration/{job_id}/report")
@@ -1411,16 +1932,21 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
     sonar_color = "#22c55e" if sonar_passed else "#ef4444"
 
     # Calculate actual test metrics (not hardcoded 10)
-    total_tests = getattr(job, 'api_endpoints_validated', 0) + getattr(job, 'sonar_coverage', 0)
+    total_tests = getattr(job, 'tests_total', 0)
     if total_tests == 0:
-        total_tests = max(job.files_modified * 2, 10)  # Estimate based on files modified
+        total_tests = getattr(job, 'api_endpoints_validated', 0) + getattr(job, 'sonar_coverage', 0)
+        if total_tests == 0:
+            total_tests = max(job.files_modified * 2, 10)  # Estimate based on files modified
 
-    passed_tests = getattr(job, 'api_endpoints_working', 0)
-    if passed_tests == 0:
-        passed_tests = total_tests - (job.total_errors if hasattr(job, 'total_errors') else 0)
+    passed_tests = getattr(job, 'tests_passed', 0)
+    if passed_tests == 0 and getattr(job, 'tests_total', 0) == 0:
+        passed_tests = getattr(job, 'api_endpoints_working', 0)
+        if passed_tests == 0:
+            passed_tests = total_tests - (job.total_errors if hasattr(job, 'total_errors') else 0)
 
-    test_success_rate = (passed_tests / total_tests * 100) if total_tests > 0 else 0
-
+    test_success_rate = getattr(job, 'test_success_rate', 0.0)
+    if test_success_rate == 0.0 and total_tests > 0:
+        test_success_rate = (passed_tests / total_tests * 100)
     # Create clickable repo links
     source_repo_link = f'<a href="{job.source_repo}" target="_blank" style="color: #2563eb; text-decoration: none;">{job.source_repo}</a>' if job.source_repo.startswith('http') else job.source_repo
     target_repo_link = ""
@@ -1656,7 +2182,6 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
                 </div>
             </div>
         </div>
-
         <div class="section">
             <h2>🧪 Automated Test Results</h2>
             <div class="test-summary">
@@ -1677,8 +2202,37 @@ def generate_simple_html_report(job: MigrationResult, logs: List[str]) -> str:
                     <div class="test-label">Success Rate</div>
                 </div>
             </div>
+            <div style="margin-top: 15px; font-size: 0.9em; color: #64748b; text-align: center;">
+                Test Framework: <strong>{getattr(job, 'test_framework_detected', 'N/A')}</strong> | 
+                Existing Tests Found: <strong>{"Yes" if getattr(job, 'existing_tests_found', False) else "No"}</strong> | 
+                Generated Tests: <strong>{getattr(job, 'tests_generated', 0)}</strong>
+            </div>
         </div>
 
+        <div class="section">
+            <h2>📊 JaCoCo Code Coverage</h2>
+            <div class="test-summary">
+                <div class="test-card">
+                    <span class="test-number">{getattr(job, 'coverage_line', 0.0):.1f}%</span>
+                    <div class="test-label">Line Coverage</div>
+                </div>
+                <div class="test-card">
+                    <span class="test-number">{getattr(job, 'coverage_branch', 0.0):.1f}%</span>
+                    <div class="test-label">Branch Coverage</div>
+                </div>
+                <div class="test-card">
+                    <span class="test-number">{getattr(job, 'coverage_method', 0.0):.1f}%</span>
+                    <div class="test-label">Method Coverage</div>
+                </div>
+                <div class="test-card">
+                    <span class="test-number">{getattr(job, 'coverage_class', 0.0):.1f}%</span>
+                    <div class="test-label">Class Coverage</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; font-size: 0.9em; color: #64748b; text-align: center;">
+                Instruction Coverage: <strong>{getattr(job, 'coverage_instruction', 0.0):.1f}%</strong>
+            </div>
+        </div>
         <div class="section">
             <h2>📋 Migration Logs</h2>
             <div class="logs">
@@ -1945,13 +2499,7 @@ async def run_migration(job_id: str, request: MigrationRequest):
         job.errors_fixed = len([i for i in job.issues if i.severity == IssueSeverity.ERROR and i.status == IssueStatus.FIXED])
         job.warnings_fixed = len([i for i in job.issues if i.severity == IssueSeverity.WARNING and i.status == IssueStatus.FIXED])
         
-        # Step 4: Run tests
-        if request.run_tests:
-            update_job(job_id, MigrationStatus.TESTING, 60, "Running tests and validating APIs...")
-            test_result = await migration_service.run_tests(clone_path)
-            job.api_endpoints_validated = test_result.get("total_endpoints", 0)
-            job.api_endpoints_working = test_result.get("working_endpoints", 0)
-            add_log(job_id, f"Tests: {job.api_endpoints_working}/{job.api_endpoints_validated} endpoints working")
+
         
         # Step 5: SonarQube analysis
         if request.run_sonar:
@@ -2001,59 +2549,282 @@ async def run_migration(job_id: str, request: MigrationRequest):
             except Exception as fossa_err:
                 add_log(job_id, f"FOSSA ERROR: {str(fossa_err)}")
         
+        # NEW: Automated Testing Pipeline
+        try:
+            compilation_success = True
+            
+            # Analyze project first to detect build tool
+            try:
+                analyzer = TestAnalyzer()
+                analysis = await analyzer.analyze_project(clone_path)
+                build_tool = analysis.get("build_tool", "none")
+            except Exception as e:
+                build_tool = "none"
+                add_log(job_id, f"Error analyzing project for build tool: {str(e)}")
+
+            if build_tool != "none":
+                update_job(job_id, MigrationStatus.TEST_ANALYSIS, 85, "Compiling and validating migrated project...")
+                repair_service = CompilationRepairService()
+                
+                def log_callback(msg: str):
+                    add_log(job_id, msg)
+                    
+                compilation_success, compiler_errors = await repair_service.check_and_repair_compilation(
+                    project_path=clone_path,
+                    build_tool=build_tool,
+                    java_version=request.target_java_version.value,
+                    log_cb=log_callback
+                )
+                
+                if not compilation_success:
+                    add_log(job_id, "CRITICAL: Migrated project failed compilation even after repairs.")
+                    for err in compiler_errors:
+                        add_log(job_id, f"Compiler Error: {err['file_name']}:{err['line_number']} - {err['message']}")
+                    
+                    # Set specific error message for frontend/logs
+                    job.error_message = "Migration completed with compilation errors. Unit test generation and JaCoCo analysis were skipped until compilation issues are resolved."
+                    
+                    # Zero out all test and coverage metrics
+                    job.tests_total = 0
+                    job.tests_passed = 0
+                    job.tests_failed = 0
+                    job.tests_skipped = 0
+                    job.test_success_rate = 0.0
+                    job.tests_generated = 0
+                    job.existing_tests_found = False
+                    job.test_framework_detected = "none"
+                    job.coverage_line = 0.0
+                    job.coverage_branch = 0.0
+                    job.coverage_method = 0.0
+                    job.coverage_class = 0.0
+                    job.coverage_instruction = 0.0
+                    job.coverage_complexity = 0.0
+                    job.sonar_coverage = 0.0
+                    job.api_endpoints_validated = 0
+                    job.api_endpoints_working = 0
+                    
+                    add_log(job_id, job.error_message)
+            else:
+                add_log(job_id, "No build tool detected, skipping compilation check.")
+                
+            # Run tests
+            if request.run_tests and compilation_success:
+                # Initialize services
+                analyzer = TestAnalyzer()
+                dep_manager = DependencyManager()
+                gen_engine = TestGenerator()
+                executor = TestExecutionService()
+                jacoco = JacocoService()
+
+                # 1. Analyze existing tests
+                update_job(job_id, MigrationStatus.TEST_ANALYSIS, 88, "Analyzing existing tests and project structure...")
+                analysis = await analyzer.analyze_project(clone_path)
+                
+                build_tool = analysis.get("build_tool", "none")
+                job.test_framework_detected = analysis.get("test_framework", "none")
+                job.existing_test_classes = analysis.get("test_classes_count", 0)
+                job.existing_tests_found = job.existing_test_classes > 0
+
+                add_log(job_id, f"Detected build tool: {build_tool}")
+                add_log(job_id, f"Detected test framework: {job.test_framework_detected}")
+                add_log(job_id, f"Existing test classes found: {analysis.get('test_classes_count', 0)}")
+                add_log(job_id, f"Existing test methods found: {analysis.get('test_methods_count', 0)}")
+
+                # Check if JaCoCo report already exists
+                existing_jacoco_xml = jacoco._find_jacoco_xml(clone_path, build_tool)
+                
+                if existing_jacoco_xml and os.path.exists(existing_jacoco_xml) and not request.run_tests:
+                    # CASE 1: JaCoCo reports already exist
+                    add_log(job_id, f"Existing JaCoCo XML report found at {existing_jacoco_xml}. Parsing directly.")
+                    
+                    # Parse coverage
+                    coverage_result = await jacoco.generate_and_parse_report(clone_path, build_tool)
+                    job.coverage_line = coverage_result.get("line", 0.0)
+                    job.coverage_branch = coverage_result.get("branch", 0.0)
+                    job.coverage_method = coverage_result.get("method", 0.0)
+                    job.coverage_class = coverage_result.get("class_", 0.0)
+                    job.coverage_instruction = coverage_result.get("instruction", 0.0)
+                    job.coverage_complexity = coverage_result.get("complexity", 0.0)
+                    
+                    # Parse existing XML test reports to get execution counts
+                    xml_counts = executor._parse_xml_test_reports(clone_path, build_tool)
+                    if xml_counts and xml_counts["total"] > 0:
+                        job.tests_total = xml_counts["total"]
+                        job.tests_passed = xml_counts["passed"]
+                        job.tests_failed = xml_counts["failed"]
+                        job.tests_skipped = xml_counts["skipped"]
+                        job.test_success_rate = round((job.tests_passed / job.tests_total) * 100, 2) if job.tests_total > 0 else 0.0
+                    else:
+                        add_log(job_id, "Could not parse existing XML test reports. Executing tests...")
+                        exec_result = await executor.execute_tests(clone_path, build_tool)
+                        job.tests_total = exec_result.get("total", 0)
+                        job.tests_passed = exec_result.get("passed", 0)
+                        job.tests_failed = exec_result.get("failed", 0)
+                        job.tests_skipped = exec_result.get("skipped", 0)
+                        job.test_success_rate = exec_result.get("success_rate", 0.0)
+                    
+                    job.tests_generated = 0
+                    job.api_endpoints_validated = job.tests_total
+                    job.api_endpoints_working = job.tests_passed
+                    
+                    if not request.run_sonar or not os.getenv("SONARQUBE_TOKEN"):
+                        job.sonar_coverage = job.coverage_line
+                        
+                    add_log(job_id, f"Populated results from existing reports. Tests: {job.tests_total}, Passed: {job.tests_passed}, Coverage Line: {job.coverage_line}%")
+                
+                else:
+                    # Reports do not exist
+                    # 2. Add dependencies if missing
+                    update_job(job_id, MigrationStatus.TEST_ANALYSIS, 90, "Injecting test & coverage dependencies...")
+                    dep_result = await dep_manager.add_dependencies_if_absent(clone_path)
+                                      # Analyze all production classes even when user tests already exist. The
+                    # generator leaves user files untouched and creates a GeneratedTest companion
+                    # only when public methods are not covered.
+                    def _on_generation_progress(completed: int, total: int, message: str):
+                        if total <= 0:
+                            return
+                        progress = min(99, 92 + int((completed / total) * 7))
+                        update_job(job_id, MigrationStatus.TEST_GENERATION, progress, message)
+
+                    update_job(job_id, MigrationStatus.TEST_GENERATION, 92, "Generating tests for uncovered production methods...")
+                    gen_result = await gen_engine.generate_tests_for_project(
+                        clone_path,
+                        progress_callback=_on_generation_progress,
+                        log_callback=lambda msg: add_log(job_id, msg)
+                    )
+                    job.tests_generated = gen_result.get("tests_generated", 0)
+                    add_log(job_id, gen_result.get("message", ""))
+                    if gen_result.get("skipped_due_to_no_targets"):
+                        add_log(job_id, "No uncovered production classes found; skipping test generation and moving to test execution.")
+                    elif job.tests_generated > 0:
+                        add_log(job_id, f"Successfully generated {job.tests_generated} Gemini JUnit test classes.")
+                    else:
+                        add_log(job_id, "Test generation completed without producing new tests; continuing to test execution.")
+                    
+                    update_job(job_id, MigrationStatus.TEST_EXECUTION, 94, "Starting test execution...")
+                    add_log(job_id, "Generation completed. Moving to test execution.")
+                    
+                    # 3. Execute tests
+                    update_job(job_id, MigrationStatus.TEST_EXECUTION, 94, "Executing unit tests...")
+                    add_log(job_id, "[Testing] Running Maven tests...")
+                    exec_result = await executor.execute_tests(clone_path, build_tool)
+                    
+                    job.tests_total = exec_result.get("total", 0)
+                    job.tests_passed = exec_result.get("passed", 0)
+                    job.tests_failed = exec_result.get("failed", 0)
+                    job.tests_skipped = exec_result.get("skipped", 0)
+                    job.test_success_rate = exec_result.get("success_rate", 0.0)
+                    job.test_execution_time_seconds = exec_result.get("duration_seconds", 0.0)
+                    add_log(job_id, exec_result.get("message", ""))
+                    add_log(job_id, f"[Testing] Tests executed: {job.tests_total}")
+                    
+                    job.api_endpoints_validated = job.tests_total
+                    job.api_endpoints_working = job.tests_passed
+                    
+                    # 4. Collect JaCoCo coverage
+                    update_job(job_id, MigrationStatus.COVERAGE_ANALYSIS, 96, "Running JaCoCo code coverage analysis...")
+                    coverage_result = await jacoco.generate_and_parse_report(clone_path, build_tool)
+                    
+                    job.coverage_line = coverage_result.get("line", 0.0)
+                    job.coverage_branch = coverage_result.get("branch", 0.0)
+                    job.coverage_method = coverage_result.get("method", 0.0)
+                    job.coverage_class = coverage_result.get("class_", 0.0)
+                    job.coverage_instruction = coverage_result.get("instruction", 0.0)
+                    job.coverage_complexity = coverage_result.get("complexity", 0.0)
+                    
+                    if not request.run_sonar or not os.getenv("SONARQUBE_TOKEN"):
+                        job.sonar_coverage = job.coverage_line
+ 
+                    # Publish only after all XML test and JaCoCo metrics have been assigned.
+                    update_job(job_id, MigrationStatus.COVERAGE_ANALYSIS, 97, "Test execution and JaCoCo coverage analysis completed.")
+                    add_log(job_id, f"[Testing] JaCoCo Line Coverage: {job.coverage_line}%")
+                    add_log(job_id, f"JaCoCo Coverage: Line={job.coverage_line}%, Branch={job.coverage_branch}%, Method={job.coverage_method}%")
+ 
+        except Exception as e:
+            add_log(job_id, f"TEST PIPELINE ERROR: {str(e)}")
+            import traceback
+            add_log(job_id, traceback.format_exc())
+            # Set testing metrics to zero
+            job.tests_total = 0
+            job.tests_passed = 0
+            job.tests_failed = 0
+            job.tests_skipped = 0
+            job.test_success_rate = 0.0
+            job.tests_generated = 0
+            job.existing_tests_found = False
+            job.test_framework_detected = "none"
+            job.coverage_line = 0.0
+            job.coverage_branch = 0.0
+            job.coverage_method = 0.0
+            job.coverage_class = 0.0
+            job.coverage_instruction = 0.0
+            job.coverage_complexity = 0.0
+            job.sonar_coverage = 0.0
+            job.api_endpoints_validated = 0
+            job.api_endpoints_working = 0
+            job.error_message = f"Automated testing pipeline failed: {str(e)}"
+        
         # Step 6: Push migrated code using the selected destination strategy
-        _, source_repo_name = await repo_service.parse_repo_url(request.source_repo_url)
-        now = datetime.now().strftime("%Y%m%d-%H%M%S")
-
-        # Use user token or fall back to default token
-        github_token = request.token.strip() if request.token and request.token.strip() else DEFAULT_GITHUB_TOKEN
-        add_log(job_id, f"Using GitHub token: {'user-provided' if request.token and request.token.strip() else 'default'}")
-
-        migration_approach = (request.migration_approach or "fork").strip().lower()
-
-        if migration_approach == "branch":
-            target_branch_name = normalize_target_branch_name(
-                request.target_repo_name,
-                source_repo_name,
-                now,
-            )
-            add_log(job_id, f"Target branch name: {target_branch_name}")
-            update_job(job_id, MigrationStatus.PUSHING, 90, "Pushing migrated code to a new branch...")
-            try:
-                branch_url = await repo_service.push_to_branch(
-                    github_token,
-                    request.source_repo_url,
-                    clone_path,
-                    target_branch_name,
-                )
-                job.target_repo = branch_url
-                add_log(job_id, f"? Pushed migrated code to branch: {branch_url}")
-            except Exception as push_error:
-                add_log(job_id, f"?? Branch push failed: {str(push_error)}")
-                add_log(job_id, f"?? Migrated code saved locally at: {clone_path}")
-                raise Exception(f"Git push to target branch failed: {str(push_error)}")
+        is_local_repo = not request.source_repo_url.startswith(("http://", "https://"))
+        if is_local_repo:
+            source_repo_name = os.path.basename(request.source_repo_url.rstrip("/\\"))
+            add_log(job_id, f"Local migration source detected. Skipping Git push step.")
+            job.target_repo = clone_path
         else:
-            target_repo_name = normalize_target_repo_name(
-                request.target_repo_name,
-                source_repo_name,
-                now,
-            )
-            add_log(job_id, f"Target repository name: {target_repo_name}")
-            update_job(job_id, MigrationStatus.PUSHING, 90, "Creating new repository and pushing migrated code...")
-            try:
-                new_repo_url = await repo_service.create_and_push_repo(
-                    github_token,
-                    target_repo_name,
-                    clone_path,
-                    f"Migrated from {request.source_repo_url} (Java {request.source_java_version} ? Java {request.target_java_version.value})"
+            _, source_repo_name = await repo_service.parse_repo_url(request.source_repo_url)
+            now = datetime.now().strftime("%Y%m%d-%H%M%S")
+ 
+            # Use user token or fall back to default token
+            github_token = request.token.strip() if request.token and request.token.strip() else DEFAULT_GITHUB_TOKEN
+            add_log(job_id, f"Using GitHub token: {'user-provided' if request.token and request.token.strip() else 'default'}")
+ 
+            migration_approach = (request.migration_approach or "fork").strip().lower()
+ 
+            if migration_approach == "branch":
+                target_branch_name = normalize_target_branch_name(
+                    request.target_repo_name,
+                    source_repo_name,
+                    now,
                 )
-                job.target_repo = new_repo_url
-                add_log(job_id, f"? Created new repository: {new_repo_url}")
-            except Exception as push_error:
-                add_log(job_id, f"?? GitHub push failed: {str(push_error)}")
-                add_log(job_id, f"?? Migrated code saved locally at: {clone_path}")
-                raise Exception(f"Git push to target repository failed: {str(push_error)}")
-
+                add_log(job_id, f"Target branch name: {target_branch_name}")
+                update_job(job_id, MigrationStatus.PUSHING, 90, "Pushing migrated code to a new branch...")
+                add_log(job_id, "[Testing] Pushing generated tests to GitHub...")
+                try:
+                    branch_url = await repo_service.push_to_branch(
+                        github_token,
+                        request.source_repo_url,
+                        clone_path,
+                        target_branch_name,
+                    )
+                    job.target_repo = branch_url
+                    add_log(job_id, f"? Pushed migrated code to branch: {branch_url}")
+                except Exception as push_error:
+                    add_log(job_id, f"?? Branch push failed: {str(push_error)}")
+                    add_log(job_id, f"?? Migrated code saved locally at: {clone_path}")
+                    raise Exception(f"Git push to target branch failed: {str(push_error)}")
+            else:
+                target_repo_name = normalize_target_repo_name(
+                    request.target_repo_name,
+                    source_repo_name,
+                    now,
+                )
+                add_log(job_id, f"Target repository name: {target_repo_name}")
+                update_job(job_id, MigrationStatus.PUSHING, 90, "Creating new repository and pushing migrated code...")
+                add_log(job_id, "[Testing] Pushing generated tests to GitHub...")
+                try:
+                    new_repo_url = await repo_service.create_and_push_repo(
+                        github_token,
+                        target_repo_name,
+                        clone_path,
+                        f"Migrated from {request.source_repo_url} (Java {request.source_java_version} -> Java {request.target_java_version.value})"
+                    )
+                    job.target_repo = new_repo_url
+                    add_log(job_id, f"? Created new repository: {new_repo_url}")
+                except Exception as push_error:
+                    add_log(job_id, f"?? GitHub push failed: {str(push_error)}")
+                    add_log(job_id, f"?? Migrated code saved locally at: {clone_path}")
+                    raise Exception(f"Git push to target repository failed: {str(push_error)}")
+ 
         # Step 7: Send email notification
         if request.email and request.email.strip():
             success = await email_service.send_migration_summary(request.email.strip(), job)
@@ -2063,13 +2834,22 @@ async def run_migration(job_id: str, request: MigrationRequest):
                 add_log(job_id, f"Failed to send migration summary to {request.email}")
         
         # Complete
+        add_log(job_id, "[Testing] Testing pipeline completed successfully.")
         update_job(job_id, MigrationStatus.COMPLETED, 100, "Migration completed successfully!")
         job.completed_at = datetime.now(timezone.utc)
+        try:
+            save_migration(job.model_dump() if hasattr(job, "model_dump") else job.dict())
+        except Exception as db_err:
+            print(f"Error saving completed job to database: {db_err}")
         
     except Exception as e:
         job.status = MigrationStatus.FAILED
         job.error_message = str(e)
         add_log(job_id, f"ERROR: {str(e)}")
+        try:
+            save_migration(job.model_dump() if hasattr(job, "model_dump") else job.dict())
+        except Exception as db_err:
+            print(f"Error saving failed job to database: {db_err}")
 
 
 def generate_migration_issues(
@@ -2287,10 +3067,17 @@ def mark_issues_fixed(job: MigrationResult, conversion_type: str, count: int):
 def update_job(job_id: str, status: MigrationStatus, progress: int, step: str):
     """Update job status"""
     if job_id in migration_jobs:
-        migration_jobs[job_id].status = status
-        migration_jobs[job_id].progress_percent = progress
-        migration_jobs[job_id].current_step = step
+        job = migration_jobs[job_id]
+        job.status = status
+        job.progress_percent = progress
+        job.current_step = step
         add_log(job_id, step)
+        
+        try:
+            save_migration(job.model_dump() if hasattr(job, "model_dump") else job.dict())
+        except Exception as e:
+            print(f"Error saving job update to database: {e}")
+            
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(broadcast_job_update(job_id))

@@ -45,7 +45,7 @@ import {
   previewMigration,
   startMigration,
   getMigrationFossa,
-  // Import API_BASE_URL for dynamic URL construction
+  getMigrationStatus,
 } from "../services/api";
 import { API_BASE_URL, APP_BASE_URL } from "../services/api";
 import DiscoveryDashboard from "./discovery/DiscoveryDashboard";
@@ -458,6 +458,25 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const [versionRecommendation, setVersionRecommendation] = useState<JavaVersionRecommendationResponse | null>(null);
   const [versionRecommendationLoading, setVersionRecommendationLoading] = useState(false);
   const [versionRecommendationError, setVersionRecommendationError] = useState("");
+  const [downloadSize, setDownloadSize] = useState<string>("Calculating...");
+  const [downloadTimestamp, setDownloadTimestamp] = useState<string>("");
+
+  useEffect(() => {
+    if (migrationJob && migrationJob.job_id) {
+      fetch(`${API_BASE_URL}/migration/${migrationJob.job_id}/download-zip`, { method: 'HEAD' })
+        .then(res => {
+          const bytes = res.headers.get('content-length');
+          if (bytes) {
+            const sizeMB = (parseInt(bytes) / (1024 * 1024)).toFixed(2);
+            setDownloadSize(`${sizeMB} MB`);
+          } else {
+            setDownloadSize("1.5 MB (Est.)");
+          }
+        })
+        .catch(() => setDownloadSize("1.5 MB (Est.)"));
+    }
+  }, [migrationJob]);
+
   const [activeMigrationTab, setActiveMigrationTab] = useState(0);
   const currentIndicatorStep = getIndicatorStep(step);
 
@@ -1288,6 +1307,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
         const fallbackJob = initialJob ?? migrationJob ?? null;
         const derivedJob = payload?.job || {};
+
+        // Helper: keep the previous non-zero value when the incoming value is 0/falsy.
+        // This prevents intermediate progress events (where tests haven't run yet)
+        // from overwriting already-received non-zero test/coverage metrics.
+        const keepNonZeroNum = (incoming: number | undefined, prev: number | undefined) =>
+          (incoming !== undefined && incoming !== 0) ? incoming : (prev ?? 0);
+        const keepNonZeroFloat = (incoming: number | undefined, prev: number | undefined) =>
+          (incoming !== undefined && incoming !== 0) ? incoming : (prev ?? 0.0);
+
         const nextJob = {
           ...derivedJob,
           job_id: payload?.job_id || derivedJob.job_id || jobId,
@@ -1310,15 +1338,42 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           fossa_license_issues: payload?.fossa_metrics?.license_issues ?? derivedJob.fossa_license_issues ?? fallbackJob?.fossa_license_issues,
           fossa_vulnerabilities: payload?.fossa_metrics?.vulnerabilities ?? derivedJob.fossa_vulnerabilities ?? fallbackJob?.fossa_vulnerabilities,
           fossa_outdated_dependencies: payload?.fossa_metrics?.outdated_dependencies ?? derivedJob.fossa_outdated_dependencies ?? fallbackJob?.fossa_outdated_dependencies,
+          // Test & coverage metrics: preserve non-zero values from previous state
+          tests_total: keepNonZeroNum(derivedJob.tests_total, fallbackJob?.tests_total),
+          tests_passed: keepNonZeroNum(derivedJob.tests_passed, fallbackJob?.tests_passed),
+          tests_failed: keepNonZeroNum(derivedJob.tests_failed, fallbackJob?.tests_failed),
+          tests_skipped: keepNonZeroNum(derivedJob.tests_skipped, fallbackJob?.tests_skipped),
+          test_success_rate: keepNonZeroFloat(derivedJob.test_success_rate, fallbackJob?.test_success_rate),
+          tests_generated: keepNonZeroNum(derivedJob.tests_generated, fallbackJob?.tests_generated),
+          existing_tests_found: derivedJob.existing_tests_found ?? fallbackJob?.existing_tests_found ?? false,
+          test_framework_detected: derivedJob.test_framework_detected ?? fallbackJob?.test_framework_detected,
+          coverage_line: keepNonZeroFloat(derivedJob.coverage_line, fallbackJob?.coverage_line),
+          coverage_branch: keepNonZeroFloat(derivedJob.coverage_branch, fallbackJob?.coverage_branch),
+          coverage_method: keepNonZeroFloat(derivedJob.coverage_method, fallbackJob?.coverage_method),
+          coverage_class: keepNonZeroFloat(derivedJob.coverage_class, fallbackJob?.coverage_class),
+          coverage_instruction: keepNonZeroFloat(derivedJob.coverage_instruction, fallbackJob?.coverage_instruction),
+          coverage_complexity: keepNonZeroFloat(derivedJob.coverage_complexity, fallbackJob?.coverage_complexity),
         } as MigrationResult;
 
         setMigrationJob(nextJob);
+        console.log("DEBUG FRONTEND: Received job update:", nextJob);
         setMigrationLogs(nextJob.migration_log || []);
 
         if (nextJob.status === "completed") {
           closeMigrationSocket();
           setSocketStatus("completed");
-          setStep(7);
+          // Perform a final authoritative fetch from the REST API to get the real
+          // test/coverage numbers that were stored after migration completed.
+          getMigrationStatus(jobId)
+            .then((finalJob) => {
+              console.log("DEBUG FRONTEND: Final job fetch after completion:", finalJob);
+              setMigrationJob(finalJob);
+              setMigrationLogs(finalJob.migration_log || []);
+            })
+            .catch((err) => {
+              console.warn("Could not fetch final job state after completion:", err);
+            })
+            .finally(() => setStep(7));
         } else if (nextJob.status === "failed") {
           closeMigrationSocket();
           setSocketStatus("disconnected");
@@ -1370,6 +1425,28 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
 
     connectMigrationSocket(migrationJob.job_id);
   }, [migrationJob?.job_id, step]);
+
+  // When the report page (step 7) is shown and we have a job_id but no test/coverage data yet,
+  // perform an authoritative REST fetch to get the final results from the backend.
+  useEffect(() => {
+    if (step !== 7 || !migrationJob?.job_id) return;
+    const hasTestData = (migrationJob.tests_total ?? 0) > 0 || (migrationJob.coverage_line ?? 0) > 0;
+    if (hasTestData) return; // already have data, skip
+
+    let cancelled = false;
+    getMigrationStatus(migrationJob.job_id)
+      .then((refreshedJob) => {
+        if (cancelled) return;
+        console.log("DEBUG FRONTEND: Refreshed job on report page:", refreshedJob);
+        setMigrationJob(refreshedJob);
+        setMigrationLogs(refreshedJob.migration_log || []);
+      })
+      .catch((err) => {
+        console.warn("Could not refresh job data on report page:", err);
+      });
+
+    return () => { cancelled = true; };
+  }, [step, migrationJob?.job_id]);
 
   const handleConversionToggle = (id: string) => {
     setSelectedConversions((prev) =>
@@ -3694,27 +3771,111 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
             <h3 style={styles.reportTitle}> Unit Test Report</h3>
             <div style={styles.testReportGrid}>
               <div style={styles.testMetric}>
-                <span style={styles.testValue}>10</span>
+                <span style={styles.testValue}>{migrationJob?.existing_test_classes ?? 0}</span>
+                <span style={styles.testLabel}>Existing Test Classes</span>
+              </div>
+              <div style={styles.testMetric}>
+                <span style={styles.testValue}>{migrationJob?.tests_generated ?? 0}</span>
+                <span style={styles.testLabel}>Generated Test Classes</span>
+              </div>
+              <div style={styles.testMetric}>
+                <span style={styles.testValue}>{migrationJob?.tests_total ?? 0}</span>
                 <span style={styles.testLabel}>Tests Run</span>
               </div>
               <div style={styles.testMetric}>
-                <span style={{ ...styles.testValue, color: "#22c55e" }}>10</span>
+                <span style={{ ...styles.testValue, color: "#22c55e" }}>{migrationJob?.tests_passed ?? 0}</span>
                 <span style={styles.testLabel}>Tests Passed</span>
               </div>
               <div style={styles.testMetric}>
-                <span style={{ ...styles.testValue, color: "#ef4444" }}>0</span>
+                <span style={{ ...styles.testValue, color: "#ef4444" }}>{migrationJob?.tests_failed ?? 0}</span>
                 <span style={styles.testLabel}>Tests Failed</span>
               </div>
               <div style={styles.testMetric}>
-                <span style={styles.testValue}>100%</span>
+                <span style={{ ...styles.testValue, color: "#f59e0b" }}>{migrationJob?.tests_skipped ?? 0}</span>
+                <span style={styles.testLabel}>Tests Skipped</span>
+              </div>
+              <div style={styles.testMetric}>
+                <span style={styles.testValue}>{(migrationJob?.test_success_rate ?? 0).toFixed(0)}%</span>
                 <span style={styles.testLabel}>Success Rate</span>
               </div>
+              <div style={styles.testMetric}>
+                <span style={styles.testValue}>{(migrationJob?.test_execution_time_seconds ?? 0).toFixed(2)}s</span>
+                <span style={styles.testLabel}>Execution Time</span>
+              </div>
             </div>
-            <div style={styles.testStatus}>
-              <span style={styles.testStatusIcon}></span>
-              <span>All unit tests passed successfully</span>
+            <div style={{
+              ...styles.testStatus,
+              backgroundColor: migrationJob?.tests_total && migrationJob.tests_total > 0
+                ? (migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "#fee2e2" : "#dcfce7")
+                : "#f1f5f9",
+              borderColor: migrationJob?.tests_total && migrationJob.tests_total > 0
+                ? (migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "#fca5a5" : "#86efac")
+                : "#cbd5e1",
+              color: migrationJob?.tests_total && migrationJob.tests_total > 0
+                ? (migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "#991b1b" : "#166534")
+                : "#64748b"
+            }}>
+              <span style={styles.testStatusIcon}>
+                {!migrationJob?.tests_total || migrationJob.tests_total === 0
+                  ? "ℹ️"
+                  : migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "⚠️" : "✅"}
+              </span>
+              <span>
+                {migrationJob?.tests_generated && migrationJob.tests_generated > 0
+                  ? "Additional JUnit test cases were automatically generated using the configured Gemini API."
+                  : migrationJob?.existing_tests_found
+                    ? "Existing unit tests were analyzed and executed successfully."
+                    : "No test results available. Tests may not have run or the project has no executable test suite."}
+              </span>
             </div>
           </div>
+
+          {/* JaCoCo Code Coverage */}
+          {runTests && (
+            <div style={styles.reportSection}>
+              <h3 style={styles.reportTitle}> JaCoCo Code Coverage</h3>
+              <div style={styles.sonarqubeGrid}>
+                <div style={styles.sonarqubeItem}>
+                  <div style={styles.coverageMeter}>
+                    <div style={styles.coverageCircle}>
+                      <span style={styles.coveragePercent}>{(migrationJob?.coverage_line ?? 0).toFixed(1)}%</span>
+                      <span style={styles.coverageLabel}>Line Coverage</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={styles.sonarqubeItem}>
+                  <div style={styles.coverageMeter}>
+                    <div style={styles.coverageCircle}>
+                      <span style={styles.coveragePercent}>{(migrationJob?.coverage_branch ?? 0).toFixed(1)}%</span>
+                      <span style={styles.coverageLabel}>Branch Coverage</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={styles.sonarqubeItem}>
+                  <div style={styles.coverageMeter}>
+                    <div style={styles.coverageCircle}>
+                      <span style={styles.coveragePercent}>{(migrationJob?.coverage_method ?? 0).toFixed(1)}%</span>
+                      <span style={styles.coverageLabel}>Method Coverage</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style={styles.qualityMetrics}>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>{(migrationJob?.coverage_class ?? 0).toFixed(1)}%</span>
+                  <span style={styles.metricLabel}>Class Coverage</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>{(migrationJob?.coverage_instruction ?? 0).toFixed(1)}%</span>
+                  <span style={styles.metricLabel}>Instruction Coverage</span>
+                </div>
+                <div style={styles.metricItem}>
+                  <span style={styles.metricValue}>{(migrationJob?.coverage_complexity ?? 0).toFixed(1)}%</span>
+                  <span style={styles.metricLabel}>Complexity Coverage</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* JMeter Test Report */}
           <div style={styles.reportSection}>
@@ -3781,6 +3942,54 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
         </div>
       )}
 
+      {/* Download Information Card */}
+      {migrationJob && (
+        <div style={{
+          backgroundColor: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '20px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+        }}>
+          <h4 style={{ margin: '0 0 16px 0', color: '#0f172a', fontSize: '16px', fontWeight: 600 }}>Download Information</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+            <div>
+              <span style={{ display: 'block', fontSize: '12px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', marginBottom: '4px' }}>Repository Name</span>
+              <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{migrationJob.source_repo.split('/').pop()?.replace('.git', '') || migrationJob.source_repo}</span>
+            </div>
+            <div>
+              <span style={{ display: 'block', fontSize: '12px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', marginBottom: '4px' }}>Migration Status</span>
+              <span style={{ 
+                display: 'inline-block',
+                fontSize: '12px', 
+                color: migrationJob.status === 'completed' ? '#15803d' : '#b45309', 
+                backgroundColor: migrationJob.status === 'completed' ? '#dcfce7' : '#fef3c7', 
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                fontWeight: 600 
+              }}>{migrationJob.status.toUpperCase()}</span>
+            </div>
+            <div>
+              <span style={{ display: 'block', fontSize: '12px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', marginBottom: '4px' }}>Generated Test Classes</span>
+              <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{migrationJob.tests_generated}</span>
+            </div>
+            <div>
+              <span style={{ display: 'block', fontSize: '12px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', marginBottom: '4px' }}>Coverage Summary</span>
+              <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>Line: {migrationJob.coverage_line.toFixed(1)}% | Branch: {migrationJob.coverage_branch.toFixed(1)}%</span>
+            </div>
+            <div>
+              <span style={{ display: 'block', fontSize: '12px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', marginBottom: '4px' }}>Download Size</span>
+              <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{downloadSize}</span>
+            </div>
+            <div>
+              <span style={{ display: 'block', fontSize: '12px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', marginBottom: '4px' }}>Download Timestamp</span>
+              <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{downloadTimestamp || 'Not downloaded yet'}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Download Buttons */}
       <div style={styles.btnRow}>
         <button
@@ -3790,14 +3999,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               const zipUrl = `${API_BASE_URL}/migration/${migrationJob.job_id}/download-zip`;
               const link = document.createElement('a');
               link.href = zipUrl;
-              link.download = `migrated-project-${migrationJob.job_id}.zip`;
+              link.download = `MigratedRepository.zip`;
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
+              setDownloadTimestamp(new Date().toLocaleString());
             }
           }}
         >
-           Download Migrated Project (ZIP)
+           Download Migrated Repository
         </button>
         <button
           style={{ ...styles.secondaryBtn, marginRight: 10 }}

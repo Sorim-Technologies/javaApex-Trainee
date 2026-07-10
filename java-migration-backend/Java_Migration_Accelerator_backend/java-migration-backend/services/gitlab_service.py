@@ -385,6 +385,16 @@ class GitLabService:
             print("DEBUG: Staging changes...")
             repo.git.add(A=True)
 
+            # Force add surefire and jacoco reports if they exist
+            for r_dir in ["target/surefire-reports", "target/site/jacoco", "build/reports"]:
+                full_r_dir = os.path.join(local_path, r_dir)
+                if os.path.exists(full_r_dir):
+                    try:
+                        print(f"DEBUG: Force staging {r_dir}...")
+                        repo.git.add(full_r_dir, force=True)
+                    except Exception as force_add_err:
+                        print(f"DEBUG: Failed to force stage {r_dir}: {force_add_err}")
+
             # Check if there are staged changes
             staged = repo.git.diff("--cached", "--name-only")
             print(f"DEBUG: Staged files: {staged}")
@@ -486,6 +496,16 @@ class GitLabService:
             origin.set_url(auth_url)
 
             repo.git.add(A=True)
+
+            # Force add surefire and jacoco reports if they exist
+            for r_dir in ["target/surefire-reports", "target/site/jacoco", "build/reports"]:
+                full_r_dir = os.path.join(local_path, r_dir)
+                if os.path.exists(full_r_dir):
+                    try:
+                        print(f"DEBUG: Force staging {r_dir}...")
+                        repo.git.add(full_r_dir, force=True)
+                    except Exception as force_add_err:
+                        print(f"DEBUG: Failed to force stage {r_dir}: {force_add_err}")
             staged = repo.git.diff("--cached", "--name-only")
 
             if staged.strip():

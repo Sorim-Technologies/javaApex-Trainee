@@ -41,6 +41,24 @@ def save_migration(data: Dict[str, Any], db=None) -> Migration:
         version_after = payload.get("version_after") or payload.get("target_java_version") or "unknown"
         status = str(payload.get("status") or payload.get("job_status") or "pending")
 
+        # Test and coverage fields
+        tests_total = payload.get("tests_total")
+        tests_passed = payload.get("tests_passed")
+        tests_failed = payload.get("tests_failed")
+        tests_skipped = payload.get("tests_skipped")
+        test_success_rate = payload.get("test_success_rate")
+        test_execution_time_seconds = payload.get("test_execution_time_seconds")
+        tests_generated = payload.get("tests_generated")
+        existing_tests_found = payload.get("existing_tests_found")
+        existing_test_classes = payload.get("existing_test_classes")
+        test_framework_detected = payload.get("test_framework_detected")
+        coverage_line = payload.get("coverage_line")
+        coverage_branch = payload.get("coverage_branch")
+        coverage_method = payload.get("coverage_method")
+        coverage_class = payload.get("coverage_class")
+        coverage_instruction = payload.get("coverage_instruction")
+        coverage_complexity = payload.get("coverage_complexity")
+
         existing = session.query(Migration).filter(Migration.migration_id == migration_id).first() if migration_id else None
         if existing:
             existing.repository_name = repository_name
@@ -49,6 +67,24 @@ def save_migration(data: Dict[str, Any], db=None) -> Migration:
             existing.version_before = str(version_before)
             existing.version_after = str(version_after)
             existing.status = status
+            
+            if tests_total is not None: existing.tests_total = tests_total
+            if tests_passed is not None: existing.tests_passed = tests_passed
+            if tests_failed is not None: existing.tests_failed = tests_failed
+            if tests_skipped is not None: existing.tests_skipped = tests_skipped
+            if test_success_rate is not None: existing.test_success_rate = test_success_rate
+            if test_execution_time_seconds is not None: existing.test_execution_time_seconds = test_execution_time_seconds
+            if tests_generated is not None: existing.tests_generated = tests_generated
+            if existing_tests_found is not None: existing.existing_tests_found = existing_tests_found
+            if existing_test_classes is not None: existing.existing_test_classes = existing_test_classes
+            if test_framework_detected is not None: existing.test_framework_detected = test_framework_detected
+            if coverage_line is not None: existing.coverage_line = coverage_line
+            if coverage_branch is not None: existing.coverage_branch = coverage_branch
+            if coverage_method is not None: existing.coverage_method = coverage_method
+            if coverage_class is not None: existing.coverage_class = coverage_class
+            if coverage_instruction is not None: existing.coverage_instruction = coverage_instruction
+            if coverage_complexity is not None: existing.coverage_complexity = coverage_complexity
+
             migration = existing
         else:
             migration = Migration(
@@ -59,6 +95,22 @@ def save_migration(data: Dict[str, Any], db=None) -> Migration:
                 version_before=str(version_before),
                 version_after=str(version_after),
                 status=status,
+                tests_total=tests_total or 0,
+                tests_passed=tests_passed or 0,
+                tests_failed=tests_failed or 0,
+                tests_skipped=tests_skipped or 0,
+                test_success_rate=test_success_rate or 0.0,
+                test_execution_time_seconds=test_execution_time_seconds or 0.0,
+                tests_generated=tests_generated or 0,
+                existing_tests_found=existing_tests_found or False,
+                existing_test_classes=existing_test_classes or 0,
+                test_framework_detected=test_framework_detected,
+                coverage_line=coverage_line or 0.0,
+                coverage_branch=coverage_branch or 0.0,
+                coverage_method=coverage_method or 0.0,
+                coverage_class=coverage_class or 0.0,
+                coverage_instruction=coverage_instruction or 0.0,
+                coverage_complexity=coverage_complexity or 0.0
             )
             session.add(migration)
 
@@ -811,7 +863,7 @@ class MigrationService:
             result["issues_fixed"] += restructure_result.get("issues_fixed", 0)
             result["changes"].extend(restructure_result.get("changes", []))
             result["project_restructured"] = True
-            print(f"✓ Converted standalone project to Maven structure")
+            print(f"Success: Converted standalone project to Maven structure")
 
         # Update pom.xml Java version (now it should exist)
         pom_path = os.path.join(project_path, "pom.xml")
@@ -1653,7 +1705,7 @@ class ApplicationTest {{
             if content != original_content:
                 with open(pom_path, 'w', encoding='utf-8') as f:
                     f.write(content)
-                print(f"✓ Updated pom.xml with Java {target_version}")
+                print(f"Success: Updated pom.xml with Java {target_version}")
                 return True
             
             return False
@@ -1941,7 +1993,7 @@ class ApplicationTest {{
             
             # ===== CODE QUALITY COMMENTS =====
             # Only add Java version comment to README.md files, not to source code files
-            if file.lower().endswith('readme.md') and f'// Migrated to Java {target_version}' not in content:
+            if filepath.lower().endswith('readme.md') and f'// Migrated to Java {target_version}' not in content:
                 # Add migration comment at the top of README files only
                 content = f'<!-- Migrated to Java {target_version} by Java Migration Accelerator -->\n\n{content}'
                 changes.append(f"Added Java {target_version} migration comment to README.md")
@@ -2020,6 +2072,15 @@ class ApplicationTest {{
                                                     replacement = f'public {return_type} {method_name}({params}) {{\n        Objects.requireNonNull({param_name}, "{param_name} cannot be null");'
                                                     content = re.sub(method_start_pattern, replacement, content, count=1)
                                                     file_fixes += 1
+                                                    
+                                                    # Ensure Objects is imported
+                                                    if "import java.util.Objects;" not in content:
+                                                        package_match = re.search(r'package\s+[\w.]+;', content)
+                                                        if package_match:
+                                                            pkg = package_match.group(0)
+                                                            content = content.replace(pkg, f"{pkg}\n\nimport java.util.Objects;")
+                                                        else:
+                                                            content = f"import java.util.Objects;\n{content}"
 
                         # ===== STRING OPERATION IMPROVEMENTS =====
 
@@ -2220,7 +2281,7 @@ class ApplicationTest {{
                             if num not in ['0', '1', '10', '100', '1000']:  # Common acceptable numbers
                                 content = re.sub(
                                     rf'\b{num}\b',
-                                    f'{num} // TODO: Consider extracting as named constant',
+                                    f'{num} /* TODO: Consider extracting as named constant */',
                                     content,
                                     count=1
                                 )
@@ -2256,7 +2317,7 @@ class ApplicationTest {{
                             with open(filepath, 'w', encoding='utf-8') as f:
                                 f.write(content)
                             fixes += file_fixes
-                            print(f"✓ Applied {file_fixes} business logic fixes to {file}")
+                            print(f"Success: Applied {file_fixes} business logic fixes to {file}")
 
                     except Exception as e:
                         print(f"Error fixing business logic in {filepath}: {e}")
