@@ -19,52 +19,55 @@ class PromptBuilder:
             package_name = getattr(class_meta, "package_name", "") or ""
             imports_list = getattr(class_meta, "imports", []) or []
             annotations_list = getattr(class_meta, "annotations", []) or []
-            fields_list = getattr(class_meta, "fields", []) or []
-            methods_meta = getattr(class_meta, "methods", []) or []
-
-            # 4. Extract Constructors
-            constructor_pattern = r'public\s+' + re.escape(class_name) + r'\s*\((.*?)\)\s*(?:throws\s+[\w\.\s,]+)?\s*\{'
-            for match in re.finditer(constructor_pattern, java_source):
-                params = match.group(1).strip()
-                constructors_list.append(f"public {class_name}({params})")
             
-            # Default fallback if no explicit constructor is found in code (implicit default constructor)
+            # Constructors
+            raw_constructors = getattr(class_meta, "constructors", []) or []
+            for constr in raw_constructors:
+                c_name = constr.get("name", "")
+                c_params = constr.get("params", [])
+                c_exceptions = constr.get("exceptions", [])
+                c_annotations = constr.get("annotations", [])
+                
+                params_str = ", ".join(f"{p.get('type')} {p.get('name')}" for p in c_params)
+                annotations_str = " ".join(f"@{a}" for a in c_annotations)
+                exceptions_str = f" throws {', '.join(c_exceptions)}" if c_exceptions else ""
+                
+                constructors_list.append(f"{annotations_str} public {c_name}({params_str}){exceptions_str}".strip())
+                
             if not constructors_list:
                 constructors_list.append(f"public {class_name}() [default no-arg constructor]")
+                
+            # Dependencies to Mock
+            autowired_deps = getattr(class_meta, "autowired_dependencies", []) or []
+            for dep in autowired_deps:
+                fields_list.append((dep.get("type", ""), dep.get("name", "")))
+                
+            # Fallback to fields if autowired_dependencies is empty
+            if not fields_list:
+                raw_fields = getattr(class_meta, "fields", []) or []
+                for field_item in raw_fields:
+                    if isinstance(field_item, tuple) and len(field_item) == 2:
+                        fields_list.append(field_item)
 
-            # 6-9. Extract Method Details (signatures, return types, exceptions)
-            for m in methods_meta:
+            # Methods
+            raw_methods = getattr(class_meta, "methods", []) or []
+            for m in raw_methods:
                 m_name = m.get("name", "")
                 m_ret = m.get("return_type", "void")
                 m_params = m.get("params", [])
+                m_exceptions = m.get("exceptions", [])
+                m_annotations = m.get("annotations", [])
                 
-                # Format parameters for signature
-                params_formatted = []
-                for p in m_params:
-                    if isinstance(p, dict):
-                        params_formatted.append(f"{p.get('type')} {p.get('name')}")
-                    elif isinstance(p, tuple) and len(p) == 2:
-                        params_formatted.append(f"{p[0]} {p[1]}")
-                params_str = ", ".join(params_formatted)
-                
-                # Search source to find throws clause and method annotations
-                method_regex = r'(?:(@\w+(?:\([^)]*\))?)\s*)*(?:public|protected|private)?\s*(?:static\s+)?(?:final\s+)?' + re.escape(m_ret) + r'\s+' + re.escape(m_name) + r'\s*\((.*?)\)\s*(?:throws\s+([\w\.\s,]+))?\s*(?:\{|;)'
-                m_match = re.search(method_regex, java_source, re.DOTALL)
-                
-                exceptions = []
-                method_annotations = []
-                if m_match:
-                    if m_match.group(1):
-                        method_annotations.append(m_match.group(1).strip())
-                    if m_match.group(3):
-                        exceptions = [e.strip() for e in m_match.group(3).split(",") if e.strip()]
+                params_str = ", ".join(f"{p.get('type')} {p.get('name')}" for p in m_params)
+                annotations_str = " ".join(f"@{a}" for a in m_annotations)
+                exceptions_str = f" throws {', '.join(m_exceptions)}" if m_exceptions else ""
                 
                 methods_list.append({
                     "name": m_name,
                     "return_type": m_ret,
-                    "signature": f"public {m_ret} {m_name}({params_str})",
-                    "exceptions": exceptions,
-                    "annotations": method_annotations
+                    "signature": f"{annotations_str} public {m_ret} {m_name}({params_str}){exceptions_str}".strip(),
+                    "exceptions": m_exceptions,
+                    "annotations": m_annotations
                 })
 
         # Format metadata for Gemini Input
@@ -106,11 +109,12 @@ class PromptBuilder:
 2. NEVER generate `TODO` comments, empty test methods, or commented-out method calls.
 3. Every test method MUST invoke the actual production method under test on the target instance.
 4. Mock every dependency and REST client automatically using Mockito.
-5. Every generated test must verify behavior using assertions like `assertEquals`, `assertThrows`, `assertNotNull`, and Mockito verifications like `verify()` and `verifyNoInteractions()`.
+5. Every generated test must verify behavior using assertions like `assertEquals`, `assertThrows`, `assertNotNull`, and Mockito verifications like `verify()` and `verifyNoMoreInteractions()`.
 6. Generate unit tests covering: positive scenarios, negative scenarios, exception/error paths, null validation/safety checks, boundary values, and edge cases.
 7. Return ONLY the compilable Java source code. No explanations. No markdown. No introductory text. Start directly with the package declaration.
-8. The test must include @BeforeEach, @ExtendWith(MockitoExtension.class), at least one @Mock, and @InjectMocks.
-9. Use assertEquals, assertTrue, assertFalse, assertThrows, assertNotNull, and verify() where meaningful for production behavior.
+8. The test must include `@ExtendWith(MockitoExtension.class)` on the test class, `@Mock` for all dependency fields, `@InjectMocks` for the class under test, and `@BeforeEach` for setup and data initialization.
+9. Structure every test method following the Arrange-Act-Assert pattern.
+10. Ensure every test method contains a complete implementation.
 
 {meta_section}
 

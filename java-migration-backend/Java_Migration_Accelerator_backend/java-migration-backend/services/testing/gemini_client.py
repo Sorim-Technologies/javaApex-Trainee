@@ -27,6 +27,7 @@ class GeminiClient:
         self.max_retries = max(1, int(os.getenv('GEMINI_MAX_RETRIES', '3')))
         self.request_timeout_seconds = float(os.getenv('GEMINI_REQUEST_TIMEOUT_SECONDS', '90'))
         self.base_retry_delay_seconds = float(os.getenv('GEMINI_RETRY_DELAY_SECONDS', '5'))
+        self.total_timeout_seconds = float(os.getenv("GEMINI_TOTAL_TIMEOUT_SECONDS", "120"))
 
     def _is_retryable_error(self, err_str: str) -> bool:
         return any(token in err_str for token in ["429", "quota", "rate limit", "resource", "temporarily", "timeout", "timed out", "connection", "503", "500", "retry"])
@@ -37,6 +38,17 @@ class GeminiClient:
         await asyncio.sleep(wait)
 
     async def _call_gemini(self, prompt: str, caller_label: str = "gemini") -> Optional[str]:
+        """Bound the complete model/fallback sequence so a stage cannot hang."""
+        try:
+            return await asyncio.wait_for(
+                self._call_gemini_impl(prompt, caller_label),
+                timeout=self.total_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            print(f"[{caller_label}] Gemini total timeout after {self.total_timeout_seconds:.1f}s; continuing without a repair")
+            return None
+
+    async def _call_gemini_impl(self, prompt: str, caller_label: str = "gemini") -> Optional[str]:
         """
         Tries every model in GEMINI_MODELS via the SDK first, then falls
         back to the REST API.  On a 429 / 503 it waits with exponential
@@ -68,6 +80,9 @@ class GeminiClient:
                     except Exception as e:
                         err_str = str(e).lower()
                         print(f"[{caller_label}] SDK error with {model_name}: {e}")
+                        if "429" in err_str or "quota" in err_str or "rate limit" in err_str:
+                            print(f"[{caller_label}] Rate limited; marking request failed immediately")
+                            return None
                         if self._is_retryable_error(err_str) and attempt_idx < self.max_retries - 1:
                             await self._sleep_with_backoff(attempt_idx, caller_label, model_name)
                             continue
@@ -91,7 +106,11 @@ class GeminiClient:
                             timeout=self.request_timeout_seconds,
                         )
 
-                        if resp.status_code in {429, 500, 502, 503, 504}:
+                        if resp.status_code == 429:
+                            print(f"[{caller_label}] HTTP 429 rate limit; marking request failed immediately")
+                            return None
+
+                        if resp.status_code in {500, 502, 503, 504}:
                             if attempt_idx < self.max_retries - 1:
                                 await self._sleep_with_backoff(attempt_idx, caller_label, model_name)
                                 continue
@@ -149,18 +168,43 @@ class GeminiClient:
         production_source: Optional[str] = None,
         class_meta: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
-        """Send only the failing generated test and compiler diagnostics to Gemini."""
+        """Send only the failing generated test and compiler diagnostics to Gemini for repair."""
         if not self.api_key:
             return None
 
         prod_section = ""
         if production_source:
-            prod_section = f"\n=== PRODUCTION SOURCE CLASS ===\n```java\n{production_source}\n```\n"
+            prod_section = f"\n=== PRODUCTION CLASS SOURCE (read-only, do NOT modify) ===\n```java\n{production_source[:4000]}\n```\n"
 
-        fix_prompt = f"""You are a Java compilation error correction tool. Fix ONLY the compilation errors. Do NOT change the test logic or assertions.
-Return the COMPLETE fixed test class.
+        class_context = ""
+        if class_meta and isinstance(class_meta, dict):
+            pkg = class_meta.get("package_name", "")
+            deps = class_meta.get("autowired_dependencies", class_meta.get("dependencies", []))
+            ctors = class_meta.get("constructors", [])
+            methods = class_meta.get("methods", class_meta.get("public_methods", []))
+            spring = class_meta.get("annotations", class_meta.get("spring_annotations", []))
+            imports = class_meta.get("imports", [])
+            test_imports = re.findall(r"^\s*import\s+([^;]+);", generated_test, re.MULTILINE)
+            class_context = (
+                f"Package: {pkg}\n"
+                f"Production imports: {imports}\n"
+                f"Generated-test imports: {test_imports}\n"
+                f"Constructor signatures: {ctors}\n"
+                f"Public methods: {[m.get('name','') + str(m.get('parameters','')) for m in methods[:10]]}\n"
+                f"Dependencies (fields to mock): {deps}\n"
+                f"Spring annotations: {spring}\n"
+            )
+
+        fix_prompt = f"""You are a Java JUnit 5 compilation repair expert.
+Your ONLY task is to fix the compiler errors listed below in the generated test class.
+Do NOT touch the production source. Do NOT change test logic or assertions.
+Return the COMPLETE, fully compilable fixed test class.
+
 {prod_section}
-=== GENERATED TEST CLASS (HAS ERRORS) ===
+=== CLASS METADATA ===
+{class_context}
+
+=== GENERATED TEST CLASS WITH ERRORS ===
 ```java
 {generated_test}
 ```
@@ -168,18 +212,68 @@ Return the COMPLETE fixed test class.
 === COMPILER ERRORS ===
 {compiler_errors}
 
-=== INSTRUCTIONS ===
-1. Fix ONLY the compilation errors listed above
-2. Do NOT change test logic, assertions, or add new tests
-3. Ensure all imports are correct
-4. Fix any type mismatches, missing imports, or syntax errors
-5. Return ONLY the fixed Java source code. No markdown. No explanations.
+=== MANDATORY FIX RULES ===
+
+1. IMPORTS — Add every missing import. Common ones:
+   import org.junit.jupiter.api.Test;
+   import org.junit.jupiter.api.BeforeEach;
+   import org.junit.jupiter.api.Assertions.*;
+   import org.junit.jupiter.api.extension.ExtendWith;
+   import org.mockito.junit.jupiter.MockitoExtension;
+   import org.mockito.Mock;
+   import org.mockito.InjectMocks;
+   import static org.mockito.Mockito.*;
+   import static org.junit.jupiter.api.Assertions.*;
+   import java.util.Optional;
+   import java.util.List;
+   import java.util.ArrayList;
+   import org.springframework.http.ResponseEntity;
+   import org.springframework.test.web.servlet.MockMvc;
+   import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+2. CHECKED EXCEPTIONS — Every test method that calls code throwing checked exceptions MUST either:
+   a) Declare: `void testXxx() throws Exception {{`  (preferred), or
+   b) Wrap the call in try/catch.
+   Add `throws Exception` to EVERY test method signature as a safe default.
+
+3. CANNOT FIND SYMBOL — Use ONLY methods/fields/constructors that actually exist
+   in the production class metadata above. Check constructor parameter types.
+
+4. INCOMPATIBLE TYPES — Match return types exactly. If a method returns Optional<T>,
+   use `Optional<T> result = ...` and `assertTrue(result.isPresent())`.
+   If it returns ResponseEntity<T>, use `ResponseEntity<?> result = ...`.
+
+5. CONSTRUCTOR MISMATCH — Use only the exact constructor signatures listed above.
+   Never invent parameters. Use `new ClassName()` if no-arg constructor exists.
+
+6. MOCKITO PATTERNS — Always include:
+   @ExtendWith(MockitoExtension.class)
+   @Mock for every dependency field.
+   @InjectMocks for the class under test.
+   Use `when(mock.method()).thenReturn(value)` before calling the method.
+   Use `verify(mock, times(1)).method()` after.
+   Stub every mock call that the production method invokes internally.
+
+7. WRONG METHOD NAMES — Use ONLY method names from the public_methods list above.
+   If a method doesn't exist, remove that test or replace with a correct call.
+
+8. SPRING — If class has @RestController/@Service/@Repository:
+   Use @ExtendWith(MockitoExtension.class), NOT @SpringBootTest (to avoid slow context).
+   For controllers, set up MockMvc in @BeforeEach:
+     this.mockMvc = MockMvcBuilders.standaloneSetup(controllerUnderTest).build();
+
+9. PACKAGE NAME — The package declaration must match exactly: use the package from the
+   production class metadata. Do NOT change it.
+
+10. RETURN ONLY the complete Java source code.
+    No markdown fences. No explanations. No comments about what you changed.
+    Start directly with `package` or `import`.
 """
 
         raw = await self._call_gemini(fix_prompt, caller_label="fix_compilation_errors")
         if raw:
             cleaned = self._clean_generated_code(raw)
-            if cleaned:
+            if cleaned and "class " in cleaned:
                 return cleaned
         return None
 

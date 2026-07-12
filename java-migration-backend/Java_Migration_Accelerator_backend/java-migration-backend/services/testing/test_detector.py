@@ -473,3 +473,81 @@ class TestDetector:
         else:
             model.test_framework = "none"
             model.test_framework_confidence = "high"
+
+    def map_production_to_tests(self, project_model: Any, test_model: TestModel) -> Dict[str, List[str]]:
+        """
+        Maps every production class to its existing test class names.
+        """
+        mapping = {}
+        test_by_name = {item.class_name: item for item in test_model.test_classes}
+        
+        all_classes = getattr(project_model, "all_classes", {})
+        if not all_classes and hasattr(project_model, "to_dict"):
+            all_classes = project_model.to_dict().get("all_classes", {})
+
+        for file_path, meta in all_classes.items():
+            class_name = ""
+            if hasattr(meta, "class_name"):
+                class_name = meta.class_name
+            elif isinstance(meta, dict):
+                class_name = meta.get("class_name", "")
+                
+            if not class_name:
+                continue
+                
+            candidates = [
+                f"{class_name}Test",
+                f"{class_name}Tests",
+                f"Test{class_name}",
+                f"{class_name}TestCase",
+                f"{class_name}IT",
+                f"{class_name}IntegrationTest",
+            ]
+            matched_tests = [name for name in candidates if name in test_by_name]
+            mapping[class_name] = matched_tests
+            
+        return mapping
+
+    async def detect_and_analyze_tests(self, project_path: str, project_model: Any) -> Dict[str, Any]:
+        """
+        Runs test detection and returns the structured results matching the user requirements.
+        """
+        # 1. Run detection
+        test_model = await self.detect_tests(project_path)
+        
+        # 2. Get classes without tests
+        uncovered_classes = self.get_classes_without_tests(project_model, test_model)
+        
+        # 3. Get test generation targets (which contain uncovered methods & candidates)
+        candidates = self.get_test_generation_targets(project_model, test_model)
+        
+        # 4. Extract uncovered methods from candidates
+        uncovered_methods = []
+        for cand in candidates:
+            uncovered_methods.append({
+                "class_name": os.path.basename(cand["file_path"]).replace(".java", ""),
+                "file_path": cand["file_path"],
+                "uncovered_methods": cand["uncovered_methods"]
+            })
+            
+        # 5. Map production to tests
+        prod_to_test_map = self.map_production_to_tests(project_model, test_model)
+        
+        # 6. Detailed Logging
+        print(f"=== Test Detection Engine ===")
+        print(f"[Test Detection Log] Existing tests found: {bool(test_model.test_classes)}")
+        print(f"[Test Detection Log] Detected test framework: {test_model.test_framework}")
+        print(f"[Test Detection Log] Uncovered production classes: {len(uncovered_classes)}")
+        print(f"[Test Detection Log] Total test candidates: {len(candidates)}")
+        for class_name, test_names in prod_to_test_map.items():
+            if test_names:
+                print(f"[Test Detection Log] Production class {class_name} maps to: {test_names}")
+                
+        return {
+            "existing_tests_found": bool(test_model.test_classes),
+            "uncovered_classes": uncovered_classes,
+            "uncovered_methods": uncovered_methods,
+            "generated_test_candidates": candidates,
+            "test_framework": test_model.test_framework,
+            "production_to_test_mapping": prod_to_test_map
+        }

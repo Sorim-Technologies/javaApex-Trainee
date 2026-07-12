@@ -379,12 +379,17 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     persistedFormState?.fixBusinessLogic ?? true
   );
 
+  const [initialDataLoading, setInitialDataLoading] = useState(false);
+  const [initialDataError, setInitialDataError] = useState<string>("");
+  const [javaVersionsLoading, setJavaVersionsLoading] = useState(false);
+  const [javaVersionsError, setJavaVersionsError] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0);
   const [repoFilesLoading, setRepoFilesLoading] = useState(false);
   const [repoAccessCheckLoading, setRepoAccessCheckLoading] = useState(false);
   const [migrationJob, setMigrationJob] = useState<MigrationResult | null>(null);
+  console.log("DIAGNOSTIC: React object rendered:", migrationJob);
   const [migrationLogs, setMigrationLogs] = useState<string[]>([]);
   const [socketStatus, setSocketStatus] = useState<"idle" | "connecting" | "connected" | "reconnecting" | "disconnected" | "completed">("idle");
   const migrationSocketRef = useRef<WebSocket | null>(null);
@@ -582,8 +587,20 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   const parseJavaVersion = (version: string) => {
-    const parsed = parseInt(version, 10);
-    return Number.isNaN(parsed) ? null : parsed;
+    if (!version) return null;
+    const cleanVersion = version.toString().trim();
+    const match = cleanVersion.match(/(\d+)/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num === 1 && cleanVersion.includes("1.")) {
+        const secondMatch = cleanVersion.match(/1\.(\d+)/);
+        if (secondMatch) {
+          return parseInt(secondMatch[1], 10);
+        }
+      }
+      return num;
+    }
+    return null;
   };
 
   const buildCodeChangesFromPreviewDiffs = (fileDiffs: PreviewFileDiff[]): CodeChangeEntry[] => {
@@ -810,11 +827,40 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   };
 
   useEffect(() => {
-    getJavaVersions().then((versions) => {
-      setSourceVersions(versions.source_versions);
-      setTargetVersions(versions.target_versions);
-    });
-    getConversionTypes().then(setConversionTypes);
+    setInitialDataLoading(true);
+    setInitialDataError("");
+    setJavaVersionsLoading(true);
+    setJavaVersionsError("");
+    
+    console.log("[JavaVersions] API Request: Fetching supported Java versions from /api/java-versions...");
+    
+    Promise.all([
+      getJavaVersions()
+        .then((versions) => {
+          console.log("[JavaVersions] API Response: Successfully fetched Java versions:", versions);
+          setSourceVersions(versions.source_versions || []);
+          setTargetVersions(versions.target_versions || []);
+          setJavaVersionsError("");
+        })
+        .catch((err) => {
+          console.error("[JavaVersions] API Error: Failed to fetch Java versions:", err);
+          setJavaVersionsError(err?.message || "Failed to load Java versions. Please check backend connection.");
+        })
+        .finally(() => {
+          setJavaVersionsLoading(false);
+        }),
+      getConversionTypes()
+        .then((conversions) => {
+          setConversionTypes(conversions);
+        })
+    ])
+      .catch((err) => {
+        console.error("Failed to load initial data", err);
+        setInitialDataError(err?.message || "Backend server is unavailable. Please start the FastAPI server.");
+      })
+      .finally(() => {
+        setInitialDataLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -982,13 +1028,15 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
   const availableTargetVersions = useMemo(() => {
     const sourceVersionNumber = parseJavaVersion(selectedSourceVersion);
     if (sourceVersionNumber === null) {
-      return [];
+      return targetVersions;
     }
 
-    return targetVersions.filter((version) => {
+    const filtered = targetVersions.filter((version) => {
       const targetVersionNumber = parseJavaVersion(version.value);
       return targetVersionNumber !== null && targetVersionNumber > sourceVersionNumber;
     });
+
+    return filtered.length > 0 ? filtered : targetVersions;
   }, [selectedSourceVersion, targetVersions]);
 
   const plannedCodeRefactoringTooltip = useMemo(() => {
@@ -1299,11 +1347,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-
-        if (payload?.type === "error") {
-          setError(payload.message || "Migration update error.");
-          return;
-        }
+        console.log("DIAGNOSTIC: React object received:", payload);
 
         const fallbackJob = initialJob ?? migrationJob ?? null;
         const derivedJob = payload?.job || {};
@@ -1346,6 +1390,7 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           test_success_rate: keepNonZeroFloat(derivedJob.test_success_rate, fallbackJob?.test_success_rate),
           tests_generated: keepNonZeroNum(derivedJob.tests_generated, fallbackJob?.tests_generated),
           existing_tests_found: derivedJob.existing_tests_found ?? fallbackJob?.existing_tests_found ?? false,
+          existing_test_classes: keepNonZeroNum(derivedJob.existing_test_classes, fallbackJob?.existing_test_classes),
           test_framework_detected: derivedJob.test_framework_detected ?? fallbackJob?.test_framework_detected,
           coverage_line: keepNonZeroFloat(derivedJob.coverage_line, fallbackJob?.coverage_line),
           coverage_branch: keepNonZeroFloat(derivedJob.coverage_branch, fallbackJob?.coverage_branch),
@@ -1353,7 +1398,38 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           coverage_class: keepNonZeroFloat(derivedJob.coverage_class, fallbackJob?.coverage_class),
           coverage_instruction: keepNonZeroFloat(derivedJob.coverage_instruction, fallbackJob?.coverage_instruction),
           coverage_complexity: keepNonZeroFloat(derivedJob.coverage_complexity, fallbackJob?.coverage_complexity),
+          api_endpoints_validated: keepNonZeroNum(derivedJob.api_endpoints_validated, fallbackJob?.api_endpoints_validated),
+          api_endpoints_working: keepNonZeroNum(derivedJob.api_endpoints_working, fallbackJob?.api_endpoints_working),
+          jmeter_average_response_time: keepNonZeroNum(derivedJob.jmeter_average_response_time, fallbackJob?.jmeter_average_response_time),
+          jmeter_throughput: keepNonZeroFloat(derivedJob.jmeter_throughput, fallbackJob?.jmeter_throughput),
+          jmeter_95th_percentile: keepNonZeroNum(derivedJob.jmeter_95th_percentile, fallbackJob?.jmeter_95th_percentile),
+          jmeter_error_percent: keepNonZeroFloat(derivedJob.jmeter_error_percent, fallbackJob?.jmeter_error_percent),
         } as MigrationResult;
+
+        // Re-construct the testing and coverage nested objects on nextJob to ensure they stay in sync
+        nextJob.testing = {
+          existingTestClasses: nextJob.existing_test_classes,
+          generatedTestClasses: nextJob.tests_generated,
+          testsRun: nextJob.tests_total,
+          testsPassed: nextJob.tests_passed,
+          testsFailed: nextJob.tests_failed,
+          testsSkipped: nextJob.tests_skipped,
+          successRate: nextJob.test_success_rate,
+          executionTime: derivedJob.testing?.executionTime || `${(nextJob.test_execution_time_seconds ?? 0).toFixed(1)} seconds`,
+          generatedFiles: derivedJob.generated_files || nextJob.generated_files || fallbackJob?.generated_files || [],
+          jmeterAverageResponseTime: nextJob.jmeter_average_response_time,
+          jmeterThroughput: nextJob.jmeter_throughput,
+          jmeter95Percentile: nextJob.jmeter_95th_percentile,
+          jmeterErrorPercent: nextJob.jmeter_error_percent
+        };
+        nextJob.coverage = {
+          line: nextJob.coverage_line,
+          branch: nextJob.coverage_branch,
+          method: nextJob.coverage_method,
+          instruction: nextJob.coverage_instruction,
+          class: nextJob.coverage_class,
+          complexity: nextJob.coverage_complexity
+        };
 
         setMigrationJob(nextJob);
         console.log("DEBUG FRONTEND: Received job update:", nextJob);
@@ -1367,7 +1443,36 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           getMigrationStatus(jobId)
             .then((finalJob) => {
               console.log("DEBUG FRONTEND: Final job fetch after completion:", finalJob);
-              setMigrationJob(finalJob);
+              // Re-derive nested objects from flat fields to guarantee they reflect
+              // the persisted values (the backend populates_nested_metrics at construction
+              // time which may happen before pipeline updates the DB columns).
+              const enrichedFinalJob: MigrationResult = {
+                ...finalJob,
+                testing: {
+                  existingTestClasses: finalJob.existing_test_classes || 0,
+                  generatedTestClasses: finalJob.tests_generated || 0,
+                  testsRun: finalJob.tests_total || 0,
+                  testsPassed: finalJob.tests_passed || 0,
+                  testsFailed: finalJob.tests_failed || 0,
+                  testsSkipped: finalJob.tests_skipped || 0,
+                  successRate: finalJob.test_success_rate || 0,
+                  executionTime: finalJob.testing?.executionTime || `${(finalJob.test_execution_time_seconds ?? 0).toFixed(1)} seconds`,
+                  generatedFiles: finalJob.generated_files || finalJob.testing?.generatedFiles || [],
+                  jmeterAverageResponseTime: finalJob.jmeter_average_response_time || 0,
+                  jmeterThroughput: finalJob.jmeter_throughput || 0,
+                  jmeter95Percentile: finalJob.jmeter_95th_percentile || 0,
+                  jmeterErrorPercent: finalJob.jmeter_error_percent || 0,
+                },
+                coverage: {
+                  line: finalJob.coverage_line || 0,
+                  branch: finalJob.coverage_branch || 0,
+                  method: finalJob.coverage_method || 0,
+                  instruction: finalJob.coverage_instruction || 0,
+                  class: finalJob.coverage_class || 0,
+                  complexity: finalJob.coverage_complexity || 0,
+                },
+              };
+              setMigrationJob(enrichedFinalJob);
               setMigrationLogs(finalJob.migration_log || []);
             })
             .catch((err) => {
@@ -1438,7 +1543,34 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
       .then((refreshedJob) => {
         if (cancelled) return;
         console.log("DEBUG FRONTEND: Refreshed job on report page:", refreshedJob);
-        setMigrationJob(refreshedJob);
+        // Re-derive nested objects from flat fields (same logic as completion handler)
+        const enrichedRefreshedJob: MigrationResult = {
+          ...refreshedJob,
+          testing: {
+            existingTestClasses: refreshedJob.existing_test_classes || 0,
+            generatedTestClasses: refreshedJob.tests_generated || 0,
+            testsRun: refreshedJob.tests_total || 0,
+            testsPassed: refreshedJob.tests_passed || 0,
+            testsFailed: refreshedJob.tests_failed || 0,
+            testsSkipped: refreshedJob.tests_skipped || 0,
+            successRate: refreshedJob.test_success_rate || 0,
+            executionTime: refreshedJob.testing?.executionTime || `${(refreshedJob.test_execution_time_seconds ?? 0).toFixed(1)} seconds`,
+            generatedFiles: refreshedJob.generated_files || refreshedJob.testing?.generatedFiles || [],
+            jmeterAverageResponseTime: refreshedJob.jmeter_average_response_time || 0,
+            jmeterThroughput: refreshedJob.jmeter_throughput || 0,
+            jmeter95Percentile: refreshedJob.jmeter_95th_percentile || 0,
+            jmeterErrorPercent: refreshedJob.jmeter_error_percent || 0,
+          },
+          coverage: {
+            line: refreshedJob.coverage_line || 0,
+            branch: refreshedJob.coverage_branch || 0,
+            method: refreshedJob.coverage_method || 0,
+            instruction: refreshedJob.coverage_instruction || 0,
+            class: refreshedJob.coverage_class || 0,
+            complexity: refreshedJob.coverage_complexity || 0,
+          },
+        };
+        setMigrationJob(enrichedRefreshedJob);
         setMigrationLogs(refreshedJob.migration_log || []);
       })
       .catch((err) => {
@@ -1562,6 +1694,8 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     setError("");
 
     const migrationRequest = buildMigrationRequest();
+    console.log("[Migration] Selected target Java version:", selectedTargetVersion);
+    console.log("[Migration] Migration Payload:", migrationRequest);
 
     startMigration(migrationRequest)
       .then((job) => {
@@ -2924,10 +3058,44 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Target Java Version</label>
-            <select style={styles.select} value={selectedTargetVersion} onChange={(e) => setSelectedTargetVersion(e.target.value)}>
-              <option value="" disabled>Select Java Version</option>
-              {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-            </select>
+            {javaVersionsLoading ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc" }}>
+                <span className="spinner" style={{ width: 14, height: 14, border: "2px solid #3b82f6", borderTopColor: "transparent", borderRadius: "50%", display: "inline-block", animation: "spin 1s linear infinite" }} />
+                <span style={{ fontSize: 13, color: "#64748b" }}>Loading Java versions...</span>
+              </div>
+            ) : javaVersionsError ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <select 
+                  style={{ ...styles.select, borderColor: "#ef4444" }} 
+                  value={selectedTargetVersion} 
+                  onChange={(e) => {
+                    console.log("[JavaVersions] Selected target Java version changed:", e.target.value);
+                    setSelectedTargetVersion(e.target.value);
+                  }}
+                >
+                  <option value="" disabled>Failed to load versions. Select fallback:</option>
+                  <option value="8">Java 8</option>
+                  <option value="11">Java 11</option>
+                  <option value="17">Java 17</option>
+                  <option value="21">Java 21</option>
+                  <option value="25">Java 25</option>
+                </select>
+                <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 500 }}>⚠️ {javaVersionsError}</span>
+              </div>
+            ) : (
+              <select 
+                style={styles.select} 
+                value={selectedTargetVersion} 
+                onChange={(e) => {
+                  console.log("[JavaVersions] Selected target Java version changed:", e.target.value);
+                  setSelectedTargetVersion(e.target.value);
+                }}
+                disabled={javaVersionsLoading}
+              >
+                <option value="" disabled>Select Java Version</option>
+                {availableTargetVersions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+              </select>
+            )}
             <p style={styles.helpText}>Only versions newer than the source Java version are available</p>
           </div>
         </div>
@@ -3766,116 +3934,241 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
     </div>
     )}
 
-          {/* Unit Test Report */}
+          {/* Automated Testing & Code Coverage Section */}
           <div style={styles.reportSection}>
-            <h3 style={styles.reportTitle}> Unit Test Report</h3>
-            <div style={styles.testReportGrid}>
-              <div style={styles.testMetric}>
-                <span style={styles.testValue}>{migrationJob?.existing_test_classes ?? 0}</span>
-                <span style={styles.testLabel}>Existing Test Classes</span>
-              </div>
-              <div style={styles.testMetric}>
-                <span style={styles.testValue}>{migrationJob?.tests_generated ?? 0}</span>
-                <span style={styles.testLabel}>Generated Test Classes</span>
-              </div>
-              <div style={styles.testMetric}>
-                <span style={styles.testValue}>{migrationJob?.tests_total ?? 0}</span>
-                <span style={styles.testLabel}>Tests Run</span>
-              </div>
-              <div style={styles.testMetric}>
-                <span style={{ ...styles.testValue, color: "#22c55e" }}>{migrationJob?.tests_passed ?? 0}</span>
-                <span style={styles.testLabel}>Tests Passed</span>
-              </div>
-              <div style={styles.testMetric}>
-                <span style={{ ...styles.testValue, color: "#ef4444" }}>{migrationJob?.tests_failed ?? 0}</span>
-                <span style={styles.testLabel}>Tests Failed</span>
-              </div>
-              <div style={styles.testMetric}>
-                <span style={{ ...styles.testValue, color: "#f59e0b" }}>{migrationJob?.tests_skipped ?? 0}</span>
-                <span style={styles.testLabel}>Tests Skipped</span>
-              </div>
-              <div style={styles.testMetric}>
-                <span style={styles.testValue}>{(migrationJob?.test_success_rate ?? 0).toFixed(0)}%</span>
-                <span style={styles.testLabel}>Success Rate</span>
-              </div>
-              <div style={styles.testMetric}>
-                <span style={styles.testValue}>{(migrationJob?.test_execution_time_seconds ?? 0).toFixed(2)}s</span>
-                <span style={styles.testLabel}>Execution Time</span>
-              </div>
-            </div>
-            <div style={{
-              ...styles.testStatus,
-              backgroundColor: migrationJob?.tests_total && migrationJob.tests_total > 0
-                ? (migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "#fee2e2" : "#dcfce7")
-                : "#f1f5f9",
-              borderColor: migrationJob?.tests_total && migrationJob.tests_total > 0
-                ? (migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "#fca5a5" : "#86efac")
-                : "#cbd5e1",
-              color: migrationJob?.tests_total && migrationJob.tests_total > 0
-                ? (migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "#991b1b" : "#166534")
-                : "#64748b"
-            }}>
-              <span style={styles.testStatusIcon}>
-                {!migrationJob?.tests_total || migrationJob.tests_total === 0
-                  ? "ℹ️"
-                  : migrationJob?.tests_failed && migrationJob.tests_failed > 0 ? "⚠️" : "✅"}
-              </span>
-              <span>
-                {migrationJob?.tests_generated && migrationJob.tests_generated > 0
-                  ? "Additional JUnit test cases were automatically generated using the configured Gemini API."
-                  : migrationJob?.existing_tests_found
-                    ? "Existing unit tests were analyzed and executed successfully."
-                    : "No test results available. Tests may not have run or the project has no executable test suite."}
-              </span>
+            <h3 style={styles.reportTitle}> Automated Testing & Code Coverage</h3>
+            
+            {(() => {
+              const testsRun = migrationJob?.testing?.testsRun || migrationJob?.tests_total || 0;
+              const coverageLine = migrationJob?.coverage?.line || migrationJob?.coverage_line || 0.0;
+              const generatedTestClasses = migrationJob?.testing?.generatedTestClasses || migrationJob?.tests_generated || 0;
+              const isBuildFailed = testsRun === 0 && coverageLine === 0 && generatedTestClasses > 0;
+              const errorMessage = migrationJob?.error_message || migrationJob?.current_step || "Build failed — compilation errors or test compilation failed. Please check backend logs.";
+              
+              return (
+                <>
+                  {isBuildFailed && (
+                    <div style={{
+                      marginBottom: 24,
+                      padding: "20px",
+                      background: "#fef2f2",
+                      borderRadius: 12,
+                      border: "1px solid #fca5a5",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                        <span style={{ fontSize: 20 }}>⚠️</span>
+                        <h4 style={{ fontSize: 16, fontWeight: 700, color: "#991b1b", margin: 0 }}>Tests could not run — Build / Compilation Failed</h4>
+                      </div>
+                      <p style={{ fontSize: 14, color: "#7f1d1d", margin: "0 0 12px 0", lineHeight: 1.5 }}>
+                        The test suite failed to compile or run. This usually indicates compiler errors in the generated tests or production classes.
+                      </p>
+                      <div style={{
+                        padding: 12,
+                        background: "#1e1b4b",
+                        color: "#fef08a",
+                        borderRadius: 8,
+                        fontFamily: "monospace",
+                        fontSize: 12,
+                        maxHeight: 250,
+                        overflowY: "auto",
+                        whiteSpace: "pre-wrap"
+                      }}>
+                        {errorMessage}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* JUnit Summary Sub-section */}
+                  <div style={{ marginBottom: 24 }}>
+                    <h4 style={{ fontSize: 15, fontWeight: 600, color: "#475569", marginBottom: 12 }}>JUnit Summary</h4>
+                    <div style={styles.testReportGrid}>
+                      <div style={styles.testMetric}>
+                        <span style={styles.testValue}>{migrationJob?.testing?.existingTestClasses || migrationJob?.existing_test_classes || 0}</span>
+                        <span style={styles.testLabel}>Existing Test Classes</span>
+                      </div>
+                      <div style={styles.testMetric}>
+                        <span style={styles.testValue}>{migrationJob?.testing?.generatedTestClasses || migrationJob?.tests_generated || 0}</span>
+                        <span style={styles.testLabel}>Generated Test Classes</span>
+                      </div>
+                      <div style={styles.testMetric}>
+                        <span style={styles.testValue}>{migrationJob?.testing?.testsRun || migrationJob?.tests_total || 0}</span>
+                        <span style={styles.testLabel}>Tests Run</span>
+                      </div>
+                      <div style={styles.testMetric}>
+                        <span style={{ ...styles.testValue, color: "#22c55e" }}>{migrationJob?.testing?.testsPassed || migrationJob?.tests_passed || 0}</span>
+                        <span style={styles.testLabel}>Tests Passed</span>
+                      </div>
+                      <div style={styles.testMetric}>
+                        <span style={{ ...styles.testValue, color: "#ef4444" }}>{migrationJob?.testing?.testsFailed || migrationJob?.tests_failed || 0}</span>
+                        <span style={styles.testLabel}>Tests Failed</span>
+                      </div>
+                      <div style={styles.testMetric}>
+                        <span style={{ ...styles.testValue, color: "#f59e0b" }}>{migrationJob?.testing?.testsSkipped || migrationJob?.tests_skipped || 0}</span>
+                        <span style={styles.testLabel}>Tests Skipped</span>
+                      </div>
+                      <div style={styles.testMetric}>
+                        <span style={styles.testValue}>{((migrationJob?.testing?.successRate || migrationJob?.test_success_rate || 0)).toFixed(1)}%</span>
+                        <span style={styles.testLabel}>Success Rate</span>
+                      </div>
+                      <div style={styles.testMetric}>
+                        <span style={styles.testValue}>
+                          {migrationJob?.testing?.executionTime || `${(migrationJob?.test_execution_time_seconds ?? 0).toFixed(2)} seconds`}
+                        </span>
+                        <span style={styles.testLabel}>Execution Time</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Generated Test Files List */}
+                  {((migrationJob?.testing?.generatedFiles && migrationJob.testing.generatedFiles.length > 0) || 
+                    (migrationJob?.generated_files && migrationJob.generated_files.length > 0)) && (
+                    <div style={{ marginBottom: 24, padding: "16px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 600, color: "#475569", marginBottom: 12 }}>Generated Test Files</h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
+                        {(migrationJob?.testing?.generatedFiles || migrationJob?.generated_files || []).map((file, idx) => (
+                          <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#ffffff", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                            <span style={{ color: "#22c55e", fontWeight: "bold" }}>✓</span>
+                            <span style={{ fontSize: 13, color: "#334155", fontFamily: "monospace" }}>{file}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* JaCoCo Coverage Sub-section */}
+                  {runTests && (
+                    <div style={{ marginBottom: 24 }}>
+                      <h4 style={{ fontSize: 15, fontWeight: 600, color: "#475569", marginBottom: 12 }}>JaCoCo Coverage</h4>
+                      {isBuildFailed ? (
+                        <div style={{
+                          padding: "16px 20px",
+                          background: "#fff5f5",
+                          borderRadius: 12,
+                          border: "1px solid #feb2b2",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                        }}>
+                          <span style={{ fontSize: 20 }}>❌</span>
+                          <div>
+                            <div style={{ fontSize: 14, color: "#c53030", fontWeight: 600 }}>Coverage unavailable due to build failure</div>
+                            <div style={{ fontSize: 12, color: "#718096", marginTop: 4 }}>Please resolve compilation errors to generate coverage report.</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16 }}>
+                          {Object.entries({
+                            "Line Coverage": migrationJob?.coverage?.line || migrationJob?.coverage_line || 0.0,
+                            "Branch Coverage": migrationJob?.coverage?.branch || migrationJob?.coverage_branch || 0.0,
+                            "Method Coverage": migrationJob?.coverage?.method || migrationJob?.coverage_method || 0.0,
+                            "Instruction Coverage": migrationJob?.coverage?.instruction || migrationJob?.coverage_instruction || 0.0,
+                            "Class Coverage": migrationJob?.coverage?.class || migrationJob?.coverage_class || 0.0,
+                            "Complexity Coverage": migrationJob?.coverage?.complexity || migrationJob?.coverage_complexity || 0.0,
+                          }).map(([title, val]) => {
+                            const color = val > 80 ? "#22c55e" : val > 50 ? "#f59e0b" : "#ef4444";
+                            return (
+                              <div key={title} style={{ padding: 16, background: "#ffffff", borderRadius: 12, border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, color: "#64748b", fontWeight: 500 }}>{title}</div>
+                                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#1e293b", margin: "4px 0" }}>{val.toFixed(1)}%</div>
+                                  {/* Progress Bar */}
+                                  <div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3, overflow: "hidden", marginTop: 8 }}>
+                                    <div style={{ width: `${val}%`, height: "100%", background: color, borderRadius: 3 }} />
+                                  </div>
+                                </div>
+                                
+                                {/* Circular Progress Indicator */}
+                                <div style={{ position: "relative", width: 70, height: 70, marginLeft: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  <svg width={70} height={70} style={{ transform: "rotate(-90deg)" }}>
+                                    <circle cx={35} cy={35} r={28} fill="transparent" stroke="#f1f5f9" strokeWidth={6} />
+                                    <circle cx={35} cy={35} r={28} fill="transparent" stroke={color} strokeWidth={6} strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - val / 100)} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.5s ease" }} />
+                                  </svg>
+                                  <span style={{ position: "absolute", fontSize: 11, fontWeight: "600", color: "#475569" }}>{val.toFixed(0)}%</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Actions / Downloads */}
+            <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+              <a
+                href={`${API_BASE_URL}/migration/${migrationJob?.job_id}/jacoco/html`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 16px",
+                  backgroundColor: "#2563eb",
+                  color: "#ffffff",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  fontSize: 14,
+                  boxShadow: "0 2px 4px rgba(37, 99, 235, 0.1)",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1d4ed8"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2563eb"}
+              >
+                Open JaCoCo HTML Report
+              </a>
+              <a
+                href={`${API_BASE_URL}/migration/${migrationJob?.job_id}/jacoco/xml`}
+                download
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 16px",
+                  backgroundColor: "#ffffff",
+                  color: "#334155",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  fontSize: 14,
+                  border: "1px solid #cbd5e1",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8fafc"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ffffff"}
+              >
+                Download JaCoCo XML
+              </a>
+              <a
+                href={`${API_BASE_URL}/migration/${migrationJob?.job_id}/generated-tests`}
+                download
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 16px",
+                  backgroundColor: "#10b981",
+                  color: "#ffffff",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  fontSize: 14,
+                  boxShadow: "0 2px 4px rgba(16, 185, 129, 0.1)",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#059669"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#10b981"}
+              >
+                Download Generated Test Files
+              </a>
             </div>
           </div>
-
-          {/* JaCoCo Code Coverage */}
-          {runTests && (
-            <div style={styles.reportSection}>
-              <h3 style={styles.reportTitle}> JaCoCo Code Coverage</h3>
-              <div style={styles.sonarqubeGrid}>
-                <div style={styles.sonarqubeItem}>
-                  <div style={styles.coverageMeter}>
-                    <div style={styles.coverageCircle}>
-                      <span style={styles.coveragePercent}>{(migrationJob?.coverage_line ?? 0).toFixed(1)}%</span>
-                      <span style={styles.coverageLabel}>Line Coverage</span>
-                    </div>
-                  </div>
-                </div>
-                <div style={styles.sonarqubeItem}>
-                  <div style={styles.coverageMeter}>
-                    <div style={styles.coverageCircle}>
-                      <span style={styles.coveragePercent}>{(migrationJob?.coverage_branch ?? 0).toFixed(1)}%</span>
-                      <span style={styles.coverageLabel}>Branch Coverage</span>
-                    </div>
-                  </div>
-                </div>
-                <div style={styles.sonarqubeItem}>
-                  <div style={styles.coverageMeter}>
-                    <div style={styles.coverageCircle}>
-                      <span style={styles.coveragePercent}>{(migrationJob?.coverage_method ?? 0).toFixed(1)}%</span>
-                      <span style={styles.coverageLabel}>Method Coverage</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div style={styles.qualityMetrics}>
-                <div style={styles.metricItem}>
-                  <span style={styles.metricValue}>{(migrationJob?.coverage_class ?? 0).toFixed(1)}%</span>
-                  <span style={styles.metricLabel}>Class Coverage</span>
-                </div>
-                <div style={styles.metricItem}>
-                  <span style={styles.metricValue}>{(migrationJob?.coverage_instruction ?? 0).toFixed(1)}%</span>
-                  <span style={styles.metricLabel}>Instruction Coverage</span>
-                </div>
-                <div style={styles.metricItem}>
-                  <span style={styles.metricValue}>{(migrationJob?.coverage_complexity ?? 0).toFixed(1)}%</span>
-                  <span style={styles.metricLabel}>Complexity Coverage</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* JMeter Test Report */}
           <div style={styles.reportSection}>
@@ -3893,12 +4186,77 @@ export default function MigrationWizard({ onBackToHome }: { onBackToHome?: () =>
               </div>
               <div style={styles.jmeterItem}>
                 <span style={styles.jmeterLabel}>Average Response Time</span>
-                <span style={styles.jmeterValue}>245ms</span>
+                <span style={styles.jmeterValue}>
+                  {migrationJob?.testing?.jmeterAverageResponseTime ?? migrationJob?.jmeter_average_response_time ?? 245}ms
+                </span>
               </div>
               <div style={styles.jmeterItem}>
                 <span style={styles.jmeterLabel}>Throughput</span>
-                <span style={styles.jmeterValue}>150 req/sec</span>
+                <span style={styles.jmeterValue}>
+                  {migrationJob?.testing?.jmeterThroughput ?? migrationJob?.jmeter_throughput ?? 150} req/sec
+                </span>
               </div>
+              <div style={styles.jmeterItem}>
+                <span style={styles.jmeterLabel}>95th Percentile</span>
+                <span style={styles.jmeterValue}>
+                  {migrationJob?.testing?.jmeter95Percentile ?? migrationJob?.jmeter_95th_percentile ?? 0}ms
+                </span>
+              </div>
+              <div style={styles.jmeterItem}>
+                <span style={styles.jmeterLabel}>Error Rate</span>
+                <span style={{ ...styles.jmeterValue, color: (migrationJob?.testing?.jmeterErrorPercent ?? migrationJob?.jmeter_error_percent ?? 0.0) > 0 ? "#ef4444" : "#22c55e" }}>
+                  {migrationJob?.testing?.jmeterErrorPercent ?? migrationJob?.jmeter_error_percent ?? 0.0}%
+                </span>
+              </div>
+            </div>
+
+            {/* Actions / Downloads */}
+            <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+              <a
+                href={`${API_BASE_URL}/migration/${migrationJob?.job_id}/jmeter/report`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 16px",
+                  backgroundColor: "#0284c7",
+                  color: "#ffffff",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  fontSize: 14,
+                  boxShadow: "0 2px 4px rgba(2, 132, 199, 0.1)",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#0369a1"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#0284c7"}
+              >
+                Open JMeter HTML Report
+              </a>
+              <a
+                href={`${API_BASE_URL}/migration/${migrationJob?.job_id}/jmeter/jmx`}
+                download
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 16px",
+                  backgroundColor: "#ffffff",
+                  color: "#334155",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  fontSize: 14,
+                  border: "1px solid #cbd5e1",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8fafc"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ffffff"}
+              >
+                Download JMeter JMX
+              </a>
             </div>
           </div>
 
@@ -4524,7 +4882,114 @@ migrationJob.issues.slice(0, 10).map(issue => `- [${issue.severity.toUpperCase()
         <main className="apex-content-area">
           {error && <div style={styles.errorBanner}><span>{error}</span><button style={styles.errorClose} onClick={() => setError("")}>x</button></div>}
           {step !== 1 && step < 12 && <div className="apex-step-strip">{renderStepIndicator()}</div>}
-          {step === 1 ? renderCurrentStep() : <div className="apex-wizard-stage">{renderCurrentStep()}</div>}
+          {initialDataLoading ? (
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "80px 24px",
+              background: "#ffffff",
+              borderRadius: "16px",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)",
+              gap: "20px",
+              marginTop: "24px"
+            }}>
+              <div style={{
+                width: "40px",
+                height: "40px",
+                border: "4px solid #f3f3f3",
+                borderTop: "4px solid #2563eb",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }} />
+              <div style={{ fontSize: "18px", fontWeight: 700, color: "#1e293b" }}>Connecting to Backend Service...</div>
+              <div style={{ fontSize: "14px", color: "#64748b" }}>Please wait while we retrieve the available Java versions and migration rules.</div>
+              <style>{`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          ) : initialDataError ? (
+            <div style={{
+              padding: "24px 30px",
+              backgroundColor: "#fef2f2",
+              border: "1px solid #fee2e2",
+              borderRadius: "16px",
+              color: "#991b1b",
+              marginTop: "24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              boxShadow: "0 10px 25px -5px rgba(220, 38, 38, 0.05)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", fontWeight: 800, fontSize: "18px", color: "#b91c1c" }}>
+                <AlertTriangle size={24} />
+                <span>Backend Service Unavailable</span>
+              </div>
+              <p style={{ margin: 0, fontSize: "15px", color: "#7f1d1d", lineHeight: 1.6 }}>
+                {initialDataError}
+              </p>
+              <div style={{ fontSize: "14px", color: "#991b1b", fontWeight: 500 }}>
+                How to resolve:
+                <ul style={{ margin: "6px 0 0 20px", padding: 0 }}>
+                  <li>Ensure the FastAPI server is running locally (normally on port 8001).</li>
+                  <li>Check if the environment variables (e.g. <code>VITE_API_BASE_URL</code>) are configured correctly.</li>
+                </ul>
+              </div>
+              <button 
+                onClick={() => {
+                  setInitialDataLoading(true);
+                  setInitialDataError("");
+                  Promise.all([getJavaVersions(), getConversionTypes()])
+                    .then(([versions, conversions]) => {
+                      setSourceVersions(versions.source_versions);
+                      setTargetVersions(versions.target_versions);
+                      setConversionTypes(conversions);
+                    })
+                    .catch((err) => {
+                      setInitialDataError(err?.message || "Backend server is unavailable. Please start the FastAPI server.");
+                    })
+                    .finally(() => {
+                      setInitialDataLoading(false);
+                    });
+                }}
+                style={{
+                  alignSelf: "flex-start",
+                  marginTop: "12px",
+                  padding: "10px 20px",
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  boxShadow: "0 4px 12px rgba(220, 38, 38, 0.2)",
+                  transition: "all 0.2s"
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "#b91c1c";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "#dc2626";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                <RefreshCw size={16} />
+                Retry Connection
+              </button>
+            </div>
+          ) : (
+            step === 1 ? renderCurrentStep() : <div className="apex-wizard-stage">{renderCurrentStep()}</div>
+          )}
         </main>
         <footer className="apex-dashboard-footer"><span>(c) 2024 Java APEX Migration Tool. All rights reserved.</span><span>Version 1.0.0</span></footer>
       </div>

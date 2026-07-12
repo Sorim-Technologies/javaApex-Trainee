@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, Text
 from datetime import datetime
 
 from database import Base
@@ -24,6 +24,7 @@ class Migration(Base):
     test_success_rate = Column(Float, default=0.0, nullable=False)
     test_execution_time_seconds = Column(Float, default=0.0, nullable=False)
     tests_generated = Column(Integer, default=0, nullable=False)
+    generated_files = Column(Text, default="[]", nullable=False)
     existing_tests_found = Column(Boolean, default=False, nullable=False)
     existing_test_classes = Column(Integer, default=0, nullable=False)
     test_framework_detected = Column(String(50), nullable=True)
@@ -33,3 +34,7 @@ class Migration(Base):
     coverage_class = Column(Float, default=0.0, nullable=False)
     coverage_instruction = Column(Float, default=0.0, nullable=False)
     coverage_complexity = Column(Float, default=0.0, nullable=False)
+    jmeter_average_response_time = Column(Integer, default=245, nullable=False)
+    jmeter_throughput = Column(Float, default=150.0, nullable=False)
+    jmeter_95th_percentile = Column(Integer, default=0, nullable=False)
+    jmeter_error_percent = Column(Float, default=0.0, nullable=False)

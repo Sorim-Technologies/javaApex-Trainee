@@ -2,11 +2,12 @@ import os
 import sys
 import glob
 import asyncio
+import re
 import xml.etree.ElementTree as ET
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, Callable
 
 class JacocoService:
-    async def generate_and_parse_report(self, project_path: str, build_tool: str) -> Dict[str, float]:
+    async def generate_and_parse_report(self, project_path: str, build_tool: str, log_cb: Optional[Callable[[str], None]] = None) -> Dict[str, float]:
         """
         Runs mvn jacoco:report or gradle jacocoTestReport, locates jacoco.xml, 
         and parses it to return coverage percentages.
@@ -44,21 +45,21 @@ class JacocoService:
                 mvnw_cmd_path = os.path.join(project_path, "mvnw.cmd")
                 mvnw_sh_path = os.path.join(project_path, "mvnw")
                 if is_windows and os.path.exists(mvnw_cmd_path):
-                    cmd = [".\\mvnw.cmd", "clean", "test", "jacoco:report", "-Dmaven.test.failure.ignore=true"]
+                    cmd = [".\\mvnw.cmd", "jacoco:report"]
                 elif not is_windows and os.path.exists(mvnw_sh_path):
-                    cmd = ["./mvnw", "clean", "test", "jacoco:report", "-Dmaven.test.failure.ignore=true"]
+                    cmd = ["./mvnw", "jacoco:report"]
                 else:
-                    cmd = ["mvn", "clean", "test", "jacoco:report", "-Dmaven.test.failure.ignore=true"]
+                    cmd = ["mvn", "jacoco:report"]
             
             elif build_tool == "gradle":
                 gradlew_bat_path = os.path.join(project_path, "gradlew.bat")
                 gradlew_sh_path = os.path.join(project_path, "gradlew")
                 if is_windows and os.path.exists(gradlew_bat_path):
-                    cmd = [".\\gradlew.bat", "clean", "test", "jacocoTestReport"]
+                    cmd = [".\\gradlew.bat", "jacocoTestReport"]
                 elif not is_windows and os.path.exists(gradlew_sh_path):
-                    cmd = ["./gradlew", "clean", "test", "jacocoTestReport"]
+                    cmd = ["./gradlew", "jacocoTestReport"]
                 else:
-                    cmd = ["gradle", "clean", "test", "jacocoTestReport"]
+                    cmd = ["gradle", "jacocoTestReport"]
             
             else:
                 print("Skipping JaCoCo run - no supported build tool.")
@@ -88,6 +89,21 @@ class JacocoService:
                 process.kill()
                 print("JaCoCo report generation timed out after 300 seconds.")
 
+            combined_output_lower = (locals().get('stdout_str', '') + locals().get('stderr_str', '')).lower()
+            shell_failure_markers = [
+                "is not recognized as an internal or external command",
+                "command not found",
+                "no such file or directory",
+                "'mvn' is not recognized",
+                "'gradle' is not recognized",
+            ]
+            if process.returncode != 0 and any(m in combined_output_lower for m in shell_failure_markers):
+                print(f"[JaCoCo] CRITICAL: build tool invocation failed (exit code {process.returncode}). "
+                      f"'{cmd[0]}' may not be installed or not on PATH.")
+                if log_cb:
+                    log_cb(f"[JaCoCo] CRITICAL: build tool invocation failed (exit code {process.returncode}). '{cmd[0]}' may not be installed or not on PATH.")
+                return metrics
+
             # 4. Locate jacoco.xml
             xml_path = self._find_jacoco_xml(project_path, build_tool)
 
@@ -98,12 +114,19 @@ class JacocoService:
                 parser = CoverageParser()
                 metrics = parser.parse_jacoco_xml(xml_path)
             else:
-                print(f"Could not locate JaCoCo XML report under {project_path}")
-                # Try to find surefire reports as a fallback for test counts
-                self._log_build_debug_info(project_path)
+                msg = f"Could not locate JaCoCo XML report under {project_path}. Build tool exit code: {process.returncode}"
+                print(msg)
+                if log_cb:
+                    log_cb(f"[JaCoCo] ERROR: {msg}")
+                    log_cb(f"[JaCoCo] Full build stdout:\n{locals().get('stdout_str', '')}")
+                    log_cb(f"[JaCoCo] Full build stderr:\n{locals().get('stderr_str', '')}")
+                if process.returncode != 0:
+                    raise RuntimeError(f"JaCoCo report generation failed: Build failed with exit code {process.returncode}")
 
         except Exception as e:
             print(f"Error in JacocoService: {e}")
+            if "Build failed with exit code" in str(e):
+                raise e
             import traceback
             traceback.print_exc()
         finally:
@@ -163,20 +186,17 @@ class JacocoService:
                         if plugins_match:
                             inner_plugins = plugins_match.group(1)
                             new_inner_plugins = inner_plugins + jacoco_plugin
-                            content = content.replace(f"<plugins>{inner_plugins}</plugins>", f"<plugins>{new_inner_plugins}</plugins>")
+                            p_start = build_match.start(1) + plugins_match.start(1)
+                            p_end = build_match.start(1) + plugins_match.end(1)
+                            content = content[:p_start] + new_inner_plugins + content[p_end:]
                         else:
                             new_inner_build = inner_build + f"\n        <plugins>{jacoco_plugin}\n        </plugins>"
-                            content = content.replace(f"<build>{inner_build}</build>", f"<build>{new_inner_build}</build>")
+                            b_start = build_match.start(1)
+                            b_end = build_match.end(1)
+                            content = content[:b_start] + new_inner_build + content[b_end:]
                     else:
-                        project_end_match = re.search(r"</project>", content)
-                        if project_end_match:
-                            build_block = f"""
-    <build>
-        <plugins>{jacoco_plugin}
-        </plugins>
-    </build>
-"""
-                            content = content.replace("</project>", f"{build_block}</project>")
+                        build_block = f"\n    <build>\n        <plugins>{jacoco_plugin}\n        </plugins>\n    </build>\n"
+                        content = re.sub(r'</project>\s*$', f"{build_block}</project>", content)
                     
                     with open(pom_path, "w", encoding="utf-8") as f:
                         f.write(content)
@@ -185,24 +205,54 @@ class JacocoService:
             
             elif build_tool == "gradle":
                 gradle_path = os.path.join(project_path, "build.gradle")
+                gradle_kts_path = os.path.join(project_path, "build.gradle.kts")
+                
+                target_path = None
                 if os.path.exists(gradle_path):
-                    with open(gradle_path, "r", encoding="utf-8", errors="ignore") as f:
+                    target_path = gradle_path
+                elif os.path.exists(gradle_kts_path):
+                    target_path = gradle_kts_path
+                    
+                if target_path:
+                    with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
+                    
+                    is_kts = target_path.endswith(".kts")
                     
                     if "jacoco" in content and "jacocoTestReport" in content:
                         return True
                     
-                    print("JaCoCo plugin not found in build.gradle. Adding it...")
-                    # Add id 'jacoco' to plugins block
-                    if "id 'jacoco'" not in content and 'id("jacoco")' not in content:
-                        if "plugins {" in content:
-                            content = content.replace("plugins {", "plugins {\n    id 'jacoco'", 1)
-                        else:
-                            content = "apply plugin: 'jacoco'\n" + content
+                    print(f"JaCoCo plugin not found in {os.path.basename(target_path)}. Adding it...")
                     
-                    # Add jacocoTestReport
+                    # Add plugins block check
+                    if is_kts:
+                        if 'id("jacoco")' not in content:
+                            if "plugins {" in content:
+                                content = content.replace("plugins {", 'plugins {\n    id("jacoco")', 1)
+                            else:
+                                content = 'apply(plugin = "jacoco")\n' + content
+                    else:
+                        if "id 'jacoco'" not in content and 'id("jacoco")' not in content:
+                            if "plugins {" in content:
+                                content = content.replace("plugins {", "plugins {\n    id 'jacoco'", 1)
+                            else:
+                                content = "apply plugin: 'jacoco'\n" + content
+                                
+                    # Add jacocoTestReport task configuration
                     if "jacocoTestReport" not in content:
-                        content += """
+                        if is_kts:
+                            content += """
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        csv.required.set(true)
+        html.required.set(true)
+    }
+}
+"""
+                        else:
+                            content += """
 jacocoTestReport {
     dependsOn test
     reports {
@@ -214,18 +264,27 @@ jacocoTestReport {
 """
                     # Ensure useJUnitPlatform is present
                     if "useJUnitPlatform" not in content:
-                        if "test {" in content:
-                            content = content.replace("test {", "test {\n    useJUnitPlatform()")
+                        if is_kts:
+                            if "tasks.test {" in content:
+                                content = content.replace("tasks.test {", "tasks.test {\n    useJUnitPlatform()")
+                            else:
+                                content += """
+tasks.test {
+    useJUnitPlatform()
+}
+"""
                         else:
-                            content += """
+                            if "test {" in content:
+                                content = content.replace("test {", "test {\n    useJUnitPlatform()")
+                            else:
+                                content += """
 test {
     useJUnitPlatform()
 }
 """
-                    
-                    with open(gradle_path, "w", encoding="utf-8") as f:
+                    with open(target_path, "w", encoding="utf-8") as f:
                         f.write(content)
-                    print("Successfully added JaCoCo Gradle configuration to build.gradle")
+                    print(f"Successfully added JaCoCo Gradle configuration to {os.path.basename(target_path)}")
                     return True
                     
         except Exception as e:

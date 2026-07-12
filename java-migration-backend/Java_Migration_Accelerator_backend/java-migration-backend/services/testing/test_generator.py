@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 import asyncio
+import time
 from typing import Dict, Any, List, Optional, Callable
 from services.testing.project_analyzer import ProjectAnalyzer
 from services.testing.test_detector import TestDetector
@@ -18,9 +19,10 @@ class TestGenerator:
         self.prompt_builder = PromptBuilder()
         self.validator = TestValidator()
         # Max retries for auto-correction loop, configurable via env
-        self.max_retries = int(os.getenv('TEST_CORRECTION_MAX_RETRIES', '3'))
+        self.max_retries = max(1, int(os.getenv('TEST_CORRECTION_MAX_RETRIES', '5')))
         # Compilation timeout in seconds
         self.compile_timeout = int(os.getenv('TEST_COMPILE_TIMEOUT', '120'))
+        self.repair_timeout = float(os.getenv("TEST_REPAIR_REQUEST_TIMEOUT_SECONDS", "120"))
 
     def _is_method_covered(self, method_name: str, existing_test_methods: List[str]) -> bool:
         pm_norm = re.sub(r'[^a-zA-Z0-9]', '', method_name).lower()
@@ -103,7 +105,7 @@ class TestGenerator:
     ) -> Dict[str, Any]:
         """
         Main entry point to scan and generate JUnit test cases for all uncovered classes.
-        Uses concurrent LLM calls and a batch compile-repair loop to verify code.
+        Uses sequential LLM calls and a batch compile-repair loop to verify code.
         """
         result = {
             "success": True,
@@ -125,19 +127,10 @@ class TestGenerator:
             # 2. Detect Existing Tests
             detection = await self.detector.detect_tests(project_path)
             
-            # Identify all production classes to process (excluding interfaces that are not repositories)
-            production_classes = []
-            for file_path, class_meta in analysis.all_classes.items():
-                class_name = getattr(class_meta, "class_name", "")
-                if not class_name:
-                    continue
-                is_interface = getattr(class_meta, "is_interface", False)
-                is_repository = getattr(class_meta, "is_repository", False)
-                if is_interface and not is_repository:
-                    continue
-                production_classes.append((file_path, class_meta))
+            # 3. Get candidates from Test Detection Engine
+            candidates = self.detector.get_test_generation_targets(analysis, detection)
 
-            if not production_classes:
+            if not candidates:
                 result["message"] = "No production classes found to test."
                 log_msg(f"[Testing] {result['message']}")
                 return result
@@ -148,21 +141,30 @@ class TestGenerator:
 
             # Determine build tool for compilation check
             build_tool = getattr(analysis, "build_tool", "none")
-            total_classes = len(production_classes)
+            total_classes = len(candidates)
 
-            # Concurrent Generation Phase
-            sem = asyncio.Semaphore(5)
+            # Sequential Generation Phase (one Java class at a time)
             backups = {}
             generated_classes_info = []
 
-            async def generate_for_class(file_path: str, class_meta: Any) -> Optional[Dict[str, Any]]:
+            for idx, cand in enumerate(candidates):
+                file_path = cand["file_path"]
+                test_class_name = cand["test_class_name"]
+                uncovered_methods = cand["uncovered_methods"]
+                additional = cand["additional"]
+                
+                class_meta = analysis.all_classes.get(file_path)
+                if not class_meta:
+                    continue
                 class_name = getattr(class_meta, "class_name", "")
+                if not class_name:
+                    continue
                 
                 # Determine test file path by replacing src/main/java with src/test/java
                 test_file_path = file_path.replace(os.path.join("src", "main", "java"), os.path.join("src", "test", "java"))
                 test_file_path = test_file_path.replace(os.path.join("src", "main", "java").replace("\\", "/"), os.path.join("src", "test", "java"))
                 dir_name = os.path.dirname(test_file_path)
-                test_file_path = os.path.join(dir_name, f"{class_name}Test.java")
+                test_file_path = os.path.join(dir_name, f"{test_class_name}.java")
 
                 # Read production source
                 try:
@@ -170,280 +172,112 @@ class TestGenerator:
                         java_source = f.read()
                 except Exception as e:
                     log_msg(f"[Testing] Failed to read source file {file_path}: {e}")
-                    return None
+                    continue
 
-                # Backup existing test file if it exists
+                # Backup / Skip checks:
+                # "Existing tests must never be overwritten."
                 if os.path.exists(test_file_path):
-                    try:
-                        with open(test_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                            backups[test_file_path] = f.read()
-                    except Exception as e:
-                        log_msg(f"[Testing] Error backing up existing test {test_file_path}: {e}")
-                        return None
+                    log_msg(f"[Testing] Test file already exists for {test_class_name} at {test_file_path}. Skipping to prevent overwriting.")
+                    continue
                 else:
                     backups[test_file_path] = None
 
-                async with sem:
-                    try:
-                        # Case 1: Test file does NOT exist
-                        if backups[test_file_path] is None:
-                            log_msg(f"[Testing] Generating tests for {class_name}...")
-                            prompt = self.prompt_builder.build_prompt(java_source, class_name, class_meta)
-                            generated_code = await self.client.generate_test(prompt, class_meta)
-                            
-                            cleaned_code = self.validator.clean_and_validate(generated_code, class_name, class_meta)
-                            if not cleaned_code:
-                                log_msg(f"[Testing] LLM generation failed or was invalid for {class_name}. Using fallback code generator...")
-                                from services.testing.test_code_generator import TestCodeGenerator
-                                cleaned_code = TestCodeGenerator.generate_test_code(self._get_class_meta_dict(class_meta))
+                log_msg(f"[Testing] Generating tests for {class_name} ({idx+1}/{total_classes}) -> {test_class_name}...")
+                
+                # Update progress
+                if progress_callback:
+                    progress_callback(idx, total_classes, f"Generating tests for {class_name}...")
 
-                            os.makedirs(os.path.dirname(test_file_path), exist_ok=True)
-                            with open(test_file_path, "w", encoding="utf-8") as f:
-                                f.write(cleaned_code)
-                                
-                            log_msg(f"[Testing] Generated {class_name}Test.java")
+                try:
+                    prompt = self.prompt_builder.build_prompt(
+                        java_source=java_source,
+                        class_name=class_name,
+                        class_meta=class_meta,
+                        test_class_name=test_class_name,
+                        uncovered_methods=uncovered_methods
+                    )
+                    generated_code = await self.client.generate_test(prompt, class_meta)
+                    
+                    cleaned_code = self.validator.clean_and_validate(generated_code, test_class_name, class_meta)
+                    if not cleaned_code:
+                        log_msg(f"[Testing] LLM generation failed or was invalid for {test_class_name}. Using fallback code generator...")
+                        class_meta_dict = self._get_class_meta_dict(class_meta).copy()
+                        # Override class_name in class_meta_dict to produce the expected test class name
+                        class_meta_dict["class_name"] = test_class_name.replace("Test", "")
+                        from services.testing.test_code_generator import TestCodeGenerator
+                        fallback_code = TestCodeGenerator.generate_test_code(class_meta_dict)
+                        cleaned_code = fallback_code.replace(f"class {class_meta_dict['class_name']}Test", f"class {test_class_name}")
 
-                        # Case 2: Test file ALREADY exists
-                        else:
-                            log_msg(f"[Testing] Test file already exists for {class_name}. Checking coverage...")
-                            test_class_info = self.detector._parse_test_file(test_file_path, f"{class_name}Test")
-                            existing_test_methods = []
-                            if test_class_info and test_class_info.test_methods:
-                                existing_test_methods = [tm.name for tm in test_class_info.test_methods]
+                    os.makedirs(os.path.dirname(test_file_path), exist_ok=True)
+                    with open(test_file_path, "w", encoding="utf-8") as f:
+                        f.write(cleaned_code)
+                        
+                    log_msg(f"[Testing] Generated Test: {test_class_name}.java")
 
-                            production_methods = getattr(class_meta, "methods", [])
-                            uncovered = self._get_uncovered_methods(production_methods, existing_test_methods)
+                    generated_info = {
+                        "file_path": file_path,
+                        "test_file_path": test_file_path,
+                        "class_name": class_name,
+                        "test_class_name": test_class_name,
+                        "class_meta": self._get_class_meta_dict(class_meta),
+                        "java_source": java_source
+                    }
 
-                            if not uncovered:
-                                log_msg(f"[Testing] Existing complete test suite for {class_name}. Skipping.")
-                                return None
+                    # Compile and repair this file immediately. A broken generated
+                    # test is never allowed to contaminate later test compilation.
+                    compiled, attempts = await self._compile_and_repair_generated_test(
+                        project_path, build_tool, generated_info, log_msg
+                    )
+                    if compiled:
+                        generated_info["repair_attempts"] = attempts
+                        generated_classes_info.append(generated_info)
+                    else:
+                        log_msg(
+                            f"[Testing] Discarding only unrecoverable generated test: "
+                            f"{test_class_name}.java after {self.max_retries} repair attempts."
+                        )
+                        try:
+                            os.remove(test_file_path)
+                        except OSError as remove_error:
+                            log_msg(f"[Testing] Could not discard {test_class_name}.java: {remove_error}")
 
-                            uncovered_names = [m["name"] for m in uncovered]
-                            log_msg(f"[Testing] Partial coverage detected for {class_name}. Generating tests for uncovered methods: {', '.join(uncovered_names)}")
-
-                            # Ask Gemini to generate only the missing test methods
-                            additional_code = await self.client.generate_additional_test_methods(
-                                production_source=java_source,
-                                existing_test_source=backups[test_file_path],
-                                uncovered_methods=uncovered_names,
-                                class_meta=self._get_class_meta_dict(class_meta)
-                            )
-
-                            # Clean and merge
-                            cleaned_additional = self.client._clean_generated_code(additional_code)
-                            imports = []
-                            methods_code = cleaned_additional
-                            
-                            if "// TEST METHODS" in cleaned_additional:
-                                parts = cleaned_additional.split("// TEST METHODS")
-                                imports_part = parts[0]
-                                methods_code = parts[1].strip()
-                                for line in imports_part.splitlines():
-                                    if line.strip().startswith("import "):
-                                        imports.append(line.strip())
-                            else:
-                                for line in cleaned_additional.splitlines():
-                                    if line.strip().startswith("import "):
-                                        imports.append(line.strip())
-                                methods_code = re.sub(r'import\s+[^;]+;', '', methods_code)
-                                methods_code = re.sub(r'public\s+class\s+\w+\s*\{', '', methods_code)
-                                if methods_code.strip().endswith('}'):
-                                    methods_code = methods_code.strip()[:-1].strip()
-
-                            merged_code = self._merge_test_methods(backups[test_file_path], imports, methods_code)
-                            
-                            with open(test_file_path, "w", encoding="utf-8") as f:
-                                f.write(merged_code)
-
-                            log_msg(f"[Testing] Merged {len(uncovered)} new test methods into {class_name}Test.java")
-
-                        return {
-                            "file_path": file_path,
-                            "test_file_path": test_file_path,
-                            "class_name": class_name,
-                            "class_meta": self._get_class_meta_dict(class_meta),
-                            "java_source": java_source
-                        }
-
-                    except Exception as class_err:
-                        log_msg(f"[Testing] Error generating/merging tests for class {class_name}: {class_err}")
-                        # Revert immediately on generation failure
-                        if backups[test_file_path] is not None:
-                            with open(test_file_path, "w", encoding="utf-8") as f:
-                                f.write(backups[test_file_path])
-                        elif os.path.exists(test_file_path):
-                            try:
-                                os.remove(test_file_path)
-                            except:
-                                pass
-                        return None
-
-            # Run parallel generation tasks
-            tasks = [generate_for_class(file_path, class_meta) for file_path, class_meta in production_classes]
-            completed_results = await asyncio.gather(*tasks)
-            generated_classes_info = [r for r in completed_results if r is not None]
+                except Exception as class_err:
+                    log_msg(f"[Testing] Error generating tests for class {class_name}: {class_err}")
+                    if os.path.exists(test_file_path):
+                        try:
+                            os.remove(test_file_path)
+                        except:
+                            pass
 
             if progress_callback:
-                progress_callback(total_classes, total_classes, "Test generation completed. Starting batch compilation verification...")
+                progress_callback(total_classes, total_classes, "Test generation completed. Starting compilation and repair...")
 
-            # Batch Compilation & Repair Loop Phase
-            total_correction_attempts = 0
-            failing_classes = list(generated_classes_info)
+            # ================================================================
+            # PHASE 2: Per-file compile-repair loop
+            # Each generated test is compiled, errors extracted, sent to Gemini
+            # for repair, recompiled, repeated up to max_retries times.
+            # Only fully-compiled tests proceed to the test run.
+            # ================================================================
+            total_correction_attempts = sum(i.get("repair_attempts", 0) for i in generated_classes_info)
 
-            for attempt in range(self.max_retries):
-                if not failing_classes:
-                    break
+            # Test execution and report parsing are deliberately owned by the
+            # orchestration pipeline. The generator returns only verified files so
+            # Maven/Gradle runs once and metrics are published only after parsing.
 
-                compiles, build_output = await self._check_project_compilation(project_path, build_tool)
-                if compiles:
-                    log_msg("[Testing] Project compiled successfully!")
-                    failing_classes = []
-                    break
-
-                log_msg(f"[Testing] Project compilation failed (attempt {attempt + 1}/{self.max_retries}). Analyzing compiler errors...")
-                
-                still_failing = []
-                repair_tasks = []
-
-                async def repair_class(info: Dict[str, Any], compiler_errors_for_class: str) -> Optional[Dict[str, Any]]:
-                    test_file_path = info["test_file_path"]
-                    class_name = info["class_name"]
-                    java_source = info["java_source"]
-                    class_meta = info["class_meta"]
-                    
-                    try:
-                        with open(test_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                            current_test_code = f.read()
-                    except Exception:
-                        return None
-                    
-                    log_msg(f"[Testing] Repairing compilation errors in {class_name}Test.java...")
-                    fixed_code = await self.client.fix_compilation_errors(
-                        production_source=java_source,
-                        generated_test=current_test_code,
-                        compiler_errors=compiler_errors_for_class,
-                        class_meta=class_meta
-                    )
-                    
-                    if fixed_code:
-                        cleaned_fixed = self.validator.clean_and_validate(fixed_code, class_name, class_meta)
-                        if cleaned_fixed:
-                            with open(test_file_path, "w", encoding="utf-8") as f:
-                                f.write(cleaned_fixed)
-                            return info
-                    return None
-
-                for info in failing_classes:
-                    test_file_path = info["test_file_path"]
-                    test_file_basename = os.path.basename(test_file_path)
-                    
-                    # Extract error lines matching this file
-                    error_lines = [
-                        line for line in build_output.splitlines()
-                        if test_file_basename.lower() in line.lower()
-                    ]
-                    
-                    if error_lines:
-                        total_correction_attempts += 1
-                        compiler_errors_for_class = "\n".join(error_lines)
-                        repair_tasks.append(repair_class(info, compiler_errors_for_class))
-                        still_failing.append(info)
-                    else:
-                        log_msg(f"[Testing] {info['class_name']}Test.java compiled successfully.")
-
-                if not repair_tasks:
-                    log_msg("[Testing] Compilation errors did not map to any generated tests. Stopping repair loop.")
-                    break
-
-                # Execute repairs concurrently
-                repaired_results = await asyncio.gather(*repair_tasks)
-                failing_classes = still_failing
-
-            # Final verification of compilation, cleanup failed classes
-            compiles, build_output = await self._check_project_compilation(project_path, build_tool)
-            if not compiles:
-                for info in generated_classes_info:
-                    test_file_path = info["test_file_path"]
-                    test_file_basename = os.path.basename(test_file_path)
-                    error_lines = [
-                        line for line in build_output.splitlines()
-                        if test_file_basename.lower() in line.lower()
-                    ]
-                    if error_lines:
-                        log_msg(f"[Testing] Discarding {info['class_name']}Test.java due to unresolved compilation errors.")
-                        if backups[test_file_path] is not None:
-                            with open(test_file_path, "w", encoding="utf-8") as f:
-                                f.write(backups[test_file_path])
-                        else:
-                            try:
-                                os.remove(test_file_path)
-                            except:
-                                pass
-
-            # Batch Execution Verification Phase
-            log_msg("[Testing] Verifying execution of remaining generated tests...")
-            from services.testing.test_execution_service import TestExecutionService
-            executor = TestExecutionService()
-            exec_result = await executor.execute_tests(project_path, build_tool)
-            log_msg(f"[Testing] Test execution complete. Message: {exec_result.get('message', '')}")
-
-            # Filter out any tests that failed execution
-            for info in generated_classes_info:
-                test_file_path = info["test_file_path"]
-                if not os.path.exists(test_file_path):
-                    continue
-
-                class_name = info["class_name"]
-                package_name = info["class_meta"].get("package_name", "")
-                
-                # Check for test execution failures in Surefire/Gradle reports
-                failures_str = self._parse_test_execution_failure(project_path, class_name, package_name, build_tool)
-                if failures_str and "no XML test report was found" not in failures_str:
-                    log_msg(f"[Testing] Discarding {class_name}Test.java due to test execution failures:\n{failures_str[:300]}")
-                    if backups[test_file_path] is not None:
-                        with open(test_file_path, "w", encoding="utf-8") as f:
-                            f.write(backups[test_file_path])
-                    else:
-                        try:
-                            os.remove(test_file_path)
-                        except:
-                            pass
-
-            # Make sure we are compile-clean at the very end
-            compiles, build_output = await self._check_project_compilation(project_path, build_tool)
-            if not compiles:
-                log_msg("[Testing] Warning: Project compilation is still broken. Reverting all remaining generated tests.")
-                for info in generated_classes_info:
-                    test_file_path = info["test_file_path"]
-                    if backups[test_file_path] is not None:
-                        with open(test_file_path, "w", encoding="utf-8") as f:
-                            f.write(backups[test_file_path])
-                    else:
-                        try:
-                            os.remove(test_file_path)
-                        except:
-                            pass
-                result["tests_generated"] = 0
-                return result
-
-            # Count successfully generated and verified files
+            # Count surviving generated files
             kept_count = 0
             for info in generated_classes_info:
                 test_file_path = info["test_file_path"]
                 if os.path.exists(test_file_path):
-                    is_modified = True
-                    if backups[test_file_path] is not None:
-                        with open(test_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                            current = f.read()
-                        if current == backups[test_file_path]:
-                            is_modified = False
-                    if is_modified:
-                        kept_count += 1
-                        result["generated_files"].append(test_file_path)
+                    kept_count += 1
+                    result["generated_files"].append(os.path.basename(test_file_path))
 
             result["tests_generated"] = kept_count
             result["correction_attempts"] = total_correction_attempts
-            result["message"] = f"Generated/merged {kept_count} JUnit 5 test classes. Auto-correction attempts: {total_correction_attempts}."
+            result["message"] = (
+                f"Generated/merged {kept_count} JUnit 5 test classes. "
+                f"Auto-correction attempts: {total_correction_attempts}."
+            )
 
         except Exception as e:
             result["success"] = False
@@ -453,6 +287,264 @@ class TestGenerator:
             traceback.print_exc()
 
         return result
+
+    async def _compile_and_repair_generated_test(
+        self,
+        project_path: str,
+        build_tool: str,
+        info: Dict[str, Any],
+        log_msg: Callable[[str], None],
+    ) -> tuple:
+        """Compile one newly generated test and repair only that file."""
+        test_path = info["test_file_path"]
+        test_name = os.path.basename(test_path)
+        attempts = 0
+
+        for verification in range(0, self.max_retries + 1):
+            compiles, output = await self._compile_single_generated_test(
+                project_path, build_tool, test_path
+            )
+            if compiles:
+                log_msg(f"[Testing] Compilation: SUCCESS - {test_name}")
+                return True, attempts
+
+            diagnostics = self._structured_test_diagnostics(output, test_path)
+            if not diagnostics:
+                log_msg(
+                    f"[Testing] Compilation: FAILED - {test_name}\n"
+                    "[Testing] Compiler returned no file-specific diagnostics.\n"
+                    f"[Testing] Build output tail:\n{output[-2000:]}"
+                )
+            else:
+                for diagnostic in diagnostics:
+                    log_msg(
+                        f"[Testing] Compilation: FAILED - {test_name}\n"
+                        f"[Testing] Compiler Error: Line {diagnostic['line_number']} "
+                        f"{diagnostic['message']}\n"
+                        f"[Testing] Surrounding code:\n{diagnostic['surrounding_code']}"
+                    )
+
+            if verification >= self.max_retries:
+                return False, attempts
+
+            attempts += 1
+            log_msg(f"[Testing] Repair Attempt: {attempts}/{self.max_retries} - {test_name}")
+            try:
+                with open(test_path, "r", encoding="utf-8", errors="ignore") as source_file:
+                    broken_test = source_file.read()
+            except OSError as read_error:
+                log_msg(f"[Testing] Cannot read failing test {test_name}: {read_error}")
+                return False, attempts
+
+            compiler_text = "\n".join(
+                f"Line {item['line_number']}: {item['message']}\n{item['surrounding_code']}"
+                for item in diagnostics
+            ) or output[-4000:]
+            repair_started = time.monotonic()
+            failure_reason = "no usable Java repair returned"
+            try:
+                repaired = await asyncio.wait_for(
+                    self.client.fix_compilation_errors(
+                        generated_test=broken_test,
+                        compiler_errors=compiler_text,
+                        production_source=info["java_source"],
+                        class_meta=info["class_meta"],
+                    ),
+                    timeout=self.repair_timeout,
+                )
+            except asyncio.TimeoutError:
+                repaired = None
+                failure_reason = f"request timed out after {self.repair_timeout:.1f}s"
+            except Exception as repair_error:
+                repaired = None
+                failure_reason = f"request failed: {repair_error}"
+            elapsed = time.monotonic() - repair_started
+            if not repaired or "class " not in repaired:
+                log_msg(f"[Testing] Repair Attempt {attempts}/{self.max_retries} - {test_name} - FAILED in {elapsed:.2f}s - {failure_reason}")
+                continue
+
+            cleaned = self.validator.clean_and_validate(
+                repaired, info["test_class_name"], info["class_meta"]
+            )
+            try:
+                with open(test_path, "w", encoding="utf-8") as output_file:
+                    output_file.write(cleaned or repaired)
+                log_msg(f"[Testing] Repair Attempt {attempts}/{self.max_retries} - {test_name} - SUCCESS in {elapsed:.2f}s")
+            except OSError as write_error:
+                log_msg(f"[Testing] Gemini fix could not replace {test_name}: {write_error}")
+                return False, attempts
+
+        return False, attempts
+
+    async def _compile_single_generated_test(
+        self, project_path: str, build_tool: str, test_file_path: str
+    ) -> tuple:
+        """Ask the build tool to compile the selected generated test file."""
+        is_windows = sys.platform == "win32"
+        relative = os.path.relpath(
+            test_file_path, os.path.join(project_path, "src", "test", "java")
+        ).replace("\\", "/")
+
+        if build_tool == "maven":
+            executable = (
+                ".\\mvnw.cmd" if is_windows and os.path.exists(os.path.join(project_path, "mvnw.cmd"))
+                else "./mvnw" if not is_windows and os.path.exists(os.path.join(project_path, "mvnw"))
+                else "mvn"
+            )
+            cmd = [executable, "test-compile"]
+        elif build_tool == "gradle":
+            executable = (
+                ".\\gradlew.bat" if is_windows and os.path.exists(os.path.join(project_path, "gradlew.bat"))
+                else "./gradlew" if not is_windows and os.path.exists(os.path.join(project_path, "gradlew"))
+                else "gradle"
+            )
+            cmd = [executable, "compileTestJava", "--no-daemon"]
+        else:
+            return True, "No supported build tool; per-file compilation skipped."
+
+        isolated_files = []
+        patched_file = original_build_content = None
+        test_root = os.path.join(project_path, "src", "test", "java")
+        try:
+            # Use the installed JDK for validation, then restore the migrated target.
+            from services.testing.compilation_repair import CompilationRepairService
+            patched_file, original_build_content = CompilationRepairService()._patch_java_version_if_needed(project_path)
+
+            # Build tools normally compile the entire test source set. Hide all
+            # other tests temporarily so diagnostics belong only to this file.
+            if os.path.isdir(test_root):
+                selected = os.path.normcase(os.path.abspath(test_file_path))
+                for root, _, files in os.walk(test_root):
+                    for filename in files:
+                        candidate = os.path.join(root, filename)
+                        if filename.endswith(".java") and os.path.normcase(os.path.abspath(candidate)) != selected:
+                            disabled = candidate + ".codex-disabled"
+                            os.replace(candidate, disabled)
+                            isolated_files.append((disabled, candidate))
+            if is_windows:
+                process = await asyncio.create_subprocess_shell(
+                    subprocess.list2cmdline(cmd),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=project_path,
+                )
+            else:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=project_path,
+                )
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=self.compile_timeout
+            )
+            output = stdout.decode("utf-8", errors="ignore") + "\n" + stderr.decode("utf-8", errors="ignore")
+            return process.returncode == 0, output
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            return False, f"Compilation timed out after {self.compile_timeout} seconds for {relative}."
+        except OSError as execution_error:
+            return False, f"Build tool execution failed for {relative}: {execution_error}"
+        finally:
+            if patched_file and original_build_content is not None:
+                try:
+                    with open(patched_file, "w", encoding="utf-8") as build_file:
+                        build_file.write(original_build_content)
+                except OSError as restore_build_error:
+                    print(f"[Testing] CRITICAL: could not restore build file {patched_file}: {restore_build_error}")
+            for disabled, original in reversed(isolated_files):
+                try:
+                    if os.path.exists(disabled):
+                        os.replace(disabled, original)
+                except OSError as restore_error:
+                    print(f"[Testing] CRITICAL: could not restore isolated test {original}: {restore_error}")
+
+    def _structured_test_diagnostics(
+        self, build_output: str, test_file_path: str
+    ) -> List[Dict[str, Any]]:
+        """Return exact compiler diagnostics plus source context for one test."""
+        filename = os.path.basename(test_file_path)
+        patterns = [
+            re.compile(r"(?:\[ERROR\]\s+)?(.*?\.java):\[?(\d+)(?:,\d+)?\]?\s+(?:error:\s*)?(.*)", re.I),
+        ]
+        parsed: List[Dict[str, Any]] = []
+        seen = set()
+        try:
+            with open(test_file_path, "r", encoding="utf-8", errors="ignore") as source_file:
+                source_lines = source_file.read().splitlines()
+        except OSError:
+            source_lines = []
+
+        for raw_line in build_output.splitlines():
+            if filename.lower() not in raw_line.lower():
+                continue
+            for pattern in patterns:
+                match = pattern.search(raw_line.strip())
+                if not match:
+                    continue
+                line_number = int(match.group(2))
+                message = match.group(3).strip()
+                key = (line_number, message)
+                if key in seen:
+                    break
+                seen.add(key)
+                start = max(0, line_number - 3)
+                end = min(len(source_lines), line_number + 2)
+                context = "\n".join(
+                    f"{index + 1:>4}: {source_lines[index]}"
+                    for index in range(start, end)
+                )
+                parsed.append({
+                    "file_name": filename,
+                    "line_number": line_number,
+                    "message": message,
+                    "surrounding_code": context,
+                })
+                break
+        return parsed
+    def _extract_error_context(self, build_output: str, filename: str) -> List[str]:
+        """
+        Returns all output lines related to a specific Java file.
+        Includes the error line itself, surrounding '^' pointer lines, and
+        any 'symbol / location' continuation lines that follow.
+        """
+        result_lines = []
+        lines = build_output.splitlines()
+        fname_lower = filename.lower()
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if fname_lower in line.lower():
+                # Capture this line
+                result_lines.append(line)
+                # Capture up to 4 continuation lines (^, symbol, location, note)
+                j = i + 1
+                while j < len(lines) and j <= i + 4:
+                    next_line = lines[j].strip()
+                    if (
+                        next_line.startswith("^")
+                        or next_line.startswith("symbol")
+                        or next_line.startswith("location")
+                        or next_line.startswith("note")
+                        or next_line.startswith("reason")
+                        or (next_line and not next_line.startswith("["))
+                    ):
+                        result_lines.append(lines[j])
+                        j += 1
+                    else:
+                        break
+                i = j
+            else:
+                i += 1
+        # De-duplicate preserving order
+        seen = set()
+        unique = []
+        for line in result_lines:
+            if line not in seen:
+                seen.add(line)
+                unique.append(line)
+        return unique
 
     async def _check_project_compilation(self, project_path: str, build_tool: str) -> tuple:
         """
@@ -467,46 +559,58 @@ class TestGenerator:
                 mvnw_cmd_path = os.path.join(project_path, "mvnw.cmd")
                 mvnw_sh_path = os.path.join(project_path, "mvnw")
                 if is_windows and os.path.exists(mvnw_cmd_path):
-                    cmd = [".\\mvnw.cmd", "test-compile"]
+                    cmd = [".\\mvnw.cmd", "clean", "test-compile"]
                 elif not is_windows and os.path.exists(mvnw_sh_path):
-                    cmd = ["./mvnw", "test-compile"]
+                    cmd = ["./mvnw", "clean", "test-compile"]
                 else:
-                    cmd = ["mvn", "test-compile"]
+                    cmd = ["mvn", "clean", "test-compile"]
             elif build_tool == "gradle":
                 gradlew_bat_path = os.path.join(project_path, "gradlew.bat")
                 gradlew_sh_path = os.path.join(project_path, "gradlew")
                 if is_windows and os.path.exists(gradlew_bat_path):
-                    cmd = [".\\gradlew.bat", "testClasses"]
+                    cmd = [".\\gradlew.bat", "clean", "testClasses"]
                 elif not is_windows and os.path.exists(gradlew_sh_path):
-                    cmd = ["./gradlew", "testClasses"]
+                    cmd = ["./gradlew", "clean", "testClasses"]
                 else:
-                    cmd = ["gradle", "testClasses"]
+                    cmd = ["gradle", "clean", "testClasses"]
             else:
                 return True, ""
 
             cmd_str = " ".join(cmd)
             print(f"Running batch compilation check command: {cmd_str}")
             
-            process = await asyncio.create_subprocess_shell(
-                cmd_str,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=project_path
-            )
+            from services.testing.compilation_repair import CompilationRepairService
+            repair_service = CompilationRepairService()
+            patched_file, original_content = repair_service._patch_java_version_if_needed(project_path)
             
             try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=self.compile_timeout)
-                stdout = stdout_bytes.decode('utf-8', errors='ignore')
-                stderr = stderr_bytes.decode('utf-8', errors='ignore')
-            except asyncio.TimeoutError:
-                process.kill()
-                return False, "Compilation timed out"
+                process = await asyncio.create_subprocess_shell(
+                    cmd_str,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=project_path
+                )
+                
+                try:
+                    stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=self.compile_timeout)
+                    stdout = stdout_bytes.decode('utf-8', errors='ignore')
+                    stderr = stderr_bytes.decode('utf-8', errors='ignore')
+                except asyncio.TimeoutError:
+                    process.kill()
+                    return False, "Compilation timed out"
 
-            full_output = stdout + "\n" + stderr
-            if process.returncode == 0:
-                return True, full_output
-            
-            return False, full_output
+                full_output = stdout + "\n" + stderr
+                if process.returncode == 0:
+                    return True, full_output
+                
+                return False, full_output
+            finally:
+                if patched_file and original_content:
+                    try:
+                        with open(patched_file, "w", encoding="utf-8") as f:
+                            f.write(original_content)
+                    except Exception as restore_err:
+                        print(f"Error restoring build file during batch compile check: {restore_err}")
 
         except Exception as e:
             return True, f"Error during compilation check: {e}"

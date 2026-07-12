@@ -1,0 +1,40 @@
+[AUTH_SERVICE] GITHUB_REDIRECT_URI override: [auto]
+Loaded 144 migration jobs from database.
+============================================================
+Success: WebSocket Connected
+Job ID: b3076841-6ee7-41ad-a468-1dbb3e9e70ce
+============================================================
+[HTTP] HEAD http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip - From: 127.0.0.1
+[HTTP] GET http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/fossa - From: 127.0.0.1
+[FOSSA_SIM] simulate for path: C:\Users\ST-Sahana\Documents\prj-final\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend
+[FOSSA_SIM] detected dep_count=0 (pom_exists=False, build_gradle_exists=False)
+[HTTP] GET http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/fossa - Status: 200
+INFO:     127.0.0.1:64928 - "GET /api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/fossa HTTP/1.1" 200 OK
+[HTTP] HEAD http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip - Status: 200
+INFO:     127.0.0.1:58402 - "HEAD /api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip HTTP/1.1" 200 OK
+[HTTP] HEAD http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip - From: 127.0.0.1
+[HTTP] GET http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/fossa - From: 127.0.0.1
+[FOSSA_SIM] simulate for path: C:\Users\ST-Sahana\Documents\prj-final\javaApex-Trainee\java-migration-backend\Java_Migration_Accelerator_backend\java-migration-backend
+[FOSSA_SIM] detected dep_count=0 (pom_exists=False, build_gradle_exists=False)
+[HTTP] GET http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/fossa - Status: 200
+INFO:     127.0.0.1:58402 - "GET /api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/fossa HTTP/1.1" 200 OK
+[HTTP] HEAD http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip - Status: 200
+INFO:     127.0.0.1:64928 - "HEAD /api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip HTTP/1.1" 200 OK
+[HTTP] HEAD http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip - From: 127.0.0.1
+[HTTP] HEAD http://localhost:8001/api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip - Status: 200
+INFO:     127.0.0.1:58402 - "HEAD /api/migration/b3076841-6ee7-41ad-a468-1dbb3e9e70ce/download-zip HTTP/1.1" 200 OK
+[HTTP] GET http://127.0.0.1:8001/health - From: 127.0.0.1
+[HTTP] GET http://127.0.0.1:8001/health - Status: 200
+INFO:     127.0.0.1:56325 - "GET /health HTTP/1.1" 200 OK
+[HTTP] GET http://localhost:8001/api/java-versions - From: 127.0.0.1
+[HTTP] GET http://localhost:8001/api/conversion-types - From: 127.0.0.1
+[HTTP] GET http://localhost:8001/api/java-versions - Status: 200
+INFO:     127.0.0.1:65389 - "GET /api/java-versions HTTP/1.1" 200 OK
+[HTTP] GET http://localhost:8001/api/conversion-types - Status: 200
+INFO:     127.0.0.1:65024 - "GET /api/conversion-types HTTP/1.1" 200 OK
+[HTTP] GET http://localhost:8001/api/java-versions - From: 127.0.0.1
+[HTTP] GET http://localhost:8001/api/java-versions - Status: 200
+INFO:     127.0.0.1:65389 - "GET /api/java-versions HTTP/1.1" 200 OK
+[HTTP] GET http://localhost:8001/api/conversion-types - From: 127.0.0.1
+[HTTP] GET http://localhost:8001/api/conversion-types - Status: 200
+INFO:     127.0.0.1:65024 - "GET /api/conversion-types HTTP/1.1" 200 OK

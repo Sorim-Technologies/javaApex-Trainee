@@ -1,10 +1,9 @@
 import axios from "axios";
+import { APP_BASE_URL } from "./api";
 
 export const saveMigration = (data) => {
-
     return axios.post(
-        "http://localhost:8001/migration",
+        `${APP_BASE_URL}/migration`,
         data
     );
-
 };

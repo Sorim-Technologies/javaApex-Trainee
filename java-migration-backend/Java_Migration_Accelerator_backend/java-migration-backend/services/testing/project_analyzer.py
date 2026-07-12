@@ -39,6 +39,8 @@ class ClassMeta:
     imports: List[str] = field(default_factory=list)
     superclass: Optional[str] = None
     interfaces: List[str] = field(default_factory=list)
+    constructors: List[Dict[str, Any]] = field(default_factory=list)
+    autowired_dependencies: List[Dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -144,28 +146,45 @@ class ProjectAnalyzer:
         Analyze a Java project at the given path.
         Returns a ProjectModel with all detected information.
         """
+        print(f"=== Project Analysis Engine Starting ===")
+        print(f"[Analysis Log] Project path: {project_path}")
         model = ProjectModel()
 
         if not os.path.isdir(project_path):
+            print(f"[Analysis Log] Error: Project path is not a directory: {project_path}")
             return model
 
         # 1. Detect build tool and extract versions
         self._detect_build_tool(project_path, model)
+        print(f"[Analysis Log] Build tool detected: {model.build_tool}")
+        if model.build_file_path:
+            print(f"[Analysis Log] Build file: {model.build_file_path}")
+        print(f"[Analysis Log] Java version: {model.java_version} (source: {model.java_version_source})")
+        print(f"[Analysis Log] Spring Boot version: {model.spring_boot_version} (source: {model.spring_boot_version_source})")
 
         # 2. Find src/main/java and src/test/java
         model.src_main_java = self._find_source_dir(project_path, "src/main/java")
         model.src_test_java = self._find_source_dir(project_path, "src/test/java")
+        print(f"[Analysis Log] Main source dir: {model.src_main_java}")
+        print(f"[Analysis Log] Test source dir: {model.src_test_java}")
 
         # 3. Analyze source classes
         if model.src_main_java and os.path.isdir(model.src_main_java):
+            print(f"[Analysis Log] Scanning main Java classes...")
             self._analyze_source_classes(model)
+        else:
+            print(f"[Analysis Log] Warning: No main Java source directory found.")
 
         # 4. Count test files
         if model.src_test_java and os.path.isdir(model.src_test_java):
             model.total_test_files = self._count_java_files(model.src_test_java)
+            print(f"[Analysis Log] Total test files: {model.total_test_files}")
 
         # 5. Build package structure
         self._build_package_structure(model)
+        print(f"[Analysis Log] Total packages detected: {model.package_count}")
+        print(f"[Analysis Log] Total source files classified: {model.total_source_files}")
+        print(f"=== Project Analysis Engine Finished ===")
 
         return model
 
@@ -305,22 +324,31 @@ class ProjectAnalyzer:
                 model.total_source_files += 1
 
                 # Classify by stereotype
+                stereotype = "Other"
                 if class_meta.is_controller:
                     model.controllers.append(class_meta)
+                    stereotype = "Controller"
                 elif class_meta.is_service:
                     model.services.append(class_meta)
+                    stereotype = "Service"
                 elif class_meta.is_repository:
                     model.repositories.append(class_meta)
+                    stereotype = "Repository"
                 elif class_meta.is_entity:
                     model.entities.append(class_meta)
+                    stereotype = "Entity"
                 elif class_meta.is_configuration:
                     model.configurations.append(class_meta)
+                    stereotype = "Configuration"
                 elif class_meta.is_component:
                     model.components.append(class_meta)
+                    stereotype = "Component"
                 elif class_meta.is_dto:
                     model.dtos.append(class_meta)
+                    stereotype = "DTO"
                 elif class_meta.is_utility:
                     model.utilities.append(class_meta)
+                    stereotype = "Utility"
                 else:
                     # Fallback: classify by directory/package naming conventions
                     rel_path = os.path.relpath(file_path, model.src_main_java).replace("\\", "/")
@@ -328,29 +356,115 @@ class ProjectAnalyzer:
                     if "controller" in lower_rel:
                         class_meta.is_controller = True
                         model.controllers.append(class_meta)
+                        stereotype = "Controller (fallback)"
                     elif "service" in lower_rel:
                         class_meta.is_service = True
                         model.services.append(class_meta)
+                        stereotype = "Service (fallback)"
                     elif "repository" in lower_rel or "dao" in lower_rel:
                         class_meta.is_repository = True
                         model.repositories.append(class_meta)
+                        stereotype = "Repository (fallback)"
                     elif "entity" in lower_rel or "model" in lower_rel or "domain" in lower_rel:
                         class_meta.is_entity = True
                         model.entities.append(class_meta)
+                        stereotype = "Entity (fallback)"
                     elif "config" in lower_rel:
                         class_meta.is_configuration = True
                         model.configurations.append(class_meta)
+                        stereotype = "Configuration (fallback)"
                     elif "component" in lower_rel:
                         class_meta.is_component = True
                         model.components.append(class_meta)
+                        stereotype = "Component (fallback)"
                     elif "dto" in lower_rel or "request" in lower_rel or "response" in lower_rel or "vo" in lower_rel:
                         class_meta.is_dto = True
                         model.dtos.append(class_meta)
+                        stereotype = "DTO (fallback)"
                     elif "util" in lower_rel or "helper" in lower_rel or "support" in lower_rel:
                         class_meta.is_utility = True
                         model.utilities.append(class_meta)
+                        stereotype = "Utility (fallback)"
                     else:
                         model.other_classes.append(class_meta)
+
+                print(f"[Class Log] Class: {class_meta.package_name}.{class_meta.class_name} "
+                      f"| Stereotype: {stereotype} "
+                      f"| Methods: {len(class_meta.methods)} "
+                      f"| Constructors: {len(class_meta.constructors)} "
+                      f"| Autowired Deps: {len(class_meta.autowired_dependencies)}")
+
+    def _get_brace_depth(self, content: str, position: int) -> int:
+        """Count brace depth at a given character position, ignoring string/char literals"""
+        sub = content[:position]
+        sub_clean = re.sub(r'".*?"', '', sub)
+        sub_clean = re.sub(r"'.*?'", '', sub_clean)
+        open_braces = sub_clean.count("{")
+        close_braces = sub_clean.count("}")
+        return open_braces - close_braces
+
+    def _extract_preceding_annotations(self, content: str, start_pos: int) -> List[str]:
+        """Extract annotations immediately preceding a declaration at start_pos"""
+        lookback = 400
+        sub = content[max(0, start_pos - lookback):start_pos]
+        
+        # Strip parentheses content to avoid matching curly braces or semicolons inside annotation args
+        chars = list(sub)
+        p_depth = 0
+        for i, c in enumerate(chars):
+            if c == '(':
+                p_depth += 1
+                chars[i] = ' '
+            elif c == ')':
+                p_depth -= 1
+                chars[i] = ' '
+            elif p_depth > 0:
+                chars[i] = ' '
+        sub_no_parens = "".join(chars)
+        
+        stop_idx = -1
+        for i in range(len(sub_no_parens) - 1, -1, -1):
+            if sub_no_parens[i] in {'}', ';', '{'}:
+                stop_idx = i
+                break
+        if stop_idx != -1:
+            sub = sub[stop_idx + 1:]
+            
+        annotations = []
+        idx = 0
+        while idx < len(sub):
+            char = sub[idx]
+            if char == '@':
+                name_match = re.match(r"^@(\w+)", sub[idx:])
+                if name_match:
+                    ann_name = name_match.group(1)
+                    if ann_name != "interface":
+                        annotations.append(ann_name)
+                    idx += len(ann_name) + 1
+                    continue
+            idx += 1
+        return annotations
+
+    def _find_balanced(self, text: str, start_pos: int, open_char='(', close_char=')') -> tuple[str, int]:
+        """
+        Finds the substring enclosed by balanced open_char and close_char starting from start_pos.
+        Returns (enclosed_content, end_pos).
+        """
+        depth = 0
+        first_found = False
+        first_idx = -1
+        for idx in range(start_pos, len(text)):
+            char = text[idx]
+            if char == open_char:
+                if not first_found:
+                    first_found = True
+                    first_idx = idx
+                depth += 1
+            elif char == close_char:
+                depth -= 1
+                if first_found and depth == 0:
+                    return text[first_idx + 1:idx], idx
+        return "", -1
 
     def _parse_java_class(self, file_path: str, src_main_java: str) -> Optional[ClassMeta]:
         """
@@ -361,173 +475,190 @@ class ProjectAnalyzer:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
-            # Strip single-line and block comments for analysis
-            clean_content = re.sub(r"//.*", "", content)
-            clean_content = re.sub(r"/\*.*?\*/", "", clean_content, flags=re.DOTALL)
+            # 1. Strip comments
+            # Block comments
+            content_no_comments = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+            # Single line comments
+            content_no_comments = re.sub(r"//.*", "", content_no_comments)
 
-            # Package
-            package_match = re.search(r"package\s+([\w\.]+);", clean_content)
+            # 2. Extract Package
+            package_match = re.search(r"package\s+([\w\.]+);", content_no_comments)
             package_name = package_match.group(1) if package_match else ""
 
-            # Imports
-            imports = re.findall(r"import\s+([\w\.\*]+);", clean_content)
+            # 3. Extract Imports
+            imports = re.findall(r"import\s+([\w\.\*]+);", content_no_comments)
 
-            # Class/interface/enum declaration
-            class_match = re.search(
-                r"(?:public|private|protected)?\s*(?:final|abstract|static)?\s*(class|interface|enum|record)\s+(\w+)",
-                clean_content,
+            # 4. Find the class declaration
+            class_decl_pattern = re.compile(
+                r"\b(?:public|protected|private)?\s*(?:final|abstract|static)?\s*(class|interface|enum|record)\s+(\w+)",
             )
+            class_match = class_decl_pattern.search(content_no_comments)
             if not class_match:
                 return None
-
+                
             type_keyword = class_match.group(1)
             class_name = class_match.group(2)
-
-            # Skip enums and records (records are DTOs)
+            
             if type_keyword == "enum":
                 return None
-
+                
             is_interface = type_keyword == "interface"
             is_enum = type_keyword == "enum"
             is_record = type_keyword == "record"
-
-            # Extract all annotations on the class
-            # Find the annotation block before the class declaration
-            annotation_pattern = r"@(\w+)(?:\([^)]*\))?"
-            all_annotations = re.findall(annotation_pattern, clean_content)
-
-            # Extract class-level annotations (those before the class keyword)
-            class_decl_pos = re.search(
-                r"(?:public|private|protected)?\s*(?:final|abstract|static)?\s*(?:class|interface|enum|record)\s+\w+",
-                clean_content,
-            )
-            class_level_annotations = []
-            if class_decl_pos:
-                before_class = clean_content[: class_decl_pos.start()]
-                class_level_annotations = re.findall(annotation_pattern, before_class)
-
+            
             # Superclass
             superclass = None
-            extends_match = re.search(r"extends\s+(\w+)", clean_content)
+            extends_match = re.search(r"\bextends\s+(\w+)", content_no_comments[:class_match.end() + 100])
             if extends_match:
                 superclass = extends_match.group(1)
-
+                
             # Interfaces
             interfaces = []
-            implements_match = re.search(r"implements\s+([\w\s,]+)\s*\{", clean_content)
+            implements_match = re.search(r"\bimplements\s+([\w\s,]+)\b", content_no_comments[:class_match.end() + 200])
             if implements_match:
                 iface_str = implements_match.group(1)
                 interfaces = [i.strip() for i in iface_str.split(",") if i.strip()]
 
-            # --- Stereotype detection ---
+            # Class annotations
+            class_level_annotations = self._extract_preceding_annotations(content_no_comments, class_match.start())
 
-            # Check annotations first (most reliable)
+            # Containers for class components
+            fields = []
+            methods = []
+            constructors = []
+            autowired_dependencies = []
+
+            # 5. Extract fields
+            field_pattern = re.compile(
+                r"\b(?:(public|protected|private)\s+)?(?:(?:static|final|transient|volatile)\s+)*([\w\.<>\[\]]+)\s+(\w+)\s*(?:=.*?)?;"
+            )
+            for f_match in field_pattern.finditer(content_no_comments):
+                start_pos = f_match.start()
+                if self._get_brace_depth(content_no_comments, start_pos) == 1:
+                    field_type = f_match.group(2).strip()
+                    field_name = f_match.group(3).strip()
+                    
+                    if field_name not in {"return", "class", "this", "super"}:
+                        fields.append((field_type, field_name))
+                        
+                        f_annotations = self._extract_preceding_annotations(content_no_comments, start_pos)
+                        if any(a in f_annotations for a in {"Autowired", "Resource", "Inject"}):
+                            autowired_dependencies.append({
+                                "type": field_type,
+                                "name": field_name
+                            })
+
+            # 6. Extract Constructors
+            constructor_pattern = re.compile(rf"\b(?:(public|protected|private)\s+)?{class_name}\s*\(")
+            for c_match in constructor_pattern.finditer(content_no_comments):
+                start_pos = c_match.start()
+                if self._get_brace_depth(content_no_comments, start_pos) == 1:
+                    open_paren_idx = c_match.end() - 1
+                    params_str, end_idx = self._find_balanced(content_no_comments, open_paren_idx)
+                    
+                    remaining = content_no_comments[end_idx + 1:]
+                    header_end = remaining.find('{')
+                    semi_end = remaining.find(';')
+                    if header_end == -1:
+                        header_end = semi_end
+                    elif semi_end != -1:
+                        header_end = min(header_end, semi_end)
+                        
+                    throws_clause = remaining[:header_end] if header_end != -1 else remaining
+                    exceptions = []
+                    throws_match = re.search(r"\bthrows\s+([\w\.\s,]+)", throws_clause)
+                    if throws_match:
+                        exceptions = [e.strip() for e in throws_match.group(1).split(",")]
+
+                    c_annotations = self._extract_preceding_annotations(content_no_comments, start_pos)
+                    params = self._parse_params(params_str)
+                    
+                    constructors.append({
+                        "name": class_name,
+                        "params": params,
+                        "exceptions": exceptions,
+                        "annotations": c_annotations
+                    })
+
+                    if "Autowired" in c_annotations:
+                        for param in params:
+                            autowired_dependencies.append({
+                                "type": param["type"],
+                                "name": param["name"]
+                            })
+
+            # 7. Extract public methods
+            method_pattern = re.compile(
+                r"\b(?:(public|protected|private)\s+)?(?:(?:static|final|abstract|synchronized|default)\s+)*([\w\.<>\[\]]+)\s+(\w+)\s*\("
+            )
+            for m_match in method_pattern.finditer(content_no_comments):
+                start_pos = m_match.start()
+                if self._get_brace_depth(content_no_comments, start_pos) == 1:
+                    ret_type = m_match.group(2).strip()
+                    method_name = m_match.group(3).strip()
+                    
+                    if method_name != class_name and method_name not in {"if", "for", "while", "switch", "catch", "synchronized", "return"}:
+                        open_paren_idx = m_match.end() - 1
+                        params_str, end_idx = self._find_balanced(content_no_comments, open_paren_idx)
+                        
+                        remaining = content_no_comments[end_idx + 1:]
+                        header_end = remaining.find('{')
+                        semi_end = remaining.find(';')
+                        if header_end == -1:
+                            header_end = semi_end
+                        elif semi_end != -1:
+                            header_end = min(header_end, semi_end)
+                            
+                        throws_clause = remaining[:header_end] if header_end != -1 else remaining
+                        exceptions = []
+                        throws_match = re.search(r"\bthrows\s+([\w\.\s,]+)", throws_clause)
+                        if throws_match:
+                            exceptions = [e.strip() for e in throws_match.group(1).split(",")]
+
+                        m_annotations = self._extract_preceding_annotations(content_no_comments, start_pos)
+                        params = self._parse_params(params_str)
+                        
+                        visibility = m_match.group(1) or "package"
+                        methods.append({
+                            "name": method_name,
+                            "return_type": ret_type,
+                            "params": params,
+                            "exceptions": exceptions,
+                            "annotations": m_annotations,
+                            "visibility": visibility
+                        })
+
+            # --- Stereotype detection ---
             is_controller = bool(
                 set(class_level_annotations) & self.CONTROLLER_ANNOTATIONS
-                or "@RestController" in clean_content
-                or "@Controller" in clean_content
+                or "RestController" in class_level_annotations
+                or "Controller" in class_level_annotations
             )
             is_service = bool(
                 "Service" in class_level_annotations
-                or "@Service" in clean_content
             )
             is_repository = bool(
                 "Repository" in class_level_annotations
-                or "@Repository" in clean_content
-                or "JpaRepository" in clean_content
-                or "CrudRepository" in clean_content
-                or "MongoRepository" in clean_content
-                or "PagingAndSortingRepository" in clean_content
-                or "ReactiveCrudRepository" in clean_content
+                or "JpaRepository" in content_no_comments
+                or "CrudRepository" in content_no_comments
             )
             is_entity = bool(
                 set(class_level_annotations) & self.ENTITY_ANNOTATIONS
-                or "@Entity" in clean_content
-                or "@Table" in clean_content
-                or "@MappedSuperclass" in clean_content
-                or "@Embeddable" in clean_content
-                or "@Document" in clean_content
             )
             is_configuration = bool(
                 "Configuration" in class_level_annotations
                 or "SpringBootConfiguration" in class_level_annotations
-                or "@Configuration" in clean_content
-                or "@SpringBootConfiguration" in clean_content
             )
             is_component = bool(
                 "Component" in class_level_annotations
-                or "@Component" in clean_content
             )
-
-            # Utility: class name contains Util/Helper, or all methods are static
             is_utility = bool(
-                "Util" in class_name
-                or "Helper" in class_name
-                or "Utils" in class_name
-                or "Helpers" in class_name
+                "Util" in class_name or "Helper" in class_name or "Utils" in class_name
             )
-
-            # DTO: record type, or class name ends with Dto/Request/Response/VO
             is_dto = bool(
-                is_record
-                or class_name.endswith("Dto")
-                or class_name.endswith("DTO")
-                or class_name.endswith("Request")
-                or class_name.endswith("Response")
-                or class_name.endswith("VO")
-                or class_name.endswith("Model")
+                is_record or class_name.endswith("Dto") or class_name.endswith("DTO") or class_name.endswith("Request") or class_name.endswith("Response") or class_name.endswith("VO")
             )
-
-            # Extract fields (non-primitive, non-core type fields)
-            fields = []
-            field_pattern = r"(?:@Autowired\s+)?(?:private|protected|public)\s+([A-Z]\w+(?:<[^>]+>)?)\s+(\w+)\s*;"
-            core_types = {
-                "String", "Integer", "Long", "Double", "Boolean", "Float",
-                "int", "long", "double", "boolean", "float", "char", "byte",
-                "short", "void", "List", "Map", "Set", "Optional",
-                "ArrayList", "HashMap", "HashSet", "LinkedList",
-                "Collection", "Iterator", "Stream",
-            }
-            for field_match in re.finditer(field_pattern, clean_content):
-                field_type = field_match.group(1)
-                field_name = field_match.group(2)
-                # Only include non-core type fields (i.e., custom classes)
-                base_type = field_type.split("<")[0].strip()
-                if base_type not in core_types:
-                    fields.append((field_type, field_name))
-
-            # Extract public methods
-            methods = []
-            method_pattern = r"public\s+([\w\.<>\[\],\s]+)\s+(\w+)\s*\((.*?)\)\s*(?:throws\s+[\w\.\s,]+)?\s*(?:\{|;)"
-            for m_match in re.finditer(method_pattern, clean_content, re.DOTALL):
-                ret_type = m_match.group(1).strip()
-                method_name = m_match.group(2).strip()
-
-                # Skip constructors
-                if method_name == class_name:
-                    continue
-
-                params_str = m_match.group(3).strip()
-                params = []
-                if params_str:
-                    # Clean up newlines
-                    params_str_clean = params_str.replace("\n", " ").replace("\r", " ")
-                    # Remove annotations from params
-                    params_str_clean = re.sub(r"@\w+(?:\([^)]*\))?", "", params_str_clean).strip()
-                    for param in params_str_clean.split(","):
-                        param = param.strip()
-                        parts = param.split()
-                        if len(parts) >= 2:
-                            p_type = " ".join(parts[:-1])
-                            p_name = parts[-1]
-                            params.append({"type": p_type, "name": p_name})
-
-                methods.append({
-                    "name": method_name,
-                    "return_type": ret_type,
-                    "params": params,
-                })
-
+            
             return ClassMeta(
                 file_path=file_path,
                 package_name=package_name,
@@ -548,11 +679,27 @@ class ProjectAnalyzer:
                 imports=imports,
                 superclass=superclass,
                 interfaces=interfaces,
+                constructors=constructors,
+                autowired_dependencies=autowired_dependencies
             )
-
+            
         except Exception as e:
             print(f"Error parsing Java class {file_path}: {e}")
             return None
+
+    def _parse_params(self, params_str: str) -> List[Dict[str, str]]:
+        """Helper to parse method/constructor parameter list"""
+        params = []
+        if params_str:
+            params_str_clean = re.sub(r"@\w+(?:\([^)]*\))?", "", params_str).strip()
+            for param in params_str_clean.split(","):
+                param = param.strip()
+                parts = param.split()
+                if len(parts) >= 2:
+                    p_type = " ".join(parts[:-1])
+                    p_name = parts[-1]
+                    params.append({"type": p_type, "name": p_name})
+        return params
 
     def _build_package_structure(self, model: ProjectModel) -> None:
         """Build the package structure from analyzed classes"""

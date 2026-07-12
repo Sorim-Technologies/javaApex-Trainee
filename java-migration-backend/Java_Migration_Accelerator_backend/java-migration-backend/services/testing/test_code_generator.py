@@ -1,3 +1,4 @@
+import os
 import re
 from typing import Dict, Any, List
 
@@ -81,33 +82,37 @@ class TestCodeGenerator:
         code.append("@ExtendWith(MockitoExtension.class)")
         code.append(f"public class {class_name}Test {{\n")
 
-        # 1. Generate Mocks for dependencies
+        # 1. Mock dependencies & setup fields
         mocked_fields = []
-        for f_type, f_name in fields:
-            clean_type = re.sub(r'<.*>', '', f_type)
-            if clean_type not in ["String", "Integer", "Long", "Double", "Boolean", "Float", "List", "Map", "Set", "int", "long", "double", "boolean"]:
-                code.append("    @Mock")
-                code.append(f"    private {f_type} {f_name};\n")
-                mocked_fields.append((f_type, f_name))
+        
+        # Read production source code to check for inner classes
+        prod_source = ""
+        if "file_path" in class_meta and os.path.exists(class_meta["file_path"]):
+            try:
+                with open(class_meta["file_path"], "r", encoding="utf-8", errors="ignore") as f:
+                    prod_source = f.read()
+            except Exception:
+                pass
 
-        # 2. Inject Mocks or Instantiate target under test
-        if is_interface or is_repository:
-            code.append("    @Mock")
-            code.append(f"    private {class_name} target;\n")
-        else:
-            code.append("    @InjectMocks")
-            code.append(f"    private {class_name} target;\n")
-
-        # 3. Setup BeforeEach method (only if there are fields to set up)
-        code.append("    @BeforeEach")
-        code.append("    void setUp() {")
-        code.append("        // Initialize test data and mocks")
-        code.append("    }\n")
+        def get_qualified_type(t: str) -> str:
+            t_clean = re.sub(r'<.*>', '', t).strip()
+            # If t_clean is an inner class of class_name, qualify it
+            if prod_source and t_clean and t_clean != class_name:
+                pattern = r'\b(class|interface|enum)\s+' + re.escape(t_clean) + r'\b'
+                if re.search(pattern, prod_source):
+                    return f"{class_name}.{t}"
+            return t
 
         # Helper to generate mock values based on Java types
         def get_value_for_type(jtype: str, mode: str = "valid") -> str:
+            jtype = get_qualified_type(jtype)
             jtype_clean = re.sub(r'<.*>', '', jtype).strip()
-            if jtype_clean in ["int", "long", "short", "byte", "Integer", "Long", "Short", "Byte"]:
+            if jtype_clean in ["long", "Long"]:
+                if mode == "valid": return "1L"
+                elif mode == "negative": return "-1L"
+                elif mode == "boundary": return "99999L"
+                return "0L"
+            elif jtype_clean in ["int", "short", "byte", "Integer", "Short", "Byte"]:
                 if mode == "valid": return "1"
                 elif mode == "negative": return "-1"
                 elif mode == "boundary": return "99999"
@@ -127,7 +132,7 @@ class TestCodeGenerator:
             elif "Optional" in jtype:
                 inner_match = re.search(r'Optional<([^>]+)>', jtype)
                 if inner_match:
-                    inner = inner_match.group(1)
+                    inner = get_qualified_type(inner_match.group(1))
                     if mode == "valid":
                         return f"Optional.of(mock({inner}.class))"
                     return "Optional.empty()"
@@ -135,15 +140,47 @@ class TestCodeGenerator:
             elif "List" in jtype_clean or "Collection" in jtype_clean:
                 if mode == "empty":
                     return "new ArrayList<>()"
-                return "new ArrayList<>()" if mode == "null" else "Collections.singletonList(mock(" + re.sub(r'List<([^>]+)>', r'\1', jtype) + ".class))" if "<" in jtype else "new ArrayList<>()"
+                inner_type = re.sub(r'List<([^>]+)>', r'\1', jtype) if "<" in jtype else "Object"
+                inner_type = get_qualified_type(inner_type)
+                return "new ArrayList<>()" if mode == "null" else f"Collections.singletonList(mock({inner_type}.class))"
             elif "Set" in jtype_clean:
-                return "new HashSet<>()" if mode == "empty" else "Collections.singleton(mock(" + re.sub(r'Set<([^>]+)>', r'\1', jtype) + ".class))" if "<" in jtype else "new HashSet<>()"
+                inner_type = re.sub(r'Set<([^>]+)>', r'\1', jtype) if "<" in jtype else "Object"
+                inner_type = get_qualified_type(inner_type)
+                return "new HashSet<>()" if mode == "empty" else f"Collections.singleton(mock({inner_type}.class))"
             elif "Map" in jtype_clean:
                 return "new HashMap<>()"
             return "null" if mode == "null" else f"mock({jtype}.class)"
 
+        for f_type, f_name in fields:
+            # Skip common basic types that shouldn't be mocked
+            f_type_clean = re.sub(r'<.*>', '', f_type).strip()
+            if f_type_clean in ["String", "int", "long", "boolean", "double", "float", "Integer", "Long", "Boolean", "Double", "Float", "Map", "List", "Set", "HashMap", "ArrayList", "HashSet", "Collection", "Object"]:
+                continue
+            if re.search(r'[<>\[\]\?]', f_type):
+                continue
+            f_type = get_qualified_type(f_type)
+            code.append("    @Mock")
+            code.append(f"    private {f_type} {f_name};\n")
+            mocked_fields.append((f_type, f_name))
+
+        # 2. Inject Mocks or Instantiate target under test
+        if is_interface or is_repository:
+            code.append("    @Mock")
+            code.append(f"    private {class_name} target;\n")
+        else:
+            code.append("    @InjectMocks")
+            code.append(f"    private {class_name} target;\n")
+
+        # 3. Setup BeforeEach method (only if there are fields to set up)
+        code.append("    @BeforeEach")
+        code.append("    void setUp() {")
+        code.append("        // Initialize test data and mocks")
+        code.append("    }\n")
+
         # 4. Generate tests for public methods
         for method in methods:
+            if method.get("visibility") == "private":
+                continue
             m_name = method["name"]
             m_ret = method["return_type"]
             m_params = method["params"]
@@ -153,7 +190,7 @@ class TestCodeGenerator:
 
             # Detect return type for assertions
             ret_clean = re.sub(r'<.*>', '', m_ret).strip()
-            ret_is_void = m_ret == "void"
+            ret_is_void = "void" in m_ret
             ret_is_bool = ret_clean in ["boolean", "Boolean"]
             ret_is_optional = "Optional" in m_ret
             ret_is_list = "List" in m_ret or "Collection" in m_ret or "Set" in m_ret or "Iterable" in m_ret
@@ -234,7 +271,8 @@ class TestCodeGenerator:
                     code.append(f"        // Assert")
                     code.append(f"        assertNotNull(result);")
                     if ret_clean not in ["int", "long", "double", "float", "boolean", "char", "byte", "short"]:
-                        code.append(f"        assertTrue(result instanceof {ret_clean});")
+                        if re.match(r'^[a-zA-Z0-9_\.]+$', ret_clean):
+                            code.append(f"        assertTrue(result instanceof {ret_clean});")
 
             code.append("    }\n")
 
@@ -292,15 +330,21 @@ class TestCodeGenerator:
             code.append(f"        {class_name} instance = new {class_name}();")
             code.append(f"")
             code.append(f"        // Act & Assert")
+            existing_method_names = {m["name"] for m in methods}
             for f_type, f_name in fields:
-                val = get_value_for_type(f_type, "valid")
                 prop = f_name[0].upper() + f_name[1:]
-                code.append(f"        try {{")
-                code.append(f"            instance.set{prop}({val});")
-                code.append(f"            assertEquals({val}, instance.get{prop}());")
-                code.append(f"        }} catch (Exception e) {{")
-                code.append(f"            // setter/getter pair may not exist for this field")
-                code.append(f"        }}")
+                setter_name = f"set{prop}"
+                getter_name = f"get{prop}"
+                boolean_getter_name = f"is{prop}"
+                
+                has_setter = setter_name in existing_method_names
+                has_getter = getter_name in existing_method_names or boolean_getter_name in existing_method_names
+                
+                if has_setter and has_getter:
+                    val = get_value_for_type(f_type, "valid")
+                    getter_call = getter_name if getter_name in existing_method_names else boolean_getter_name
+                    code.append(f"        instance.{setter_name}({val});")
+                    code.append(f"        assertEquals({val}, instance.{getter_call}());")
             code.append(f"        assertNotNull(instance);")
             code.append(f"        assertNotNull(instance.toString());")
             code.append("    }\n")
